@@ -1,0 +1,40 @@
+name: Build Windows Exe
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          
+      - name: Enable Windows Support
+        run: flutter config --enable-windows-desktop
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Windows Release
+        run: flutter build windows --release
+
+      - name: Archive Release
+        uses: thedoctor0/zip-release@0.7.1
+        with:
+          type: 'zip'
+          filename: 'P-Browser-Windows.zip'
+          directory: 'build/windows/runner/Release'
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: P-Browser-Windows-App
+          path: build/windows/runner/Release/P-Browser-Windows.zip
