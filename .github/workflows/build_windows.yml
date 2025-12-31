@@ -10,7 +10,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -34,7 +34,8 @@ jobs:
           directory: 'build/windows/runner/Release'
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: P-Browser-Windows-App
           path: build/windows/runner/Release/P-Browser-Windows.zip
+          compression-level: 0 # Sudah di-zip sebelumnya, jadi tidak perlu kompresi ulang
