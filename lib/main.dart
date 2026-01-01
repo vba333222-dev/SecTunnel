@@ -571,19 +571,26 @@ class _BrowserScreenState extends State<BrowserScreen> {
         // Handle web messages if needed
       });
       
-      // CRITICAL FIX: Warm-Up Delay to prevent Race Condition
-      // The extension background script needs a moment to wake up and register the listener.
-      // Without this, the first request might trigger a native auth popup.
+      // CRITICAL FIX: "Warm-Up" with Data URL Trigger
+      // 1. Force WebView process & Extension to wake up WITHOUT a network request.
+      // Loading a local data URI does this safely.
+      final dummyUri = Uri.dataFromString(
+        '<html><body style="background-color:black;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>🔒 Securing Connection...</h1></body></html>', 
+        mimeType: 'text/html',
+        encoding: Encoding.getByName('utf-8') // Ensure Encoding imported or use default
+      ).toString();
+      
+      await _windowsController.loadUrl(dummyUri);
+      
+      // 2. Wait for background script to register listeners (Effective now that process is active)
       if (mounted) {
           setState(() {
-             _isLoading = true; // Keep showing loading indicator
-             // Optional: You could show a specific message here if UI supported it
+             _isLoading = true; 
           });
       }
-      
-      await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 3));
 
-      // Load Initial URL after warm-up
+      // 3. Load Real URL (Proxy Auth should now be intercepted silently)
       if (mounted) {
          _urlController.text = _initialUrl;
          await _windowsController.loadUrl(_initialUrl);
