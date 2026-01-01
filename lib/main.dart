@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ffi'; // For Native Interop
+import 'package:ffi/ffi.dart'; // For Utf16 string conversion
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Import for MethodChannel
@@ -79,16 +81,62 @@ class MyHttpOverrides extends HttpOverrides {
 }
 
 // ============================================================================
-// 3. MAIN ENTRY POINT
+// 3. NATIVE WINDOWS PROXY INJECTION (FFI)
+// ============================================================================
+
+// Define C function signature: BOOL SetEnvironmentVariableW(LPCWSTR lpName, LPCWSTR lpValue)
+typedef SetEnvironmentVariableC = Int32 Function(Pointer<Utf16> lpName, Pointer<Utf16> lpValue);
+typedef SetEnvironmentVariableDart = int Function(Pointer<Utf16> lpName, Pointer<Utf16> lpValue);
+
+void _injectWindowsProxy() {
+  if (!Platform.isWindows) return;
+
+  try {
+    // 1. Open Kernel32.dll
+    final kernel32 = DynamicLibrary.open('kernel32.dll');
+
+    // 2. Lookup SetEnvironmentVariableW
+    final setEnvironmentVariable = kernel32.lookupFunction<
+        SetEnvironmentVariableC, 
+        SetEnvironmentVariableDart>('SetEnvironmentVariableW');
+
+    // 3. Prepare Arguments (UTF-16 Strings)
+    final name = 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'.toNativeUtf16();
+    // Workaround: Inject proxy via environment variable since plugin v0.4.0 blocks it in initialize()
+    final value = '--proxy-server=72.62.122.59:59312'.toNativeUtf16();
+
+    // 4. Call Native API
+    final result = setEnvironmentVariable(name, value);
+
+    // 5. Cleanup Memory
+    calloc.free(name);
+    calloc.free(value);
+
+    // 6. Verify result
+    if (result == 0) {
+      print('CRITICAL ERROR: Failed to inject Windows Proxy Environment Variable!');
+    } else {
+      print('SUCCESS: Native Windows Proxy Environment Variable Injected.');
+    }
+  } catch (e) {
+    print('FATAL FFI ERROR: Could not set Windows Environment Variable: $e');
+  }
+}
+
+// ============================================================================
+// 4. MAIN ENTRY POINT
 // ============================================================================
 
 void main() async {
-  // Apply network overrides immediately
+  // 1. Inject Native Proxy Config for Windows (Must be before any WebView usage)
+  _injectWindowsProxy();
+
+  // 2. Apply Dart-side network overrides
   HttpOverrides.global = MyHttpOverrides();
   
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Desktop Specific Initialization
+  // 3. Desktop Specific Initialization
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
 
@@ -133,7 +181,7 @@ class PBrowserApp extends StatelessWidget {
 }
 
 // ============================================================================
-// 4. UI 1: LOGIN SCREEN (ENTRY POINT)
+// 5. UI 1: LOGIN SCREEN (ENTRY POINT)
 // ============================================================================
 
 class LoginScreen extends StatefulWidget {
@@ -292,7 +340,7 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 // ============================================================================
-// 5. SEQUENTIAL SYNCHRONIZATION (SPLASH SCREEN)
+// 6. SEQUENTIAL SYNCHRONIZATION (SPLASH SCREEN)
 // ============================================================================
 
 class SplashScreen extends StatefulWidget {
@@ -351,7 +399,7 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 // ============================================================================
-// 6. UI 2: BROWSER SCREEN (MAIN APP)
+// 7. UI 2: BROWSER SCREEN (MAIN APP)
 // ============================================================================
 
 class BrowserScreen extends StatefulWidget {
@@ -405,11 +453,10 @@ class _BrowserScreenState extends State<BrowserScreen> {
   // --------------------------------------------------------------------------
   Future<void> _initWindowsWebView() async {
     try {
-      // Initialize with Proxy for Windows (WebView2)
-      // This is the CRITICAL requirement for Windows
-      await _windowsController.initialize(
-        additionalArguments: '--proxy-server=72.62.122.59:59312',
-      );
+      // FIX: webview_windows 0.4.0 does not support explicit proxy arguments in initialization.
+      // We have injected 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS' via FFI in main().
+      // Therefore, we can initialize cleanly here.
+      await _windowsController.initialize();
       
       // Setup listeners
       _windowsController.url.listen((url) {
