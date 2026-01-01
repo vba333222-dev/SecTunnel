@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ffi'; // For Native Interop
+import 'dart:ffi' hide Size; // For Native Interop
 import 'package:ffi/ffi.dart'; // For Utf16 string conversion
 
 import 'package:flutter/material.dart';
