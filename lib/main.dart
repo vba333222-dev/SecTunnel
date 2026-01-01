@@ -143,9 +143,20 @@ Future<String> _createProxyAuthExtension(String username, String password) async
     final tempDir = Directory.systemTemp.createTempSync('pbrowser_auth_ext_');
     final extPath = tempDir.path;
 
-    // 2. Create manifest.json (Manifest V2)
+    // 2. Create content.js (SIGNAL HANDSHAKE)
+    // This script runs on start and signals when the extension system is ready.
+    final contentJsContent = '''
+// Send a signal to the Flutter host
+if (window.chrome && window.chrome.webview) {
+  window.chrome.webview.postMessage("EXTENSION_READY");
+}
+''';
+    final contentJsFile = File('$extPath${Platform.pathSeparator}content.js');
+    await contentJsFile.writeAsString(contentJsContent);
+
+    // 3. Create manifest.json (Manifest V2)
     // FIX: Downgraded to Manifest V2 for persistent background page support
-    // This prevents the Service Worker from sleeping and missing auth requests.
+    // FIX: Added content_scripts to inject the handshake signal.
     final manifestContent = '''
 {
   "manifest_version": 2,
@@ -155,6 +166,13 @@ Future<String> _createProxyAuthExtension(String username, String password) async
     "webRequest",
     "webRequestBlocking",
     "<all_urls>"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
   ],
   "background": {
     "scripts": ["background.js"],
@@ -169,7 +187,7 @@ Future<String> _createProxyAuthExtension(String username, String password) async
     final safeUsername = jsonEncode(username);
     final safePassword = jsonEncode(password);
 
-    // 3. Create background.js
+    // 4. Create background.js
     // Listens for auth requests and provides credentials
     // Uses safe encoded strings directly
     final bgContent = '''
@@ -496,6 +514,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
   
   bool _isLoading = true;
   double _loadingProgress = 0.0;
+  bool _isExtensionReady = false; // Track if extension handshake is complete
   
   // Modern Android User-Agent
   static const String _userAgent = 
@@ -530,18 +549,15 @@ class _BrowserScreenState extends State<BrowserScreen> {
   Future<void> _initWindowsWebView() async {
     try {
       // 1. Generate the Auth Extension using GlobalCredentials
-      // This creates a temp folder with manifest.json and background.js
-      // which auto-responds to credential challenges.
       String extPath = await _createProxyAuthExtension(
         GlobalSession.username, 
         GlobalSession.password
       );
 
-      // 2. Inject Proxy and Extension Config via FFI (Environment Variable)
-      // This sets WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS for this process.
+      // 2. Inject Proxy and Extension Config
       _injectWindowsProxy(extensionPath: extPath);
       
-      // 3. Initialize WebView (It will read the Env Var)
+      // 3. Initialize WebView
       await _windowsController.initialize();
       
       // Setup listeners
@@ -556,7 +572,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
           if (state == windows_webview.LoadingState.loading) {
             setState(() {
                _isLoading = true;
-               _loadingProgress = 0.5; // Indeterminate basically
+               _loadingProgress = 0.5;
             });
           } else if (state == windows_webview.LoadingState.navigationCompleted) {
             setState(() {
@@ -567,45 +583,41 @@ class _BrowserScreenState extends State<BrowserScreen> {
         }
       });
 
+      // EXTENSION HANDSHAKE PROTOCOL
       _windowsController.webMessage.listen((event) {
-        // Handle web messages if needed
+        if (event.data == "EXTENSION_READY" && !_isExtensionReady) {
+          print("SIGNAL RECEIVED: Extension is ready!");
+          _isExtensionReady = true;
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+               const SnackBar(
+                 content: Text("Secure Tunnel Established"),
+                 backgroundColor: Colors.green,
+                 duration: Duration(seconds: 2),
+               ),
+            );
+            
+            // LAUNCH REAL URL
+            _windowsController.loadUrl(_initialUrl);
+          }
+        }
       });
       
-      // ============================================================
-      // FAIL-SAFE TWO-STAGE BOOT SEQUENCE (6 Seconds Total)
-      // ============================================================
-      
-      // PHASE 1: WAKE UP (3 Seconds)
-      // Force process start with harmless data URI. 
-      // This wakes up the WebView process and allows the background script to load.
-      final phase1Uri = Uri.dataFromString(
+      // TRIGGER: Load Dummy HTML to inject content script and start handshake
+      // This wakes up the process + extension without hitting network.
+      final dummyUri = Uri.dataFromString(
         '<html><body style="background-color:black;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>⚙️ System Initialization...</h1></body></html>', 
         mimeType: 'text/html',
         encoding: Encoding.getByName('utf-8')
       ).toString();
       
-      if (mounted) setState(() => _isLoading = true);
-      await _windowsController.loadUrl(phase1Uri);
-      await Future.delayed(const Duration(seconds: 3));
-
-      // PHASE 2: EXTENSION BIND (3 Seconds)
-      // Second navigation forces extension re-check/wake-up and ensures listeners are active.
-      final phase2Uri = Uri.dataFromString(
-        '<html><body style="background-color:black;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>🛡️ Authenticating Secure Tunnel...</h1></body></html>', 
-        mimeType: 'text/html',
-        encoding: Encoding.getByName('utf-8')
-      ).toString();
-
-      if (mounted) setState(() => _isLoading = true); 
-      await _windowsController.loadUrl(phase2Uri);
-      await Future.delayed(const Duration(seconds: 3));
-
-      // PHASE 3: LAUNCH
-      // Load Initial URL - Proxy Auth should now be intercepted silently and reliably.
       if (mounted) {
-         _urlController.text = _initialUrl;
-         await _windowsController.loadUrl(_initialUrl);
+        setState(() => _isLoading = true);
       }
+      await _windowsController.loadUrl(dummyUri);
+      
+      // Note: No timers needed. We wait for "EXTENSION_READY" signal.
       
     } on PlatformException catch (e) {
       print("Windows WebView Init Error: $e");
