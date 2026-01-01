@@ -405,27 +405,11 @@ class _BrowserScreenState extends State<BrowserScreen> {
   // --------------------------------------------------------------------------
   Future<void> _initWindowsWebView() async {
     try {
-      // PROXY WORKAROUND FOR WEBVIEW_WINDOWS 0.4.0
-      // Since 0.4.0 initialize() likely doesn't support additionalArguments,
-      // we use the WebView2 Environment Variable.
-      // This must be set BEFORE the WebView is initialized.
-      final proxyServer = '72.62.122.59:59312';
-      // Setting env var for the current process
-      // Note: In Dart, Platform.environment is unmodifiable. 
-      // We cannot set environment variables for the current process easily using 'Platform.environment'.
-      // HOWEVER, 'webview_windows' might pick up system envs.
-      // A better approach if we can't change env vars: 
-      // If version 0.4.0 supports creating environment, check docs.
-      
-      // Attempting to use the controller without arguments first to avoid compilation error.
-      // If we really need proxy, and this fails, we might need a custom runner or 0.5.0.
-      // But let's try to proceed without arguments for compilation.
-      
-      await _windowsController.initialize();
-      
-      // Unfortunately, if we can't set the proxy via arguments, 
-      // we might need to rely on system proxy or Upstream approach.
-      // But for now, fixing the build is priority.
+      // Initialize with Proxy for Windows (WebView2)
+      // This is the CRITICAL requirement for Windows
+      await _windowsController.initialize(
+        additionalArguments: '--proxy-server=72.62.122.59:59312',
+      );
       
       // Setup listeners
       _windowsController.url.listen((url) {
