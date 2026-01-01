@@ -571,26 +571,37 @@ class _BrowserScreenState extends State<BrowserScreen> {
         // Handle web messages if needed
       });
       
-      // CRITICAL FIX: "Warm-Up" with Data URL Trigger
-      // 1. Force WebView process & Extension to wake up WITHOUT a network request.
-      // Loading a local data URI does this safely.
-      final dummyUri = Uri.dataFromString(
-        '<html><body style="background-color:black;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>🔒 Securing Connection...</h1></body></html>', 
+      // ============================================================
+      // FAIL-SAFE TWO-STAGE BOOT SEQUENCE (6 Seconds Total)
+      // ============================================================
+      
+      // PHASE 1: WAKE UP (3 Seconds)
+      // Force process start with harmless data URI. 
+      // This wakes up the WebView process and allows the background script to load.
+      final phase1Uri = Uri.dataFromString(
+        '<html><body style="background-color:black;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>⚙️ System Initialization...</h1></body></html>', 
         mimeType: 'text/html',
-        encoding: Encoding.getByName('utf-8') // Ensure Encoding imported or use default
+        encoding: Encoding.getByName('utf-8')
       ).toString();
       
-      await _windowsController.loadUrl(dummyUri);
-      
-      // 2. Wait for background script to register listeners (Effective now that process is active)
-      if (mounted) {
-          setState(() {
-             _isLoading = true; 
-          });
-      }
+      if (mounted) setState(() => _isLoading = true);
+      await _windowsController.loadUrl(phase1Uri);
       await Future.delayed(const Duration(seconds: 3));
 
-      // 3. Load Real URL (Proxy Auth should now be intercepted silently)
+      // PHASE 2: EXTENSION BIND (3 Seconds)
+      // Second navigation forces extension re-check/wake-up and ensures listeners are active.
+      final phase2Uri = Uri.dataFromString(
+        '<html><body style="background-color:black;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;"><h1>🛡️ Authenticating Secure Tunnel...</h1></body></html>', 
+        mimeType: 'text/html',
+        encoding: Encoding.getByName('utf-8')
+      ).toString();
+
+      if (mounted) setState(() => _isLoading = true); 
+      await _windowsController.loadUrl(phase2Uri);
+      await Future.delayed(const Duration(seconds: 3));
+
+      // PHASE 3: LAUNCH
+      // Load Initial URL - Proxy Auth should now be intercepted silently and reliably.
       if (mounted) {
          _urlController.text = _initialUrl;
          await _windowsController.loadUrl(_initialUrl);
