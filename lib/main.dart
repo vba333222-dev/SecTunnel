@@ -571,7 +571,19 @@ class _BrowserScreenState extends State<BrowserScreen> {
         // Handle web messages if needed
       });
       
-      // Load Initial URL
+      // CRITICAL FIX: Warm-Up Delay to prevent Race Condition
+      // The extension background script needs a moment to wake up and register the listener.
+      // Without this, the first request might trigger a native auth popup.
+      if (mounted) {
+          setState(() {
+             _isLoading = true; // Keep showing loading indicator
+             // Optional: You could show a specific message here if UI supported it
+          });
+      }
+      
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Load Initial URL after warm-up
       if (mounted) {
          _urlController.text = _initialUrl;
          await _windowsController.loadUrl(_initialUrl);
