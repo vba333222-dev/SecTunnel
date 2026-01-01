@@ -26,16 +26,24 @@ jobs:
       - name: Build Windows Release
         run: flutter build windows --release
 
+      # --- DEBUGGING: Cek isi folder agar kita tahu lokasinya ---
+      - name: List Build Directory
+        run: |
+          echo "Listing build/windows directory:"
+          ls -R build/windows
+
+      # --- ZIPPING (Pakai path x64) ---
       - name: Archive Release
         uses: thedoctor0/zip-release@0.7.1
         with:
           type: 'zip'
           filename: 'P-Browser-Windows.zip'
-          directory: 'build/windows/runner/Release'
+          directory: 'build/windows/x64/runner/Release'
 
+      # --- UPLOAD ARTIFACT ---
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: P-Browser-Windows-App
-          path: build/windows/runner/Release/P-Browser-Windows.zip
-          compression-level: 0 # Sudah di-zip sebelumnya, jadi tidak perlu kompresi ulang
+          path: build/windows/x64/runner/Release/P-Browser-Windows.zip
+          compression-level: 0
