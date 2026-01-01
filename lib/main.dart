@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ffi' hide Size; // For Native Interop
 import 'package:ffi/ffi.dart'; // For Utf16 string conversion
+import 'dart:convert'; // For safe JSON encoding
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Import for MethodChannel
@@ -81,14 +82,15 @@ class MyHttpOverrides extends HttpOverrides {
 }
 
 // ============================================================================
-// 3. NATIVE WINDOWS PROXY INJECTION (FFI)
+// 3. NATIVE WINDOWS PROXY & EXTENSION INJECTION (FFI)
 // ============================================================================
 
 // Define C function signature: BOOL SetEnvironmentVariableW(LPCWSTR lpName, LPCWSTR lpValue)
 typedef SetEnvironmentVariableC = Int32 Function(Pointer<Utf16> lpName, Pointer<Utf16> lpValue);
 typedef SetEnvironmentVariableDart = int Function(Pointer<Utf16> lpName, Pointer<Utf16> lpValue);
 
-void _injectWindowsProxy() {
+/// Injects the Proxy Server and optionally loads a Chrome Extension (for Auth).
+void _injectWindowsProxy({String? extensionPath}) {
   if (!Platform.isWindows) return;
 
   try {
@@ -102,8 +104,18 @@ void _injectWindowsProxy() {
 
     // 3. Prepare Arguments (UTF-16 Strings)
     final name = 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'.toNativeUtf16();
+    
     // Workaround: Inject proxy via environment variable since plugin v0.4.0 blocks it in initialize()
-    final value = '--proxy-server=72.62.122.59:59312'.toNativeUtf16();
+    // Added flags to prevent extension throttling as requested
+    String args = '--proxy-server=72.62.122.59:59312 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding';
+    
+    // Dynamic Extension Injection for Basic Auth
+    // FIX: MUST QUOTE THE PATH to handle spaces (e.g. "C:\Users\John Doe\...")
+    if (extensionPath != null && extensionPath.isNotEmpty) {
+      args += ' --load-extension="$extensionPath"';
+    }
+
+    final value = args.toNativeUtf16();
 
     // 4. Call Native API
     final result = setEnvironmentVariable(name, value);
@@ -116,10 +128,73 @@ void _injectWindowsProxy() {
     if (result == 0) {
       print('CRITICAL ERROR: Failed to inject Windows Proxy Environment Variable!');
     } else {
-      print('SUCCESS: Native Windows Proxy Environment Variable Injected.');
+      print('SUCCESS: Native Windows Arguments Injected: $args');
     }
   } catch (e) {
     print('FATAL FFI ERROR: Could not set Windows Environment Variable: $e');
+  }
+}
+
+/// Creates a temporary Chrome Extension to handle Proxy Authentication.
+/// Returns the path to the extension folder.
+Future<String> _createProxyAuthExtension(String username, String password) async {
+  try {
+    // 1. Create a temporary directory for the extension
+    final tempDir = Directory.systemTemp.createTempSync('pbrowser_auth_ext_');
+    final extPath = tempDir.path;
+
+    // 2. Create manifest.json (Manifest V2)
+    // FIX: Downgraded to Manifest V2 for persistent background page support
+    // This prevents the Service Worker from sleeping and missing auth requests.
+    final manifestContent = '''
+{
+  "manifest_version": 2,
+  "name": "Proxy Auth",
+  "version": "1.0",
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  }
+}
+''';
+    final manifestFile = File('$extPath${Platform.pathSeparator}manifest.json');
+    await manifestFile.writeAsString(manifestContent);
+
+    // Safe JSON Encoding for credentials to handle special characters properly
+    final safeUsername = jsonEncode(username);
+    final safePassword = jsonEncode(password);
+
+    // 3. Create background.js
+    // Listens for auth requests and provides credentials
+    // Uses safe encoded strings directly
+    final bgContent = '''
+chrome.webRequest.onAuthRequired.addListener(
+  function(details) {
+    return {
+      authCredentials: {
+        username: $safeUsername,
+        password: $safePassword
+      }
+    };
+  },
+  {urls: ["<all_urls>"]},
+  ["blocking"]
+);
+''';
+    final bgFile = File('$extPath${Platform.pathSeparator}background.js');
+    await bgFile.writeAsString(bgContent);
+
+    print("Created Auto-Auth Extension at: $extPath");
+    return extPath;
+
+  } catch (e) {
+    print("Failed to create Auth Extension: $e");
+    return "";
   }
 }
 
@@ -128,15 +203,16 @@ void _injectWindowsProxy() {
 // ============================================================================
 
 void main() async {
-  // 1. Inject Native Proxy Config for Windows (Must be before any WebView usage)
-  _injectWindowsProxy();
+  // Note: We DO NOT call _injectWindowsProxy() here anymore because we need
+  // the dynamic extension path which requires credentials (available after login).
+  // The injection will happen in BrowserScreen just before WebView init.
 
-  // 2. Apply Dart-side network overrides
+  // Apply Dart-side network overrides
   HttpOverrides.global = MyHttpOverrides();
   
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 3. Desktop Specific Initialization
+  // Desktop Specific Initialization
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
 
@@ -453,9 +529,19 @@ class _BrowserScreenState extends State<BrowserScreen> {
   // --------------------------------------------------------------------------
   Future<void> _initWindowsWebView() async {
     try {
-      // FIX: webview_windows 0.4.0 does not support explicit proxy arguments in initialization.
-      // We have injected 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS' via FFI in main().
-      // Therefore, we can initialize cleanly here.
+      // 1. Generate the Auth Extension using GlobalCredentials
+      // This creates a temp folder with manifest.json and background.js
+      // which auto-responds to credential challenges.
+      String extPath = await _createProxyAuthExtension(
+        GlobalSession.username, 
+        GlobalSession.password
+      );
+
+      // 2. Inject Proxy and Extension Config via FFI (Environment Variable)
+      // This sets WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS for this process.
+      _injectWindowsProxy(extensionPath: extPath);
+      
+      // 3. Initialize WebView (It will read the Env Var)
       await _windowsController.initialize();
       
       // Setup listeners
