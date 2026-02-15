@@ -36,7 +36,7 @@
 
 ### 1. **Proxy Otomatis**
 - Semua koneksi internet secara otomatis menggunakan proxy server
-- IP Address Proxy: `72.62.122.59:59312`
+- IP Address Proxy: `76.13.196.54:59312`
 - Enkripsi penuh untuk keamanan data
 
 ### 2. **Domain Bypass**
@@ -160,7 +160,7 @@ Lihat bagian [Untuk Developer](#-untuk-developer) di bawah.
 1. **Cek IP Proxy**
    - Kunjungi `https://whoer.net/ip`
    - Atau `https://ipinfo.io`
-   - Verifikasi IP berubah ke IP proxy: `72.62.122.59`
+   - Verifikasi IP berubah ke IP proxy: `76.13.196.54`
 
 2. **Akses Website Terblokir**
    - Semua website otomatis diakses via proxy
@@ -177,7 +177,7 @@ Lihat bagian [Untuk Developer](#-untuk-developer) di bawah.
 ### Informasi Proxy Default
 
 ```yaml
-Proxy Server: 72.62.122.59
+Proxy Server: 76.13.196.54
 Port: 59312
 Protocol: HTTP/HTTPS Proxy
 Authentication: None
@@ -200,7 +200,7 @@ Jika Anda perlu mengubah proxy server:
 1. Edit file: `lib/main.dart`
 2. Cari baris:
    ```dart
-   const proxy = "PROXY 72.62.122.59:59312;";
+   const proxy = "PROXY 76.13.196.54:59312;";
    ```
 3. Ganti dengan proxy baru:
    ```dart
@@ -271,7 +271,7 @@ Aplikasi stuck di splash screen.
 **Solusi:**
 1. **Cek proxy server**
    ```
-   Pastikan proxy 72.62.122.59:59312 masih aktif
+   Pastikan proxy 76.13.196.54:59312 masih aktif
    ```
 2. **Test website lain**
    - Coba akses `http://example.com`
@@ -530,7 +530,7 @@ http: ^1.1.0                     # HTTP requests
 Logcat akan menampilkan:
 ```
 DEBUG: Direct connection for workers.dev
-DEBUG: Proxying google.com via PROXY 72.62.122.59:59312;
+DEBUG: Proxying google.com via PROXY 76.13.196.54:59312;
 DEBUG: Sending Activation Request to https://...
 DEBUG: Activation Response Code: 200
 DEBUG: WebView Error: ...
