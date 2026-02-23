@@ -184,25 +184,54 @@ class FingerprintConfig {
   factory FingerprintConfig.random() {
     final random = Random();
     
-    // Random screen resolutions (common ones)
-    final resolutions = [
+    // Normalization logic for Mobile vs Desktop
+    final isMobileProfile = random.nextBool();
+    
+    // Default desktop profiles
+    var resolutions = [
       ScreenResolution(width: 1920, height: 1080, colorDepth: 24),
       ScreenResolution(width: 2560, height: 1440, colorDepth: 24),
       ScreenResolution(width: 1366, height: 768, colorDepth: 24),
-      ScreenResolution(width: 1536, height: 864, colorDepth: 24),
-      ScreenResolution(width: 1440, height: 900, colorDepth: 24),
     ];
     
-    // Random user agents (Windows Chrome variants)
-    final userAgents = [
+    var userAgents = [
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     ];
     
+    var cpuCores = [8, 12, 16];
+    var ramSizes = [8, 16, 32];
+    var platform = 'Win32';
+
+    if (isMobileProfile) {
+      resolutions = [
+        ScreenResolution(width: 390, height: 844, colorDepth: 32), // iPhone 12/13/14
+        ScreenResolution(width: 414, height: 896, colorDepth: 32), // iPhone X Max
+        ScreenResolution(width: 360, height: 800, colorDepth: 24), // Generic Android
+      ];
+      userAgents = [
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36',
+      ];
+      cpuCores = [6, 8];
+      ramSizes = [4, 6, 8];
+      platform = userAgents[0].contains('iPhone') ? 'iPhone' : 'Linux armv81';
+    } else {
+        platform = userAgents[0].contains('Macintosh') ? 'MacIntel' : 'Win32';
+    }
+
+    final selectedUa = userAgents[random.nextInt(userAgents.length)];
+    if(selectedUa.contains('iPhone')) { platform = 'iPhone'; }
+    else if(selectedUa.contains('Android')) { platform = 'Linux armv81'; }
+    else if(selectedUa.contains('Macintosh')) { platform = 'MacIntel'; }
+    else { platform = 'Win32'; }
+
     // Random WebGL vendors
-    final webglVendors = [
+    final webglVendors = isMobileProfile ? [
+       WebGLConfig(vendor: 'Apple Inc.', renderer: 'Apple GPU'),
+       WebGLConfig(vendor: 'Qualcomm', renderer: 'Adreno (TM) 650'),
+    ] : [
       WebGLConfig(
         vendor: 'Google Inc. (NVIDIA)',
         renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0)',
@@ -229,13 +258,9 @@ class FingerprintConfig {
       'Asia/Singapore',
     ];
     
-    // Random hardware specs
-    final cpuCores = [4, 6, 8, 12, 16];
-    final ramSizes = [4, 8, 16, 32];
-    
     return FingerprintConfig(
-      userAgent: userAgents[random.nextInt(userAgents.length)],
-      platform: 'Win32',
+      userAgent: selectedUa,
+      platform: platform,
       language: languages[random.nextInt(languages.length)],
       hardwareConcurrency: cpuCores[random.nextInt(cpuCores.length)],
       deviceMemory: ramSizes[random.nextInt(ramSizes.length)],
@@ -253,3 +278,4 @@ class FingerprintConfig {
     return List.generate(32, (_) => chars[random.nextInt(chars.length)]).join();
   }
 }
+

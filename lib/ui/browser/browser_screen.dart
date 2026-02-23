@@ -209,10 +209,18 @@ class _BrowserScreenState extends State<BrowserScreen> {
             }
           },
           onHttpAuthRequest: (request) {
-            // Handle proxy authentication
+            // Handle proxy authentication with OS Header Context
             if (widget.profile.proxyConfig.username != null) {
+              String osType = 'LINUX';
+              final platformLower = _activeFingerprint.platform.toLowerCase();
+              if (platformLower.contains('win')) osType = 'WINDOWS';
+              if (platformLower.contains('mac') || platformLower.contains('iphone') || platformLower.contains('ipad')) osType = 'MAC';
+               
+              // e.g. "myUser__OS_WINDOWS"
+              final contextUsername = '\${widget.profile.proxyConfig.username!}__OS_\$osType';
+
               request.onProceed(WebViewCredential(
-                user: widget.profile.proxyConfig.username!,
+                user: contextUsername,
                 password: widget.profile.proxyConfig.password!,
               ));
             } else {

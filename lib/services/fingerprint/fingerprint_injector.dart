@@ -5,6 +5,14 @@ import 'package:pbrowser/services/fingerprint/scripts/webgl_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/webrtc_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/audio_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/timezone_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/battery_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/font_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/webview_scrubber.dart';
+import 'package:pbrowser/services/fingerprint/scripts/domrect_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/hardware_sensor_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/media_devices_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/worker_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/window_metrics_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/utils.dart';
 
 /// Orchestrates all fingerprint spoofing scripts
@@ -30,8 +38,23 @@ class FingerprintInjector {
   // Initialize global cloaking BEFORE any spoofing runs
   \${NativeUtils.initCloaking()}
   
+  // Wipe out Android/Flutter WebView leaks immediately
+  \${WebviewScrubber.generate(config)}
+  
   // Install all spoofing modules with native cloaking
   \${NavigatorSpoof.generate(config)}
+  
+  // Conditionally strip mobile-only APIs for Desktop profiles
+  \${HardwareSensorSpoof.generate(config)}
+  
+  // Spoof media device enumeration with deterministic desktop hardware IDs
+  \${MediaDevicesSpoof.generate(config)}
+  
+  // Shield Worker/SharedWorker sandboxes from leaking real navigator values
+  \${WorkerSpoof.generate(config)}
+
+  // Fix window frame metrics: outerWidth > innerWidth (desktop browser chrome)
+  \${WindowMetricsSpoof.generate(config)}
   
   \${CanvasSpoof.generate(config)}
   
@@ -42,6 +65,12 @@ class FingerprintInjector {
   \${AudioSpoof.generate(config)}
   
   \${TimezoneSpoof.generate(config)}
+  
+  \${BatterySpoof.generate(config)}
+  
+  \${FontSpoof.generate(config)}
+
+  \${DOMRectSpoof.generate(config)}
   
   // Iframe Shield - Propagate spoofing to child frames dynamically
   (() => {
