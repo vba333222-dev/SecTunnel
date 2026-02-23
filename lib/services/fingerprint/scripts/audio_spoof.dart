@@ -9,112 +9,81 @@ class AudioSpoof {
     final seed = config.canvasNoiseSalt.hashCode;
     
     return '''
-// ===== AUDIO CONTEXT SPOOFING (DETERMINISTIC) =====
+// ===== AUDIO CONTEXT SPOOFING (DETERMINISTIC & NON-DISRUPTIVE) =====
 (() => {
   const profileSeed = $seed;
   
-  ${NativeUtils.seededRandomFunction()}
+  \${NativeUtils.seededRandomFunction()}
   
-  // Initialize seeded random generator
   const getRandom = seededRandom(profileSeed);
   
-  // Store original AudioContext
   const OriginalAudioContext = window.AudioContext || window.webkitAudioContext;
-  
   if (!OriginalAudioContext) return;
   
-  // Override AudioContext constructor
-  function SpoofedAudioContext(...args) {
-    const context = new OriginalAudioContext(...args);
+  // Directly intercept the prototype to prevent `audioCtx.constructor !== AudioContext` detection
+  const originalCreateAnalyser = OriginalAudioContext.prototype.createAnalyser;
+
+  const spoofedCreateAnalyser = function() {
+    const analyser = originalCreateAnalyser.apply(this, arguments);
     
-    // Store original createAnalyser
-    const originalCreateAnalyser = context.createAnalyser.bind(context);
+    // Store original methods
+    const originalGetFloatFrequencyData = analyser.getFloatFrequencyData.bind(analyser);
+    const originalGetByteFrequencyData = analyser.getByteFrequencyData.bind(analyser);
+    const originalGetFloatTimeDomainData = analyser.getFloatTimeDomainData.bind(analyser);
+    const originalGetByteTimeDomainData = analyser.getByteTimeDomainData.bind(analyser);
     
-    // Override createAnalyser with deterministic noise
-    ${NativeUtils.protectFunction(
-      'context',
-      'createAnalyser',
-      '''
-function() {
-  const analyser = originalCreateAnalyser();
-  
-  // Store original methods
-  const originalGetFloatFrequencyData = analyser.getFloatFrequencyData.bind(analyser);
-  const originalGetByteFrequencyData = analyser.getByteFrequencyData.bind(analyser);
-  const originalGetFloatTimeDomainData = analyser.getFloatTimeDomainData.bind(analyser);
-  const originalGetByteTimeDomainData = analyser.getByteTimeDomainData.bind(analyser);
-  
-  // Reset random for consistency
-  const localRandom = seededRandom(profileSeed + 1000);
-  
-  // Override getFloatFrequencyData
-  analyser.getFloatFrequencyData = function(array) {
-    originalGetFloatFrequencyData(array);
+    // Initialize deterministic noise generator
+    const localRandom = seededRandom(profileSeed + 1000);
     
-    // Add deterministic noise
-    for (let i = 0; i < array.length; i++) {
-      const noise = (localRandom() - 0.5) * 0.0001;
-      array[i] += noise;
-    }
+    // Override getFloatFrequencyData
+    analyser.getFloatFrequencyData = function(array) {
+      originalGetFloatFrequencyData(array);
+      for (let i = 0; i < array.length; i++) {
+        array[i] += (localRandom() - 0.5) * 0.0001;
+      }
+    };
+    window.__pbrowser_cloak(analyser.getFloatFrequencyData, `function getFloatFrequencyData() { [native code] }`);
+    
+    // Override getByteFrequencyData
+    analyser.getByteFrequencyData = function(array) {
+      originalGetByteFrequencyData(array);
+      for (let i = 0; i < array.length; i++) {
+        const noise = Math.floor((localRandom() - 0.5) * 2);
+        array[i] = Math.max(0, Math.min(255, array[i] + noise));
+      }
+    };
+    window.__pbrowser_cloak(analyser.getByteFrequencyData, `function getByteFrequencyData() { [native code] }`);
+    
+    // Override getFloatTimeDomainData
+    analyser.getFloatTimeDomainData = function(array) {
+      originalGetFloatTimeDomainData(array);
+      for (let i = 0; i < array.length; i++) {
+        array[i] += (localRandom() - 0.5) * 0.00001;
+      }
+    };
+    window.__pbrowser_cloak(analyser.getFloatTimeDomainData, `function getFloatTimeDomainData() { [native code] }`);
+    
+    // Override getByteTimeDomainData
+    analyser.getByteTimeDomainData = function(array) {
+      originalGetByteTimeDomainData(array);
+      for (let i = 0; i < array.length; i++) {
+        const noise = Math.floor((localRandom() - 0.5) * 2);
+        array[i] = Math.max(0, Math.min(255, array[i] + noise));
+      }
+    };
+    window.__pbrowser_cloak(analyser.getByteTimeDomainData, `function getByteTimeDomainData() { [native code] }`);
+    
+    return analyser;
   };
   
-  // Override getByteFrequencyData
-  analyser.getByteFrequencyData = function(array) {
-    originalGetByteFrequencyData(array);
-    
-    // Add deterministic noise
-    for (let i = 0; i < array.length; i++) {
-      const noise = Math.floor((localRandom() - 0.5) * 2);
-      array[i] = Math.max(0, Math.min(255, array[i] + noise));
-    }
-  };
+  // Mask the createAnalyser prototype function to look 100% native
+  window.__pbrowser_cloak(spoofedCreateAnalyser, `function createAnalyser() { [native code] }`);
   
-  // Override getFloatTimeDomainData
-  analyser.getFloatTimeDomainData = function(array) {
-    originalGetFloatTimeDomainData(array);
-    
-    // Add deterministic noise
-    for (let i = 0; i < array.length; i++) {
-      const noise = (localRandom() - 0.5) * 0.00001;
-      array[i] += noise;
-    }
-  };
-  
-  // Override getByteTimeDomainData
-  analyser.getByteTimeDomainData = function(array) {
-    originalGetByteTimeDomainData(array);
-    
-    // Add deterministic noise
-    for (let i = 0; i < array.length; i++) {
-      const noise = Math.floor((localRandom() - 0.5) * 2);
-      array[i] = Math.max(0, Math.min(255, array[i] + noise));
-    }
-  };
-  
-  return analyser;
-}
-'''
-    )}
-    
-    return context;
-  }
-  
-  // Copy properties from original constructor
-  SpoofedAudioContext.prototype = OriginalAudioContext.prototype;
-  
-  // Make constructor look native
-  Object.defineProperty(SpoofedAudioContext, 'toString', {
-    value: function() {
-      return OriginalAudioContext.toString();
-    }
-  });
-  
-  // Replace global AudioContext
-  window.AudioContext = SpoofedAudioContext;
-  if (window.webkitAudioContext) {
-    window.webkitAudioContext = SpoofedAudioContext;
-  }
+  // Apply our cloaked function back to the exact prototype chain
+  OriginalAudioContext.prototype.createAnalyser = spoofedCreateAnalyser;
+
 })();
 ''';
   }
 }
+

@@ -52,24 +52,26 @@ class CanvasSpoof {
     'toDataURL',
     '''
 function(...args) {
-  // Only apply to 2D contexts (not WebGL)
-  const context = this.getContext('2d');
-  
-  if (context && this.width > 0 && this.height > 0) {
+  if (this.width > 0 && this.height > 0) {
     try {
-      // Get image data
-      const imageData = context.getImageData(0, 0, this.width, this.height);
+      // Use offscreen canvas to avoid mutating visible elements
+      const offscreen = document.createElement('canvas');
+      offscreen.width = this.width;
+      offscreen.height = this.height;
+      const ctx = offscreen.getContext('2d');
+      ctx.drawImage(this, 0, 0);
       
       // Add deterministic noise
+      const imageData = ctx.getImageData(0, 0, this.width, this.height);
       addNoiseToImageData(imageData, 0);
+      ctx.putImageData(imageData, 0, 0);
       
-      // Put modified data back
-      context.putImageData(imageData, 0, 0);
+      // Return spoofed data
+      return originalToDataURL.apply(offscreen, args);
     } catch (e) {
       // Silently fail (e.g., tainted canvas)
     }
   }
-  
   return originalToDataURL.apply(this, args);
 }
 '''
@@ -81,18 +83,23 @@ function(...args) {
     'toBlob',
     '''
 function(callback, ...args) {
-  const context = this.getContext('2d');
-  
-  if (context && this.width > 0 && this.height > 0) {
+  if (this.width > 0 && this.height > 0) {
     try {
-      const imageData = context.getImageData(0, 0, this.width, this.height);
+      const offscreen = document.createElement('canvas');
+      offscreen.width = this.width;
+      offscreen.height = this.height;
+      const ctx = offscreen.getContext('2d');
+      ctx.drawImage(this, 0, 0);
+      
+      const imageData = ctx.getImageData(0, 0, this.width, this.height);
       addNoiseToImageData(imageData, 1);
-      context.putImageData(imageData, 0, 0);
+      ctx.putImageData(imageData, 0, 0);
+      
+      return originalToBlob.call(offscreen, callback, ...args);
     } catch (e) {
       // Silently fail
     }
   }
-  
   return originalToBlob.call(this, callback, ...args);
 }
 '''

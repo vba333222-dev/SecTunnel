@@ -27,21 +27,52 @@ class FingerprintInjector {
   if (window.__pbrowser_injected) return;
   window.__pbrowser_injected = true;
   
+  // Initialize global cloaking BEFORE any spoofing runs
+  \${NativeUtils.initCloaking()}
+  
   // Install all spoofing modules with native cloaking
-  ${NavigatorSpoof.generate(config)}
+  \${NavigatorSpoof.generate(config)}
   
-  ${CanvasSpoof.generate(config)}
+  \${CanvasSpoof.generate(config)}
   
-  ${WebGLSpoof.generate(config)}
+  \${WebGLSpoof.generate(config)}
   
-  ${WebRTCSpoof.generate(config)}
+  \${WebRTCSpoof.generate(config)}
   
-  ${AudioSpoof.generate(config)}
+  \${AudioSpoof.generate(config)}
   
-  ${TimezoneSpoof.generate(config)}
+  \${TimezoneSpoof.generate(config)}
+  
+  // Iframe Shield - Propagate spoofing to child frames dynamically
+  (() => {
+    try {
+      const originalContentWindow = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'contentWindow').get;
+      const proxyContentWindow = new Proxy(originalContentWindow, {
+        apply(target, thisArg, args) {
+          const cw = Reflect.apply(target, thisArg, args);
+          if (cw && !cw.__pbrowser_injected) {
+            try {
+              cw.__pbrowser_injected = true;
+              Object.defineProperty(cw, 'navigator', {
+                get: () => navigator
+              });
+            } catch(e) {}
+          }
+          return cw;
+        }
+      });
+      window.__pbrowser_cloak(proxyContentWindow, Function.prototype.toString.call(originalContentWindow));
+      Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
+        get: proxyContentWindow,
+        set: undefined,
+        enumerable: true,
+        configurable: true
+      });
+    } catch(e) {}
+  })();
   
   // Final protection layer
-  ${NativeUtils.preventNavigatorDetection()}
+  \${NativeUtils.preventNavigatorDetection()}
   
   console.log('[PBrowser] 🛡️ Fingerprint protection active (hardened)');
 })();
@@ -57,9 +88,9 @@ class FingerprintInjector {
   if (window.__pbrowser_injected) return;
   window.__pbrowser_injected = true;
   
-  ${NavigatorSpoof.generate(config)}
-  
-  ${WebRTCSpoof.generate(config)}
+  \${NativeUtils.initCloaking()}
+  \${NavigatorSpoof.generate(config)}
+  \${WebRTCSpoof.generate(config)}
 })();
 ''';
   }

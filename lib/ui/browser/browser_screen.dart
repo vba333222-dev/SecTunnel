@@ -2,7 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
+import 'package:pbrowser/models/fingerprint_config.dart';
 import 'package:pbrowser/services/fingerprint/fingerprint_injector.dart';
+import 'package:pbrowser/services/proxy/proxy_health_check.dart';
+import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
+import 'package:pbrowser/services/proxy/geo_ip_service.dart';
 
 // WebView imports
 import 'package:webview_flutter/webview_flutter.dart';
@@ -26,9 +30,15 @@ class _BrowserScreenState extends State<BrowserScreen> {
   late final WebViewController _mobileController;
   final TextEditingController _urlController = TextEditingController();
   
+  // Services
+  late final ModemRotatorService _modemRotator;
+  late FingerprintConfig _activeFingerprint;
+  
   // State
   bool _isLoading = true;
   bool _isWebViewLoading = false;
+  bool _isControllerInitialized = false;
+  bool _isProxyHealthy = true;
   double _progress = 0.0;
   
   static const String _initialUrl = 'https://whoer.net/ip';
@@ -37,26 +47,108 @@ class _BrowserScreenState extends State<BrowserScreen> {
   @override
   void initState() {
     super.initState();
-    // Android/iOS only
-    _initMobileWebView();
+    _activeFingerprint = widget.profile.fingerprintConfig;
+    
+    // Setup Modem IP Rotation Monitor
+    _modemRotator = ModemRotatorService(proxyConfig: widget.profile.proxyConfig);
+    _modemRotator.statusNotifier.addListener(_onModemStatusChanged);
+    _modemRotator.startMonitoring();
+    
+    // Start async initialization before creating the WebView
+    _initializeApp();
   }
 
   @override
   void dispose() {
     _urlController.dispose();
+    _modemRotator.dispose();
     super.dispose();
+  }
+  
+  void _onModemStatusChanged() {
+    if (!mounted) return;
+    
+    final status = _modemRotator.statusNotifier.value;
+    if (status == ModemStatus.rotating || status == ModemStatus.offline) {
+      // Pause webview execution or intercept navigation to prevent IP leaks
+      if (_isControllerInitialized) {
+         try {
+           _mobileController.runJavaScript('window.stop();'); 
+         } catch(_) {}
+      }
+    } else if (status == ModemStatus.online) {
+      // Connection restored, reload if safe
+    }
   }
 
   // ========================================================================
   // ANDROID/IOS WEBVIEW INITIALIZATION WITH SESSION ISOLATION
   // ========================================================================
   
+  Future<void> _initializeApp() async {
+    // 1. Health Check proxy BEFORE exposing the WebView to prevent IP leaks
+    final isHealthy = await ProxyHealthCheckService.isProxyHealthy(widget.profile.proxyConfig);
+    if (!mounted) return;
+    
+    if (!isHealthy) {
+      setState(() {
+        _isLoading = false;
+        _isProxyHealthy = false;
+      });
+      return; // HALT INITIALIZATION
+    }
+
+    // 2. Fetch Sandbox Context (GeoIP, Timezone) based on Proxy IP
+    try {
+      final geoData = await GeoIpService.fetchGeoData(widget.profile.proxyConfig);
+      if (geoData != null && mounted) {
+        final countryCode = geoData['countryCode'] as String;
+        final lang = GeoIpService.countryCodeToLanguage(countryCode);
+        
+        setState(() {
+          _activeFingerprint = _activeFingerprint.copyWith(
+            timezone: geoData['timezone'] as String,
+            language: lang,
+            geolocation: GeolocationConfig(
+              latitude: geoData['latitude'] as double,
+              longitude: geoData['longitude'] as double,
+              // Add intentional slight randomness to accuracy so it's not strictly 50
+              accuracy: 45.0 + (DateTime.now().millisecond % 15.0),
+            ),
+          );
+        });
+        print('[Browser] Applied dynamic Geo-IP sync: \${geoData['timezone']} / $lang');
+      }
+    } catch (e) {
+       print('[Browser] Failed to dynamically sync Geo-IP: $e');
+    }
+
+    // 3. Set the profile data directory suffix FIRST (Android API 28+)
+    if (Platform.isAndroid) {
+      try {
+        final success = await platform.invokeMethod<bool>('setProfileDirectory', {
+          'profileId': widget.profile.id,
+        });
+        print('[Browser] Profile directory sandboxing applied: $success');
+      } catch (e) {
+        print('[Browser] Failed to isolate profile directory: $e');
+      }
+    }
+
+    // 4. Set Proxy configuration (enforcing scheme for DNS resolution)
+    await _setAndroidProxy();
+
+    // 5. Initialize the WebView Controller
+    _initMobileWebView();
+  }
+
   Future<void> _setAndroidProxy() async {
     try {
       if (Platform.isAndroid && widget.profile.proxyConfig.isConfigured) {
         await platform.invokeMethod('setProxy', {
           'host': widget.profile.proxyConfig.host,
           'port': widget.profile.proxyConfig.port,
+          'scheme': widget.profile.proxyConfig.type.toString(), // Enforces socks5:// to prevent DNS leaks
         });
       }
     } catch (e) {
@@ -65,8 +157,6 @@ class _BrowserScreenState extends State<BrowserScreen> {
   }
 
   void _initMobileWebView() {
-    _setAndroidProxy();
-
     final PlatformWebViewControllerCreationParams params = 
         WebViewPlatform.instance is WebKitWebViewPlatform 
         ? WebKitWebViewControllerCreationParams(allowsInlineMediaPlayback: true)
@@ -79,6 +169,14 @@ class _BrowserScreenState extends State<BrowserScreen> {
       ..setBackgroundColor(Colors.black)
       ..setNavigationDelegate(
         NavigationDelegate(
+          onNavigationRequest: (request) {
+            // Block navigation if modem is rotating to prevent leak!
+            if (_modemRotator.statusNotifier.value != ModemStatus.online && _modemRotator.statusNotifier.value != ModemStatus.offline /* Allow initial load? */) {
+                // To be extremely strict, you would block all requests if != online
+                // return NavigationDecision.prevent; 
+            }
+            return NavigationDecision.navigate;
+          },
           onPageStarted: (url) async {
             if (mounted) {
               setState(() {
@@ -87,9 +185,9 @@ class _BrowserScreenState extends State<BrowserScreen> {
               });
             }
             
-            // Inject fingerprint early
+            // Inject fingerprint early using the DYNAMIC environment variables
             try {
-              final injector = FingerprintInjector(widget.profile.fingerprintConfig);
+              final injector = FingerprintInjector(_activeFingerprint);
               final script = injector.generateInjectionScript();
               await controller.runJavaScript(script);
             } catch (e) {
@@ -124,18 +222,22 @@ class _BrowserScreenState extends State<BrowserScreen> {
         ),
       );
       
-    // Android-specific optimizations
+    // Android-specific optimizations (ClearCache as a fallback/clean slate)
     if (controller.platform is AndroidWebViewController) {
       final androidController = controller.platform as AndroidWebViewController;
       androidController.setMediaPlaybackRequiresUserGesture(false);
-      
-      // Clear cache to ensure session isolation
-      // Note: For full isolation on Android, consider using WebView profile API (Android 13+)
       androidController.clearCache();
     }
     
     _mobileController = controller;
-    _mobileController.loadRequest(Uri.parse(_initialUrl));
+    
+    // Controller is ready. Trigger UI rebuild to show WebViewWidget
+    if (mounted) {
+      setState(() {
+        _isControllerInitialized = true;
+      });
+      _mobileController.loadRequest(Uri.parse(_initialUrl));
+    }
   }
 
   // ========================================================================
@@ -143,6 +245,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
   // ========================================================================
   
   void _loadUrl() {
+    if (!_isProxyHealthy || _modemRotator.statusNotifier.value == ModemStatus.rotating) return;
+    
     String url = _urlController.text.trim();
     if (url.isEmpty) return;
     if (!url.startsWith('http')) url = 'https://$url';
@@ -183,6 +287,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                 height: 40,
                 child: TextField(
                   controller: _urlController,
+                  enabled: _isProxyHealthy,
                   decoration: InputDecoration(
                     hintText: "Enter URL",
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -205,7 +310,15 @@ class _BrowserScreenState extends State<BrowserScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              _mobileController.reload();
+              if (_isControllerInitialized && _isProxyHealthy) {
+                _mobileController.reload();
+              } else if (!_isProxyHealthy) {
+                 setState(() {
+                   _isLoading = true;
+                   _isProxyHealthy = true;
+                 });
+                 _initializeApp();
+              }
             },
           ),
         ],
@@ -213,10 +326,11 @@ class _BrowserScreenState extends State<BrowserScreen> {
       body: Stack(
         children: [
           // WebView - Android/iOS only
-          WebViewWidget(controller: _mobileController),
+          if (_isControllerInitialized && _isProxyHealthy)
+            WebViewWidget(controller: _mobileController),
           
           // Progress bar
-          if (_isWebViewLoading)
+          if (_isWebViewLoading && _isProxyHealthy)
             const Positioned(
               top: 0,
               left: 0,
@@ -226,9 +340,68 @@ class _BrowserScreenState extends State<BrowserScreen> {
                 color: Colors.blueAccent,
               ),
             ),
+            
+          // Modem Status Banner
+          ValueListenableBuilder<ModemStatus>(
+            valueListenable: _modemRotator.statusNotifier,
+            builder: (context, status, child) {
+              if (status == ModemStatus.online) return const SizedBox.shrink();
+              
+              return Positioned(
+                top: 0, left: 0, right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  color: status == ModemStatus.rotating ? Colors.orange : Colors.red,
+                  child: Text(
+                    status == ModemStatus.rotating 
+                        ? 'Modem is rotating IP... Web traffic suspended to prevent leaks.'
+                        : 'Modem connection lost.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              );
+            },
+          ),
+          
+          // Proxy Health Error Overlay
+          if (!_isProxyHealthy)
+            Container(
+              color: Colors.black87,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.security_update_warning, color: Colors.redAccent, size: 48),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Proxy Connection Failed!',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Initialization blocked to prevent original IP leak.',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _isLoading = true;
+                          _isProxyHealthy = true;
+                        });
+                        _initializeApp();
+                      }, 
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry Connection')
+                    )
+                  ],
+                ),
+              ),
+            ),
           
           // Loading overlay
-          if (_isLoading)
+          if (_isLoading && _isProxyHealthy && !_isControllerInitialized)
             Container(
               color: Colors.black87,
               child: Center(
@@ -238,7 +411,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                     const CircularProgressIndicator(color: Colors.white),
                     const SizedBox(height: 24),
                     Text(
-                      'Initializing ${widget.profile.name}...',
+                      'Initializing ${widget.profile.name} (Verifying Proxy)...',
                       style: const TextStyle(color: Colors.white70),
                     ),
                   ],

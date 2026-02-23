@@ -1,6 +1,46 @@
 /// JavaScript utility functions for native function cloaking
 /// This prevents detection via toString() and other introspection methods
 class NativeUtils {
+  /// Global initialization for the cloaking mechanism.
+  /// This must be injected before any other spoofing scripts.
+  static String initCloaking() {
+    return '''
+// Initialize global cloaking mechanism
+(() => {
+  if (window.__pbrowser_cloak) return;
+  
+  const fns = new WeakMap();
+  const originalToString = Function.prototype.toString;
+  
+  const spoofToString = new Proxy(originalToString, {
+    apply(target, thisArg, args) {
+      if (fns.has(thisArg)) {
+        return fns.get(thisArg);
+      }
+      return Reflect.apply(target, thisArg, args);
+    }
+  });
+  
+  // Cloak the toString itself
+  fns.set(spoofToString, originalToString.call(originalToString));
+  
+  // Replace the global toString
+  Function.prototype.toString = spoofToString;
+  
+  // Expose cloak helper internally
+  window.__pbrowser_cloak = function(fn, nativeStr) {
+    let fnName = '';
+    if (fn && typeof fn.name === 'string') {
+        fnName = fn.name;
+    }
+    const str = nativeStr || `function ${fnName}() { [native code] }`;
+    fns.set(fn, str);
+    return fn;
+  };
+})();
+''';
+  }
+
   /// Wraps a function to make it appear as native code
   /// Usage: wrapNative(myFunction, 'functionName')
   static String wrapAsNative(String functionBody, String functionName) {
@@ -13,23 +53,8 @@ class NativeUtils {
     }
   };
   
-  const proxy = new Proxy(function() {}, handler);
-  
-  // Override toString to return native code signature
-  Object.defineProperty(proxy, 'toString', {
-    value: function() {
-      return 'function $functionName() { [native code] }';
-    },
-    writable: false,
-    configurable: false
-  });
-  
-  // Override name property
-  Object.defineProperty(proxy, 'name', {
-    value: '$functionName',
-    writable: false,
-    configurable: false
-  });
+  const proxy = new Proxy(function $functionName() {}, handler);
+  window.__pbrowser_cloak(proxy, 'function $functionName() { [native code] }');
   
   return proxy;
 })()
@@ -39,32 +64,22 @@ class NativeUtils {
   /// Creates a native-looking getter function
   static String createNativeGetter(String propertyName, String returnValue) {
     return '''
-Object.defineProperty(Object.getPrototypeOf(navigator), '$propertyName', {
-  get: new Proxy(
-    function get $propertyName() { return $returnValue; },
-    {
-      apply(target, thisArg, args) {
-        return $returnValue;
-      }
+(() => {
+  const getterFn = new Proxy(function get $propertyName() { return $returnValue; }, {
+    apply(target, thisArg, args) {
+      return $returnValue;
     }
-  ),
-  set: undefined,
-  enumerable: true,
-  configurable: true
-});
-
-// Override toString for the getter
-Object.defineProperty(
-  Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator), '$propertyName').get,
-  'toString',
-  {
-    value: function() {
-      return 'function get $propertyName() { [native code] }';
-    },
-    writable: false,
-    configurable: false
-  }
-);
+  });
+  
+  window.__pbrowser_cloak(getterFn, 'function get $propertyName() { [native code] }');
+  
+  Object.defineProperty(Object.getPrototypeOf(navigator), '$propertyName', {
+    get: getterFn,
+    set: undefined,
+    enumerable: true,
+    configurable: true
+  });
+})();
 ''';
   }
   
@@ -77,31 +92,24 @@ Object.defineProperty(
   const spoofed = $implementation;
   
   // Create proxy that behaves like spoofed but looks like original
-  const protected = new Proxy(spoofed, {
+  const protected = new Proxy(original || function() {}, {
     apply: function(target, thisArg, args) {
-      return target.apply(thisArg, args);
+      return Reflect.apply(spoofed, thisArg, args);
+    },
+    construct: function(target, args, newTarget) {
+      return Reflect.construct(spoofed, args, newTarget);
     }
   });
   
-  // Make toString return native code
-  Object.defineProperty(protected, 'toString', {
-    value: function() {
-      return original.toString();
-    },
-    writable: false,
-    configurable: false
-  });
-  
-  // Make toSource return native code (Firefox)
-  if (protected.toSource) {
-    Object.defineProperty(protected, 'toSource', {
-      value: function() {
-        return original.toSource();
-      },
-      writable: false,
-      configurable: false
-    });
+  // Try to get original native string, fallback to standard template
+  let nativeStr;
+  try {
+    nativeStr = Function.prototype.toString.call(original);
+  } catch(e) {
+    nativeStr = `function $methodName() { [native code] }`;
   }
+  
+  window.__pbrowser_cloak(protected, nativeStr);
   
   // Replace the method
   $objectPath.$methodName = protected;
@@ -128,32 +136,29 @@ function seededRandom(seed) {
   /// Prevents detection of modified navigator properties
   static String preventNavigatorDetection() {
     return '''
-// Prevent navigator modification detection
+// Prevent navigator modification detection via getOwnPropertyDescriptor
 (() => {
   const originalGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
   
-  Object.getOwnPropertyDescriptor = new Proxy(originalGetOwnPropertyDescriptor, {
+  const protected = new Proxy(originalGetOwnPropertyDescriptor, {
     apply: function(target, thisArg, args) {
       const [obj, prop] = args;
       
       // If checking navigator properties, return as if unmodified
-      if (obj === Navigator.prototype || obj === navigator) {
-        const descriptor = target.apply(thisArg, args);
-        if (descriptor && descriptor.get && descriptor.get.toString().includes('[native code]')) {
-          return descriptor;
+      if (obj === Navigator.prototype || obj === (window.navigator || navigator)) {
+        const descriptor = Reflect.apply(target, thisArg, args);
+        if (descriptor && descriptor.get && window.__pbrowser_cloak) {
+            // Mask that it's configurable or custom if needed
+            return descriptor; 
         }
       }
       
-      return target.apply(thisArg, args);
+      return Reflect.apply(target, thisArg, args);
     }
   });
   
-  // Protect Object.getOwnPropertyDescriptor itself
-  Object.defineProperty(Object.getOwnPropertyDescriptor, 'toString', {
-    value: function() {
-      return 'function getOwnPropertyDescriptor() { [native code] }';
-    }
-  });
+  window.__pbrowser_cloak(protected, Function.prototype.toString.call(originalGetOwnPropertyDescriptor));
+  Object.getOwnPropertyDescriptor = protected;
 })();
 ''';
   }
@@ -169,3 +174,4 @@ function seededRandom(seed) {
         .replaceAll('\t', '\\t');
   }
 }
+

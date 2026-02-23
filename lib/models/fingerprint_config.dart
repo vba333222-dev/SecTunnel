@@ -144,6 +144,34 @@ class FingerprintConfig {
     );
   }
   
+  FingerprintConfig copyWith({
+    String? userAgent,
+    String? platform,
+    String? language,
+    int? hardwareConcurrency,
+    int? deviceMemory,
+    ScreenResolution? screenResolution,
+    WebGLConfig? webglConfig,
+    String? canvasNoiseSalt,
+    bool? webrtcEnabled,
+    String? timezone,
+    GeolocationConfig? geolocation,
+  }) {
+    return FingerprintConfig(
+      userAgent: userAgent ?? this.userAgent,
+      platform: platform ?? this.platform,
+      language: language ?? this.language,
+      hardwareConcurrency: hardwareConcurrency ?? this.hardwareConcurrency,
+      deviceMemory: deviceMemory ?? this.deviceMemory,
+      screenResolution: screenResolution ?? this.screenResolution,
+      webglConfig: webglConfig ?? this.webglConfig,
+      canvasNoiseSalt: canvasNoiseSalt ?? this.canvasNoiseSalt,
+      webrtcEnabled: webrtcEnabled ?? this.webrtcEnabled,
+      timezone: timezone ?? this.timezone,
+      geolocation: geolocation ?? this.geolocation,
+    );
+  }
+  
   String toJsonString() => jsonEncode(toJson());
   
   factory FingerprintConfig.fromJsonString(String jsonString) {
