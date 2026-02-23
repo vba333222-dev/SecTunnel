@@ -4,16 +4,20 @@ import 'package:pbrowser/services/fingerprint/scripts/canvas_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/webgl_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/webrtc_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/audio_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/timezone_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/utils.dart';
 
-/// Main fingerprint injection orchestrator
-/// Combines all spoofing scripts into a single injectable JavaScript
+/// Orchestrates all fingerprint spoofing scripts
 class FingerprintInjector {
   final FingerprintConfig config;
+  final bool lightweight;
   
-  FingerprintInjector(this.config);
+  const FingerprintInjector(
+    this.config, {
+    this.lightweight = false,
+  });
   
-  /// Generate complete injection script
-  /// This should be executed as early as possible during page load
+  /// Generate complete injection script with native cloaking
   String generateInjectionScript() {
     return '''
 (function() {
@@ -23,6 +27,7 @@ class FingerprintInjector {
   if (window.__pbrowser_injected) return;
   window.__pbrowser_injected = true;
   
+  // Install all spoofing modules with native cloaking
   ${NavigatorSpoof.generate(config)}
   
   ${CanvasSpoof.generate(config)}
@@ -33,7 +38,12 @@ class FingerprintInjector {
   
   ${AudioSpoof.generate(config)}
   
-  console.log('[PBrowser] Fingerprint protection active');
+  ${TimezoneSpoof.generate(config)}
+  
+  // Final protection layer
+  ${NativeUtils.preventNavigatorDetection()}
+  
+  console.log('[PBrowser] 🛡️ Fingerprint protection active (hardened)');
 })();
 ''';
   }

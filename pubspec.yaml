@@ -16,39 +16,36 @@ dependencies:
   
   # WebView
   webview_flutter: ^4.13.0
-  webview_flutter_android: ^4.10.0
+  webview_flutter_android: ^4.10.11
   webview_flutter_wkwebview: ^3.23.0
-  webview_windows: ^0.4.0
-  window_manager: ^0.4.3
   
   # Network
   http: ^1.1.0
   
   # Database
-  drift: ^2.16.0
-  sqlite3_flutter_libs: ^0.5.0
-  path_provider: ^2.1.0
-  path: ^1.8.3
+  drift: ^2.20.3
+  sqlite3_flutter_libs: ^0.5.26
+  path_provider: ^2.1.5
+  path: ^1.9.1
   
   # State Management
-  provider: ^6.1.0
+  provider: ^6.1.2
   
   # Utilities
-  uuid: ^4.3.0
+  uuid: ^4.5.1
   shared_preferences: ^2.5.4
-  ffi: ^2.1.0
-  intl: ^0.19.0
+  intl: ^0.20.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.3.10
   
   # Code Generation
-  drift_dev: ^2.16.0
-  build_runner: ^2.4.0
+  drift_dev: ^2.20.3
+  build_runner: ^2.4.13
 
 flutter:
   uses-material-design: true

@@ -2,18 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
-import 'package:pbrowser/services/proxy/windows_local_proxy.dart';
 import 'package:pbrowser/services/fingerprint/fingerprint_injector.dart';
 
 // WebView imports
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
-import 'package:webview_windows/webview_windows.dart' as windows_webview;
-
-// Windows FFI
-import 'dart:ffi' hide Size;
-import 'package:ffi/ffi.dart';
 
 class BrowserScreen extends StatefulWidget {
   final BrowserProfile profile;
@@ -28,13 +22,9 @@ class BrowserScreen extends StatefulWidget {
 }
 
 class _BrowserScreenState extends State<BrowserScreen> {
-  // Controllers
+  // Controllers - Android only
   late final WebViewController _mobileController;
-  final windows_webview.WebviewController _windowsController = windows_webview.WebviewController();
   final TextEditingController _urlController = TextEditingController();
-  
-  // Proxy
-  WindowsLocalProxy? _windowsProxy;
   
   // State
   bool _isLoading = true;
@@ -47,125 +37,14 @@ class _BrowserScreenState extends State<BrowserScreen> {
   @override
   void initState() {
     super.initState();
-    if (Platform.isWindows) {
-      _initWindowsWebView();
-    } else {
-      _initMobileWebView();
-    }
+    // Android/iOS only
+    _initMobileWebView();
   }
 
   @override
   void dispose() {
     _urlController.dispose();
-    if (Platform.isWindows) {
-      _windowsController.dispose();
-      _windowsProxy?.stop();
-    }
     super.dispose();
-  }
-
-  // ========================================================================
-  // WINDOWS WEBVIEW INITIALIZATION WITH SESSION ISOLATION
-  // ========================================================================
-  
-  Future<void> _initWindowsWebView() async {
-    try {
-      // 1. Start local proxy if configured
-      if (widget.profile.proxyConfig.isConfigured) {
-        _windowsProxy = WindowsLocalProxy(
-          proxyType: widget.profile.proxyConfig.type,
-          upstreamHost: widget.profile.proxyConfig.host!,
-          upstreamPort: widget.profile.proxyConfig.port!,
-          username: widget.profile.proxyConfig.username,
-          password: widget.profile.proxyConfig.password,
-        );
-        
-        final localPort = await _windowsProxy!.start();
-        if (localPort > 0) {
-          _setWindowsProxyArgs(localPort);
-        }
-      }
-      
-      // 2. Initialize WebView with isolated user data folder
-      // NOTE: userDataFolder parameter may require newer webview_windows version
-      // For now, we initialize without it - implement via native platform if needed
-      await _windowsController.initialize();
-      
-      // 3. Setup listeners
-      _windowsController.url.listen((url) {
-        if (mounted) {
-          _urlController.text = url;
-        }
-      });
-      
-      _windowsController.loadingState.listen((state) async {
-        if (mounted) {
-          if (state == windows_webview.LoadingState.loading) {
-            setState(() => _isWebViewLoading = true);
-          } else if (state == windows_webview.LoadingState.navigationCompleted) {
-            setState(() => _isWebViewLoading = false);
-            
-            // Inject fingerprint script after page load
-            await _injectFingerprint();
-          }
-        }
-      });
-      
-      // 4. Wait for initialization
-      await Future.delayed(const Duration(seconds: 2));
-      
-      // 5. Load initial URL
-      if (mounted) {
-        setState(() => _isLoading = false);
-        _urlController.text = _initialUrl;
-        await _windowsController.loadUrl(_initialUrl);
-      }
-      
-    } catch (e) {
-      print('[Browser] Windows init error: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-  
-  /// Inject WebView2 proxy arguments via FFI
-  void _setWindowsProxyArgs(int port) {
-    if (!Platform.isWindows || port == 0) return;
-    
-    try {
-      final kernel32 = DynamicLibrary.open('kernel32.dll');
-      final setEnv = kernel32.lookupFunction<
-          Int32 Function(Pointer<Utf16>, Pointer<Utf16>),
-          int Function(Pointer<Utf16>, Pointer<Utf16>)
-      >('SetEnvironmentVariableW');
-      
-      final name = 'WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'.toNativeUtf16();
-      final args = '--proxy-server=127.0.0.1:$port --disable-background-timer-throttling';
-      final value = args.toNativeUtf16();
-      
-      setEnv(name, value);
-      
-      calloc.free(name);
-      calloc.free(value);
-      
-      print('[Browser] Injected WebView2 proxy args: $args');
-    } catch (e) {
-      print('[Browser] FFI error: $e');
-    }
-  }
-  
-  /// Inject fingerprint spoofing script
-  Future<void> _injectFingerprint() async {
-    try {
-      final injector = FingerprintInjector(widget.profile.fingerprintConfig);
-      final script = injector.generateInjectionScript();
-      
-      await _windowsController.executeScript(script);
-      print('[Browser] Fingerprint injected successfully');
-    } catch (e) {
-      print('[Browser] Fingerprint injection error: $e');
-    }
   }
 
   // ========================================================================
@@ -268,11 +147,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
     if (url.isEmpty) return;
     if (!url.startsWith('http')) url = 'https://$url';
     
-    if (Platform.isWindows) {
-      _windowsController.loadUrl(url);
-    } else {
-      _mobileController.loadRequest(Uri.parse(url));
-    }
+    // Android/iOS only
+    _mobileController.loadRequest(Uri.parse(url));
     FocusManager.instance.primaryFocus?.unfocus();
   }
 
@@ -329,23 +205,15 @@ class _BrowserScreenState extends State<BrowserScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              if (Platform.isWindows) {
-                _windowsController.reload();
-              } else {
-                _mobileController.reload();
-              }
+              _mobileController.reload();
             },
           ),
         ],
       ),
       body: Stack(
         children: [
-          // WebView
-          Platform.isWindows
-              ? (_windowsController.value.isInitialized
-                  ? windows_webview.Webview(_windowsController)
-                  : Container(color: Colors.black))
-              : WebViewWidget(controller: _mobileController),
+          // WebView - Android/iOS only
+          WebViewWidget(controller: _mobileController),
           
           // Progress bar
           if (_isWebViewLoading)

@@ -1,6 +1,36 @@
 import 'dart:convert';
 import 'dart:math';
 
+part 'fingerprint_config.g.dart';
+
+/// Geolocation configuration
+class GeolocationConfig {
+  final double latitude;
+  final double longitude;
+  final double accuracy;
+  
+  const GeolocationConfig({
+    required this.latitude,
+    required this.longitude,
+    this.accuracy = 50.0,
+  });
+  
+  Map<String, dynamic> toJson() => {
+    'latitude': latitude,
+    'longitude': longitude,
+    'accuracy': accuracy,
+  };
+  
+  factory GeolocationConfig.fromJson(Map<String, dynamic> json) {
+    return GeolocationConfig(
+      latitude: json['latitude'] as double,
+      longitude: json['longitude'] as double,
+      accuracy: json['accuracy'] as double? ?? 50.0,
+    );
+  }
+}
+
+/// Screen resolution configuration
 class ScreenResolution {
   final int width;
   final int height;
@@ -56,10 +86,11 @@ class FingerprintConfig {
   final int hardwareConcurrency;
   final int deviceMemory;
   final ScreenResolution screenResolution;
-  final String timezone;
   final WebGLConfig webglConfig;
   final String canvasNoiseSalt;
   final bool webrtcEnabled;
+  final String timezone;
+  final GeolocationConfig? geolocation;
   
   const FingerprintConfig({
     required this.userAgent,
@@ -68,10 +99,11 @@ class FingerprintConfig {
     required this.hardwareConcurrency,
     required this.deviceMemory,
     required this.screenResolution,
-    required this.timezone,
     required this.webglConfig,
     required this.canvasNoiseSalt,
-    required this.webrtcEnabled,
+    this.webrtcEnabled = true,
+    this.timezone = 'Asia/Jakarta',
+    this.geolocation,
   });
   
   Map<String, dynamic> toJson() {
@@ -86,6 +118,7 @@ class FingerprintConfig {
       'webglConfig': webglConfig.toJson(),
       'canvasNoiseSalt': canvasNoiseSalt,
       'webrtcEnabled': webrtcEnabled,
+      'geolocation': geolocation?.toJson(),
     };
   }
   
@@ -99,12 +132,15 @@ class FingerprintConfig {
       screenResolution: ScreenResolution.fromJson(
         json['screenResolution'] as Map<String, dynamic>,
       ),
-      timezone: json['timezone'] as String,
+      timezone: json['timezone'] as String? ?? 'Asia/Jakarta',
       webglConfig: WebGLConfig.fromJson(
         json['webglConfig'] as Map<String, dynamic>,
       ),
       canvasNoiseSalt: json['canvasNoiseSalt'] as String,
-      webrtcEnabled: json['webrtcEnabled'] as bool,
+      webrtcEnabled: json['webrtcEnabled'] as bool? ?? true,
+      geolocation: json['geolocation'] != null 
+        ? GeolocationConfig.fromJson(json['geolocation'] as Map<String, dynamic>)
+        : null,
     );
   }
   
