@@ -70,24 +70,28 @@ class WorkerSpoof {
       const OriginalWorker = Worker;
 
       const SpoofedWorker = function(scriptURL, options) {
-        // Handle Blob URLs (already inline) — prepend by decoding and re-blobbing
+      // Handle Blob URLs (already inline) — prepend by decoding and re-blobbing
         if (typeof scriptURL === 'string' && scriptURL.startsWith('blob:')) {
-          // For blob URLs, we convert to sync using an importScripts trick inside a new blob
           const wrappedCode = WORKER_SPOOF_HEADER + '\\nimportScripts(' + JSON.stringify(scriptURL) + ');';
           const wrappedBlob = new Blob([wrappedCode], { type: 'application/javascript' });
-          const wrappedUrl = URL.createObjectURL(wrappedBlob);
-          return new OriginalWorker(wrappedUrl, options);
+          const wrappedUrl  = URL.createObjectURL(wrappedBlob);
+          const w = new OriginalWorker(wrappedUrl, options);
+          setTimeout(() => URL.revokeObjectURL(wrappedUrl), 3000); // C-6: revoke after load
+          return w;
         }
 
-        // For standard URLs: create the worker first then modify (synchronous fallback)
-        // We also create a shim worker that applies the header via importScripts trick
+      // For standard URLs: create the worker first then modify (synchronous fallback)
         if (typeof scriptURL === 'string') {
           const wrappedCode = WORKER_SPOOF_HEADER + '\\nimportScripts(' + JSON.stringify(scriptURL) + ');';
           const wrappedBlob = new Blob([wrappedCode], { type: 'application/javascript' });
-          const wrappedUrl = URL.createObjectURL(wrappedBlob);
+          const wrappedUrl  = URL.createObjectURL(wrappedBlob);
           try {
-            return new OriginalWorker(wrappedUrl, options);
+            const w = new OriginalWorker(wrappedUrl, options);
+            // Revoke after Worker has had time to load (C-6: memory leak fix)
+            setTimeout(() => URL.revokeObjectURL(wrappedUrl), 3000);
+            return w;
           } catch(e) {
+            URL.revokeObjectURL(wrappedUrl);
             // CORS fallback — use the original URL directly
             return new OriginalWorker(scriptURL, options);
           }
@@ -112,10 +116,13 @@ class WorkerSpoof {
         if (typeof scriptURL === 'string') {
           const wrappedCode = WORKER_SPOOF_HEADER + '\\nimportScripts(' + JSON.stringify(scriptURL) + ');';
           const wrappedBlob = new Blob([wrappedCode], { type: 'application/javascript' });
-          const wrappedUrl = URL.createObjectURL(wrappedBlob);
+          const wrappedUrl  = URL.createObjectURL(wrappedBlob);
           try {
-            return new OriginalSharedWorker(wrappedUrl, options);
+            const sw = new OriginalSharedWorker(wrappedUrl, options);
+            setTimeout(() => URL.revokeObjectURL(wrappedUrl), 3000); // C-6 fix
+            return sw;
           } catch(e) {
+            URL.revokeObjectURL(wrappedUrl);
             return new OriginalSharedWorker(scriptURL, options);
           }
         }

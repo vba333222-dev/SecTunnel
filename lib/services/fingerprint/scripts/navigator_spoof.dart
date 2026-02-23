@@ -43,12 +43,45 @@ class NavigatorSpoof {
   modifyNavigatorProp('appVersion', '\$userAgent'.replace('Mozilla/', ''));
   modifyNavigatorProp('platform', '\$platform');
   modifyNavigatorProp('language', '\$language');
-  modifyNavigatorProp('languages', ['\$language']);
+  // H-5 fix: languages array must align with language setting
+  // e.g. 'id-ID' → ['id-ID', 'id', 'en-US', 'en'] (Chrome Desktop ordering)
+  (() => {
+    try {
+      const lang    = '\$language';
+      const base    = lang.split('-')[0];
+      const langArr = [lang];
+      if (base !== lang) langArr.push(base);
+      if (!langArr.includes('en-US')) langArr.push('en-US');
+      if (!langArr.includes('en'))    langArr.push('en');
+      modifyNavigatorProp('languages', Object.freeze(langArr));
+    } catch(e) {}
+  })();
   modifyNavigatorProp('hardwareConcurrency', \${config.hardwareConcurrency});
   
   if ('deviceMemory' in navigator) {
     modifyNavigatorProp('deviceMemory', \${config.deviceMemory});
   }
+
+  // M-7 fix: history.length = 1 on fresh WebView is a dead giveaway
+  // Spoof to a plausible 2–8 value matching casual desktop browsing
+  (() => {
+    try {
+      const _seed  = ${config.canvasNoiseSalt.hashCode.abs()};
+      const _hlen  = 2 + (_seed % 7); // 2–8
+      const _histDesc = Object.getOwnPropertyDescriptor(History.prototype, 'length');
+      if (_histDesc && _histDesc.get) {
+        const _origHLen = _histDesc.get;
+        const _spoofHLen = function() {
+          const real = _origHLen.call(this);
+          return real <= 1 ? _hlen : real;
+        };
+        window.__pbrowser_cloak(_spoofHLen, 'function get length() { [native code] }');
+        Object.defineProperty(History.prototype, 'length', {
+          get: _spoofHLen, configurable: true, enumerable: true
+        });
+      }
+    } catch(e) {}
+  })();
 
   // ===== WebDriver Hardening =====
   try {
@@ -133,32 +166,104 @@ class NavigatorSpoof {
     } catch(e) {}
   })();
 
-  // ===== PERMISSIONS SPOOFING =====
+  // ===== PERMISSIONS API HARDENING =====
+  // Intercepts navigator.permissions.query to gracefully handle ALL Desktop
+  // permission names without throwing TypeError/rejection — which is a
+  // clear WebView detection signal when asking for Desktop-only permissions.
   (() => {
     try {
-      if (window.navigator.permissions) {
-        const originalQuery = window.navigator.permissions.query;
-        window.navigator.permissions.query = function(parameters) {
-          if (parameters && parameters.name === 'notifications') {
-            return Promise.resolve({
-              state: 'prompt',
-              onchange: null,
-              __proto__: PermissionStatus.prototype
-            });
-          }
-           if (parameters && parameters.name === 'push') {
-            return Promise.resolve({
-              state: 'prompt',
-              onchange: null,
-              __proto__: PermissionStatus.prototype
-            });
-          }
-          return originalQuery.apply(this, arguments);
-        };
-        window.__pbrowser_cloak(window.navigator.permissions.query, 'function query() { [native code] }');
+      if (!navigator.permissions) return;
+
+      const makeFakePermissionStatus = (name, state) => {
+        const ps = Object.create(
+          typeof PermissionStatus !== 'undefined' ? PermissionStatus.prototype : Object.prototype
+        );
+        Object.defineProperty(ps, 'state',  { value: state, enumerable: true, configurable: true });
+        Object.defineProperty(ps, 'name',   { value: name,  enumerable: true, configurable: true });
+        ps.onchange = null;
+        ps.addEventListener    = function() {};
+        ps.removeEventListener = function() {};
+        return ps;
+      };
+
+      // ── Permission name → forced status map ──────────────────────────
+      // 'prompt'  = feature exists, user hasn't granted/denied yet (most Desktop defaults)
+      // 'granted' = feature is on (background-sync, etc.)
+      // 'denied'  = feature is off
+      const PERMISSION_TABLE = {
+        // Standard permissions — desktop defaults
+        'notifications':             'prompt',
+        'push':                      'prompt',
+        'geolocation':               'prompt',
+        'camera':                    'prompt',
+        'microphone':                'prompt',
+        'speaker-selection':         'prompt',
+        'midi':                      'prompt',
+        // Clipboard — Desktop Chrome defaults
+        'clipboard-read':            'prompt',
+        'clipboard-write':           'granted',
+        // Screen capture / display APIs
+        'display-capture':           'prompt',
+        'window-placement':          'prompt',
+        'window-management':         'prompt',
+        // Local fonts (Desktop-only API)
+        'local-fonts':               'prompt',
+        // Idle detection (Desktop Chrome)
+        'idle-detection':            'prompt',
+        // Wake lock
+        'screen-wake-lock':          'prompt',
+        // Sensors (fine-grained desktop sensors)
+        'accelerometer':             'denied',
+        'gyroscope':                 'denied',
+        'magnetometer':              'denied',
+        'ambient-light-sensor':      'denied',
+        // Background capabilities
+        'background-sync':           'granted',
+        'background-fetch':          'prompt',
+        'periodic-background-sync':  'denied',
+        // Payment / NFC (present but not granted)
+        'payment-handler':           'prompt',
+        'nfc':                       'denied',
+        // Persistent storage
+        'persistent-storage':        'granted',
+        // Accessibility
+        'accessibility-events':      'denied',
+      };
+
+      const originalQuery = navigator.permissions.query.bind(navigator.permissions);
+
+      const hardenedQuery = function(parameters) {
+        if (!parameters || !parameters.name) {
+          return originalQuery(parameters);
+        }
+        const name = String(parameters.name);
+
+        // If we have a mapped entry — return the fake PermissionStatus
+        if (name in PERMISSION_TABLE) {
+          const state = PERMISSION_TABLE[name];
+          return Promise.resolve(makeFakePermissionStatus(name, state));
+        }
+
+        // Unknown permission — gracefully return 'prompt' instead of throwing
+        // This prevents TypeError on Desktop-only names unknown to Android WebView
+        return originalQuery(parameters).catch(() =>
+          Promise.resolve(makeFakePermissionStatus(name, 'prompt'))
+        );
+      };
+
+      window.__pbrowser_cloak(hardenedQuery, 'function query() { [native code] }');
+
+      try {
+        Object.defineProperty(navigator.permissions, 'query', {
+          value: hardenedQuery, writable: false, enumerable: true, configurable: true
+        });
+      } catch(e) {
+        navigator.permissions.query = hardenedQuery;
       }
+
     } catch(e) {}
   })();
+
 
   // ===== PLUGINS & MIMETYPES ARRAY FORGERY =====
   // Chrome Desktop always has a "PDF Viewer" plugin. Empty array = red flag.

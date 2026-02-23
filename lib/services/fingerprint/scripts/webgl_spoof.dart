@@ -43,12 +43,31 @@ class WebGLSpoof {
     const patchWebGLContext = (ctx) => {
       if (!ctx) return;
 
-      // --- getParameter spoof (Vendor / Renderer) ---
+      // --- getParameter spoof (Vendor / Renderer + key hardware params) ---
       const originalGetParameter = ctx.getParameter;
       const spoofedGetParameter = function(parameter) {
-        if (parameter === 37445) return '$vendor';  // UNMASKED_VENDOR_WEBGL
-        if (parameter === 37446) return '$renderer'; // UNMASKED_RENDERER_WEBGL
-        return originalGetParameter.apply(this, arguments);
+        switch(parameter) {
+          // Identity
+          case 37445: return '$vendor';   // UNMASKED_VENDOR_WEBGL
+          case 37446: return '$renderer'; // UNMASKED_RENDERER_WEBGL
+          // Desktop-grade texture limits (Intel iGPU baseline)
+          case 0x0D33: return 16384;      // MAX_TEXTURE_SIZE (mobile: 4096–8192)
+          case 0x851C: return 16384;      // MAX_CUBE_MAP_TEXTURE_SIZE
+          case 0x8C29: return 4096;       // MAX_TEXTURE_IMAGE_UNITS (FS)
+          case 0x84E8: return 16;         // MAX_TEXTURE_IMAGE_UNITS (total)
+          case 0x0D3A: return 16384;      // MAX_RENDERBUFFER_SIZE
+          case 0x8DF9: return 4096;       // MAX_COMBINED_TEXTURE_IMAGE_UNITS
+          // Viewport / drawing limits
+          case 0x0D30: return new Int32Array([16384, 16384]); // MAX_VIEWPORT_DIMS
+          case 0x846D: return new Float32Array([1, 1]);       // ALIASED_LINE_WIDTH_RANGE
+          case 0x846E: return new Float32Array([1, 1024]);    // ALIASED_POINT_SIZE_RANGE
+          // Precision / version
+          case 0x1F02: return 'WebGL 1.0 (OpenGL ES 2.0 Chromium)'; // VERSION
+          case 0x1F00: return '$vendor';  // VENDOR
+          case 0x1F01: return 'WebKit'; // RENDERER (non-unmasked, not real GPU)
+          default:
+            return originalGetParameter.apply(this, arguments);
+        }
       };
       window.__pbrowser_cloak(spoofedGetParameter, 'function getParameter() { [native code] }');
       ctx.getParameter = spoofedGetParameter;

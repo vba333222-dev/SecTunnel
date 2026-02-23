@@ -42,22 +42,27 @@ class DOMRectSpoof {
   // --- Spoof getBoundingClientRect ---
   const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
   
+  // Pick up font-metric deltas published by FontMetricsSpoof (C-5 audit fix)
+  const _fwd = () => window.__pbr_wdelta || 0;
+  const _fhd = () => window.__pbr_hdelta || 0;
+
   const spoofedGetBoundingClientRect = function() {
     const rect = originalGetBoundingClientRect.apply(this, arguments);
     
-    // Create an override wrapper matching the DOMRect interface
-    const noiseTop = getMicroNoise(this, 1);
-    const noiseLeft = getMicroNoise(this, 2);
-    const noiseRight = getMicroNoise(this, 3);
+    const noiseTop    = getMicroNoise(this, 1);
+    const noiseLeft   = getMicroNoise(this, 2);
+    const noiseRight  = getMicroNoise(this, 3);
     const noiseBottom = getMicroNoise(this, 4);
+    const fwd = rect.width  === 0 ? 0 : _fwd();
+    const fhd = rect.height === 0 ? 0 : _fhd();
 
     return {
-      top: rect.top === 0 ? 0 : rect.top + noiseTop,
-      left: rect.left === 0 ? 0 : rect.left + noiseLeft,
-      right: rect.right === 0 ? 0 : rect.right + noiseRight,
-      bottom: rect.bottom === 0 ? 0 : rect.bottom + noiseBottom,
-      width: rect.width === 0 ? 0 : rect.width + (noiseRight - noiseLeft),
-      height: rect.height === 0 ? 0 : rect.height + (noiseBottom - noiseTop),
+      top:    rect.top    === 0 ? 0 : rect.top    + noiseTop,
+      left:   rect.left   === 0 ? 0 : rect.left   + noiseLeft,
+      right:  rect.right  === 0 ? 0 : rect.right  + noiseRight + fwd,
+      bottom: rect.bottom === 0 ? 0 : rect.bottom + noiseBottom + fhd,
+      width:  rect.width  === 0 ? 0 : rect.width  + (noiseRight - noiseLeft) + fwd,
+      height: rect.height === 0 ? 0 : rect.height + (noiseBottom - noiseTop) + fhd,
       x: rect.x === 0 ? 0 : rect.x + noiseLeft,
       y: rect.y === 0 ? 0 : rect.y + noiseTop,
       toJSON: () => rect.toJSON ? rect.toJSON() : JSON.stringify(this)

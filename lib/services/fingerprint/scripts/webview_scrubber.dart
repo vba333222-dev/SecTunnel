@@ -10,13 +10,32 @@ class WebviewScrubber {
     // 1. Annihilate Flutter & Default Android WebView Global Pointers
     // These globals are often automatically injected by WebView engines or Flutter plugins
     const knownWebViewLeaks = [
+      // Flutter / InAppWebView globals
       'flutter_inappwebview',
       'flutter',
       'Flutter',
+      '__flutter_inappwebview_shared_dictionary',
+      '_flutter',
+      // Generic Android/WebView bridges
       'WebView',
       'android',
       'Android',
-      '__flutter_inappwebview_shared_dictionary'
+      '__bridge',
+      // Chromium DevTools / AutoDriver residuals
+      '__gCrWeb',
+      'cdc_adoQpoasnfa76pfcZLmcfl_Array',
+      'cdc_adoQpoasnfa76pfcZLmcfl_Promise',
+      'cdc_adoQpoasnfa76pfcZLmcfl_Symbol',
+      '\$chrome_asyncScriptInfo',
+      // Chrome extension injection markers
+      '__crWeb',
+      '_phantom',
+      'callPhantom',
+      '_selenium',
+      'selenium',
+      '__webdriver_evaluate',
+      '__selenium_evaluate',
+      '__fxdriver_evaluate',
     ];
 
     knownWebViewLeaks.forEach(leak => {

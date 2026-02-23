@@ -33,10 +33,38 @@ class NativeUtils {
     if (fn && typeof fn.name === 'string') {
         fnName = fn.name;
     }
-    const str = nativeStr || `function ${fnName}() { [native code] }`;
+    const str = nativeStr || `function \${fnName}() { [native code] }`;
     fns.set(fn, str);
     return fn;
   };
+})();
+''';
+  }
+
+  /// L-1 Session Entropy: mixes a per-session random salt so the same profile
+  /// produces subtly different canvas/DOMRect/timing fingerprints across visits.
+  /// The session salt is stored in sessionStorage — consistent within a tab session,
+  /// but regenerated on each new tab / app restart.
+  static String initSessionEntropy(int profileSeed) {
+    return '''
+// Session-level entropy mix (L-1 audit fix)
+// Produces a stable per-session variant of the profile seed
+(() => {
+  try {
+    const _STORAGE_KEY = '__pbr_ss_' + ${profileSeed};
+    let sessionSalt = parseInt(sessionStorage.getItem(_STORAGE_KEY) || '0', 10);
+    if (!sessionSalt || isNaN(sessionSalt)) {
+      // Generate fresh random salt for this session
+      const _arr = new Uint32Array(1);
+      crypto.getRandomValues(_arr);
+      sessionSalt = _arr[0] & 0x0000FFFF; // 16-bit session jitter
+      try { sessionStorage.setItem(_STORAGE_KEY, String(sessionSalt)); } catch(e) {}
+    }
+    // Expose as global: canvas/domrect generators add this to their seeds
+    window.__pbr_session_salt = sessionSalt;
+  } catch(e) {
+    window.__pbr_session_salt = 0;
+  }
 })();
 ''';
   }
@@ -92,7 +120,7 @@ class NativeUtils {
   const spoofed = $implementation;
   
   // Create proxy that behaves like spoofed but looks like original
-  const protected = new Proxy(original || function() {}, {
+  const _spoofProxy = new Proxy(original || function() {}, {
     apply: function(target, thisArg, args) {
       return Reflect.apply(spoofed, thisArg, args);
     },
@@ -109,10 +137,10 @@ class NativeUtils {
     nativeStr = `function $methodName() { [native code] }`;
   }
   
-  window.__pbrowser_cloak(protected, nativeStr);
+  window.__pbrowser_cloak(_spoofProxy, nativeStr);
   
   // Replace the method
-  $objectPath.$methodName = protected;
+  $objectPath.$methodName = _spoofProxy;
 })();
 ''';
   }
@@ -133,32 +161,63 @@ function seededRandom(seed) {
 ''';
   }
   
-  /// Prevents detection of modified navigator properties
+  /// Prevents detection of modified navigator properties by masking descriptors
   static String preventNavigatorDetection() {
     return '''
-// Prevent navigator modification detection via getOwnPropertyDescriptor
+// Prevent navigator modification detection via getOwnPropertyDescriptor / getOwnPropertyDescriptors
 (() => {
-  const originalGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-  
-  const protected = new Proxy(originalGetOwnPropertyDescriptor, {
+  const _origGOPD  = Object.getOwnPropertyDescriptor;
+  const _origGOPDs = Object.getOwnPropertyDescriptors;
+
+  // Targets whose descriptors should be hardened
+  const _targets = () => [
+    typeof Navigator !== 'undefined' ? Navigator.prototype : null,
+    typeof window !== 'undefined' ? window : null,
+    typeof navigator !== 'undefined' ? navigator : null,
+  ].filter(Boolean);
+
+  // Strip configurable/writable flags from spoofed getter descriptors
+  // so callers cannot redefine them over our overrides
+  const _hardenDescriptor = (desc) => {
+    if (!desc) return desc;
+    const copy = Object.assign({}, desc);
+    // If it's a getter-based prop, mark it non-configurable so re-override fails
+    if (copy.get) {
+      copy.configurable = false;
+    }
+    return copy;
+  };
+
+  const _spoofProxy = new Proxy(_origGOPD, {
     apply: function(target, thisArg, args) {
       const [obj, prop] = args;
-      
-      // If checking navigator properties, return as if unmodified
-      if (obj === Navigator.prototype || obj === (window.navigator || navigator)) {
-        const descriptor = Reflect.apply(target, thisArg, args);
-        if (descriptor && descriptor.get && window.__pbrowser_cloak) {
-            // Mask that it's configurable or custom if needed
-            return descriptor; 
-        }
+      const desc = Reflect.apply(target, thisArg, args);
+      if (_targets().includes(obj)) {
+        return _hardenDescriptor(desc);
       }
-      
-      return Reflect.apply(target, thisArg, args);
+      return desc;
     }
   });
-  
-  window.__pbrowser_cloak(protected, Function.prototype.toString.call(originalGetOwnPropertyDescriptor));
-  Object.getOwnPropertyDescriptor = protected;
+
+  const _spoofProxyPlural = new Proxy(_origGOPDs, {
+    apply: function(target, thisArg, args) {
+      const [obj] = args;
+      const descs = Reflect.apply(target, thisArg, args);
+      if (_targets().includes(obj)) {
+        const hardened = {};
+        for (const key of Object.keys(descs)) {
+          hardened[key] = _hardenDescriptor(descs[key]);
+        }
+        return hardened;
+      }
+      return descs;
+    }
+  });
+
+  window.__pbrowser_cloak(_spoofProxy, Function.prototype.toString.call(_origGOPD));
+  window.__pbrowser_cloak(_spoofProxyPlural, Function.prototype.toString.call(_origGOPDs));
+  Object.getOwnPropertyDescriptor  = _spoofProxy;
+  Object.getOwnPropertyDescriptors = _spoofProxyPlural;
 })();
 ''';
   }

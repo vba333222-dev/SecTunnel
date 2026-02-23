@@ -116,6 +116,72 @@ function(...args) {
 }
 '''
   )}
+  
+  // ===== CANVAS TEXT SUB-PIXEL RENDERING CORRUPTION =====
+  // Intercept fillText/strokeText to apply micro-shadow before draw.
+  // The shadow shifts the sub-pixel alpha compositing sequence, destroying
+  // FreeType's characteristic blending signature without visible effect.
+  (() => {
+    try {
+      const originalFillText   = CanvasRenderingContext2D.prototype.fillText;
+      const originalStrokeText = CanvasRenderingContext2D.prototype.strokeText;
+
+      // Deterministic micro-offsets from profile seed
+      const shadowX = ((profileSeed & 0xFF) / 0xFF) * 0.05 - 0.025; // -0.025 to +0.025 px
+      const shadowY = (((profileSeed >> 8) & 0xFF) / 0xFF) * 0.05 - 0.025;
+      const shadowAlpha = 0.004 + ((profileSeed & 0xF) / 0xF) * 0.006; // 0.004–0.010 opacity
+
+      // Apply ghost shadow overlay before the real draw, then restore context state
+      const withShadow = (ctx, drawFn) => {
+        const prevShadowColor   = ctx.shadowColor;
+        const prevShadowBlur    = ctx.shadowBlur;
+        const prevShadowOffsetX = ctx.shadowOffsetX;
+        const prevShadowOffsetY = ctx.shadowOffsetY;
+        const prevAlpha         = ctx.globalAlpha;
+        const prevComposite     = ctx.globalCompositeOperation;
+
+        // Inject imperceptible shadow — disrupts sub-pixel anti-aliasing compositing
+        ctx.shadowColor   = `rgba(0,0,0,${shadowAlpha})`;
+        ctx.shadowBlur    = 0;
+        ctx.shadowOffsetX = shadowX;
+        ctx.shadowOffsetY = shadowY;
+
+        drawFn();
+
+        // Restore original state
+        ctx.shadowColor           = prevShadowColor;
+        ctx.shadowBlur            = prevShadowBlur;
+        ctx.shadowOffsetX         = prevShadowOffsetX;
+        ctx.shadowOffsetY         = prevShadowOffsetY;
+        ctx.globalAlpha           = prevAlpha;
+        ctx.globalCompositeOperation = prevComposite;
+      };
+
+      const spoofedFillText = function(text, x, y, maxWidth) {
+        withShadow(this, () => {
+          maxWidth !== undefined
+            ? originalFillText.call(this, text, x, y, maxWidth)
+            : originalFillText.call(this, text, x, y);
+        });
+      };
+
+      const spoofedStrokeText = function(text, x, y, maxWidth) {
+        withShadow(this, () => {
+          maxWidth !== undefined
+            ? originalStrokeText.call(this, text, x, y, maxWidth)
+            : originalStrokeText.call(this, text, x, y);
+        });
+      };
+
+      window.__pbrowser_cloak(spoofedFillText,   'function fillText() { [native code] }');
+      window.__pbrowser_cloak(spoofedStrokeText, 'function strokeText() { [native code] }');
+
+      CanvasRenderingContext2D.prototype.fillText   = spoofedFillText;
+      CanvasRenderingContext2D.prototype.strokeText = spoofedStrokeText;
+
+    } catch(e) {}
+  })();
+
 })();
 ''';
   }

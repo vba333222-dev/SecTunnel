@@ -8,46 +8,66 @@ class BatterySpoof {
     final seed = config.canvasNoiseSalt.hashCode;
     
     return '''
-// ===== BATTERY SPOOFING =====
+// ===== BATTERY STATUS API SPOOFING =====
+// Desktop Chrome policy: most Desktop machines appear as charging=true, level=1.0
+// (device is always plugged in). Mobile profiles show realistic random battery.
 (() => {
   try {
     if (!navigator.getBattery) return;
-    
+
     const profileSeed = $seed;
     \${NativeUtils.seededRandomFunction()}
     const getRandom = seededRandom(profileSeed);
-    
-    // Generate deterministic but seemingly random battery state for this profile
-    const level = parseFloat((0.2 + (getRandom() * 0.8)).toFixed(2)); // 20% to 100%
-    const charging = getRandom() > 0.5;
-    const chargingTime = charging ? Math.floor(getRandom() * 3600) : Infinity;
-    const dischargingTime = charging ? Infinity : Math.floor(getRandom() * 14400);
 
-    const originalGetBattery = navigator.getBattery;
-    
+    // Determine profile type from navigator.platform
+    const _platform = (navigator.platform || '').toLowerCase();
+    const _isDesktop = _platform.includes('win') || _platform.includes('mac')
+                    || _platform.includes('linux x86');
+
+    // Desktop: always plugged in and full (most common state)
+    // Mobile: randomized from seed
+    const charging         = _isDesktop ? true  : (getRandom() > 0.4);
+    const level            = _isDesktop ? 1.0   : parseFloat((0.2 + getRandom() * 0.78).toFixed(2));
+    const chargingTime     = _isDesktop ? 0     : (charging ? Math.floor(getRandom() * 3600) : Infinity);
+    const dischargingTime  = _isDesktop ? Infinity : (charging ? Infinity : Math.floor(getRandom() * 14400));
+
+    const buildBatteryProxy = (battery) => new Proxy(battery, {
+      get(target, prop, receiver) {
+        switch(prop) {
+          case 'level':           return level;
+          case 'charging':        return charging;
+          case 'chargingTime':    return chargingTime;
+          case 'dischargingTime': return dischargingTime;
+          case 'addEventListener':    return target.addEventListener.bind(target);
+          case 'removeEventListener': return target.removeEventListener.bind(target);
+          case 'dispatchEvent':       return target.dispatchEvent.bind(target);
+          case 'onchargingchange':    return null;
+          case 'onlevelchange':       return null;
+          case 'onchargingtimechange':    return null;
+          case 'ondischargingtimechange':  return null;
+          default:
+            const val = Reflect.get(target, prop, receiver);
+            return typeof val === 'function' ? val.bind(target) : val;
+        }
+      }
+    });
+
+    // Override on Navigator.prototype for full interception
+    const orig = navigator.getBattery;
     const spoofedGetBattery = function() {
-      return originalGetBattery.call(this).then(battery => {
-        // Intercept and proxy the returned BatteryManager promise result
-        return new Proxy(battery, {
-          get(target, prop, receiver) {
-            if (prop === 'level') return level;
-            if (prop === 'charging') return charging;
-            if (prop === 'chargingTime') return chargingTime;
-            if (prop === 'dischargingTime') return dischargingTime;
-            
-            const value = Reflect.get(target, prop, receiver);
-            if (typeof value === 'function') {
-              return value.bind(target);
-            }
-            return value;
-          }
-        });
-      });
+      return orig.call(this).then(battery => buildBatteryProxy(battery));
     };
-    
+
     window.__pbrowser_cloak(spoofedGetBattery, 'function getBattery() { [native code] }');
-    navigator.getBattery = spoofedGetBattery;
-    
+
+    try {
+      Object.defineProperty(Navigator.prototype, 'getBattery', {
+        value: spoofedGetBattery, writable: false, enumerable: true, configurable: true
+      });
+    } catch(e) {
+      navigator.getBattery = spoofedGetBattery;
+    }
+
   } catch(e) {}
 })();
 ''';

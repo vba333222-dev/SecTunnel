@@ -8,33 +8,35 @@ class WebRTCSpoof {
       return '''
 // ===== WEBRTC DISABLED =====
 (() => {
-  // Remove all WebRTC functionality
-  delete window.RTCPeerConnection;
-  delete window.RTCSessionDescription;
-  delete window.RTCIceCandidate;
-  delete window.webkitRTCPeerConnection;
-  delete window.webkitRTCSessionDescription;
-  delete window.webkitRTCIceCandidate;
-  delete window.mozRTCPeerConnection;
-  delete window.mozRTCSessionDescription;
-  delete window.mozRTCIceCandidate;
-  
-  // Disable getUserMedia
-  if (navigator.getUserMedia) {
-    navigator.getUserMedia = undefined;
-  }
-  
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    navigator.mediaDevices.getUserMedia = undefined;
-  }
-  
-  if (navigator.webkitGetUserMedia) {
-    navigator.webkitGetUserMedia = undefined;
-  }
-  
-  if (navigator.mozGetUserMedia) {
-    navigator.mozGetUserMedia = undefined;
-  }
+  try {
+    // Use Object.defineProperty — `delete` silently fails on non-configurable globals
+    const _undef = (obj, prop) => {
+      try {
+        Object.defineProperty(obj, prop, {
+          value: undefined, writable: false, enumerable: false, configurable: false
+        });
+      } catch(e) {}
+    };
+    _undef(window, 'RTCPeerConnection');
+    _undef(window, 'RTCSessionDescription');
+    _undef(window, 'RTCIceCandidate');
+    _undef(window, 'RTCDataChannel');
+    _undef(window, 'RTCDTMFSender');
+    _undef(window, 'webkitRTCPeerConnection');
+    _undef(window, 'webkitRTCSessionDescription');
+    _undef(window, 'webkitRTCIceCandidate');
+    _undef(window, 'mozRTCPeerConnection');
+    _undef(window, 'mozRTCSessionDescription');
+    _undef(window, 'mozRTCIceCandidate');
+
+    // Disable getUserMedia via Object.defineProperty on Navigator.prototype
+    ['getUserMedia', 'webkitGetUserMedia', 'mozGetUserMedia'].forEach(fn => {
+      try { _undef(Navigator.prototype, fn); } catch(e) {}
+    });
+    if (navigator.mediaDevices) {
+      try { _undef(navigator.mediaDevices, 'getUserMedia'); } catch(e) {}
+    }
+  } catch(e) {}
 })();
 ''';
     } else {
@@ -92,13 +94,15 @@ class WebRTCSpoof {
     return pc;
   };
   
-  // Copy static methods
+  // Copy prototype chain and cloak constructor
   ProxiedRTCPeerConnection.prototype = OriginalRTCPeerConnection.prototype;
-  
+  Object.setPrototypeOf(ProxiedRTCPeerConnection, OriginalRTCPeerConnection);
+  window.__pbrowser_cloak(ProxiedRTCPeerConnection, 'function RTCPeerConnection() { [native code] }');
+
   // Replace global RTCPeerConnection
   window.RTCPeerConnection = ProxiedRTCPeerConnection;
-  window.webkitRTCPeerConnection = ProxiedRTCPeerConnection;
-  window.mozRTCPeerConnection = ProxiedRTCPeerConnection;
+  if (window.webkitRTCPeerConnection) window.webkitRTCPeerConnection = ProxiedRTCPeerConnection;
+  if (window.mozRTCPeerConnection)    window.mozRTCPeerConnection    = ProxiedRTCPeerConnection;
 })();
 ''';
     }
