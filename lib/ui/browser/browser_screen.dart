@@ -9,7 +9,6 @@ import 'package:pbrowser/models/fingerprint_config.dart';
 import 'package:pbrowser/models/proxy_config.dart';
 import 'package:pbrowser/services/fingerprint/fingerprint_injector.dart';
 import 'package:pbrowser/services/proxy/proxy_health_check.dart';
-import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
 import 'package:pbrowser/services/proxy/geo_ip_service.dart';
 import 'package:http/http.dart' as http;
 
@@ -34,7 +33,6 @@ class _BrowserScreenState extends State<BrowserScreen> {
   final TextEditingController _urlController = TextEditingController();
 
   // Services
-  late final ModemRotatorService _modemRotator;
   late FingerprintConfig _activeFingerprint;
 
   // ── Browser state ───────────────────────────────
@@ -73,12 +71,6 @@ class _BrowserScreenState extends State<BrowserScreen> {
     super.initState();
     _activeFingerprint = widget.profile.fingerprintConfig;
 
-    // Setup Modem IP Rotation Monitor
-    _modemRotator =
-        ModemRotatorService(proxyConfig: widget.profile.proxyConfig);
-    _modemRotator.statusNotifier.addListener(_onModemStatusChanged);
-    _modemRotator.startMonitoring();
-
     // Start async initialization before creating the WebView
     _initializeApp();
   }
@@ -86,24 +78,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
   @override
   void dispose() {
     _urlController.dispose();
-    _modemRotator.dispose();
     super.dispose();
-  }
-
-  void _onModemStatusChanged() {
-    if (!mounted) return;
-
-    final status = _modemRotator.statusNotifier.value;
-    if (status == ModemStatus.rotating || status == ModemStatus.offline) {
-      if (_mobileController != null) {
-        try {
-          _mobileController!.evaluateJavascript(source: 'window.stop();');
-        } catch (_) {}
-      }
-    } else if (status == ModemStatus.online) {
-      // Connection restored — refresh public IP for HUD
-      _fetchPublicIp();
-    }
   }
 
   // =========================================================================
@@ -343,8 +318,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
   // =========================================================================
 
   void _loadUrl() {
-    if (!_isProxyHealthy ||
-        _modemRotator.statusNotifier.value == ModemStatus.rotating) {
+    if (!_isProxyHealthy || _isRotating) {
       return;
     }
 
@@ -507,10 +481,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                       action: HttpAuthResponseAction.CANCEL);
                 },
                 shouldInterceptRequest: (controller, request) async {
-                  if (_modemRotator.statusNotifier.value !=
-                          ModemStatus.online &&
-                      _modemRotator.statusNotifier.value !=
-                          ModemStatus.offline) {
+                  if (_isRotating) {
                     return WebResourceResponse(
                         statusCode: 403,
                         reasonPhrase: 'Proxy Rotating',
@@ -539,10 +510,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                 },
                 shouldOverrideUrlLoading:
                     (controller, navigationAction) async {
-                  if (_modemRotator.statusNotifier.value !=
-                          ModemStatus.online &&
-                      _modemRotator.statusNotifier.value !=
-                          ModemStatus.offline) {
+                  if (_isRotating) {
                     return NavigationActionPolicy.CANCEL;
                   }
                   return NavigationActionPolicy.ALLOW;
@@ -578,33 +546,26 @@ class _BrowserScreenState extends State<BrowserScreen> {
             ),
 
           // ── Modem Status Banner ───────────────────────────
-          ValueListenableBuilder<ModemStatus>(
-            valueListenable: _modemRotator.statusNotifier,
-            builder: (context, status, child) {
-              if (status == ModemStatus.online) {
-                return const SizedBox.shrink();
-              }
-              return Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  color: status == ModemStatus.rotating
-                      ? Colors.orange
-                      : Colors.red,
-                  child: Text(
-                    status == ModemStatus.rotating
-                        ? 'Modem is rotating IP… Web traffic suspended to prevent leaks.'
-                        : 'Modem connection lost.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
+          if (_isRotating || !_isProxyHealthy)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                color: _isRotating
+                    ? Colors.orange
+                    : Colors.red,
+                child: Text(
+                  _isRotating
+                      ? 'Modem is rotating IP… Web traffic suspended to prevent leaks.'
+                      : 'Modem connection lost.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
                 ),
-              );
-            },
-          ),
+              ),
+            ),
 
           // ── Loading overlay ───────────────────────────────
           if (_isLoading && _isProxyHealthy && !_isControllerInitialized)
@@ -638,15 +599,12 @@ class _BrowserScreenState extends State<BrowserScreen> {
               curve: Curves.easeInOut,
               child: AbsorbPointer(
                 absorbing: !_hudVisible,
-                child: ValueListenableBuilder<ModemStatus>(
-                  valueListenable: _modemRotator.statusNotifier,
-                  builder: (context, modemStatus, _) {
-                    return _FloatingHud(
+                child: _FloatingHud(
                       offset: _hudOffset!,
                       expanded: _hudExpanded,
                       minimized: _hudMinimized,
                       proxyConfig: widget.profile.proxyConfig,
-                      modemStatus: modemStatus,
+                      isOnline: _isProxyHealthy && !_isRotating,
                       publicIp: _currentPublicIp,
                       isIpFetching: _isIpFetching,
                       isRotating: _isRotating,
@@ -685,9 +643,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                           );
                         }
                       },
-                    );
-                  },
-                ),
+                    ),
               ),
             ),
         ],
@@ -706,7 +662,7 @@ class _FloatingHud extends StatelessWidget {
   /// When true the HUD collapses to a 48px bubble; parent sets opacity to 0.50.
   final bool minimized;
   final ProxyConfig proxyConfig;
-  final ModemStatus modemStatus;
+  final bool isOnline;
   final String? publicIp;
   final bool isIpFetching;
   final bool isRotating;
@@ -724,7 +680,7 @@ class _FloatingHud extends StatelessWidget {
     required this.expanded,
     required this.minimized,
     required this.proxyConfig,
-    required this.modemStatus,
+    required this.isOnline,
     required this.publicIp,
     required this.isIpFetching,
     required this.isRotating,
@@ -738,25 +694,15 @@ class _FloatingHud extends StatelessWidget {
   });
 
   Color get _statusColor {
-    switch (modemStatus) {
-      case ModemStatus.online:
-        return Colors.greenAccent;
-      case ModemStatus.rotating:
-        return Colors.orangeAccent;
-      case ModemStatus.offline:
-        return Colors.redAccent;
-    }
+    if (isRotating) return Colors.orangeAccent;
+    if (isOnline) return Colors.greenAccent;
+    return Colors.redAccent;
   }
 
   String get _statusLabel {
-    switch (modemStatus) {
-      case ModemStatus.online:
-        return 'Proxy Active';
-      case ModemStatus.rotating:
-        return 'Rotating…';
-      case ModemStatus.offline:
-        return 'Offline';
-    }
+    if (isRotating) return 'Rotating…';
+    if (isOnline) return 'Proxy Active';
+    return 'Offline';
   }
 
   @override
@@ -852,8 +798,8 @@ class _FloatingHud extends StatelessWidget {
                 // Pulse ring
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 800),
-                  width: modemStatus == ModemStatus.online ? 36 : 32,
-                  height: modemStatus == ModemStatus.online ? 36 : 32,
+                  width: isOnline ? 36 : 32,
+                  height: isOnline ? 36 : 32,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: _statusColor.withValues(alpha: 0.15),
@@ -1005,9 +951,7 @@ class _FloatingHud extends StatelessWidget {
           // ── Rotate IP button ──────────────────────────────
           _RotateButton(
             isRotating: isRotating,
-            enabled: hasRotationUrl &&
-                modemStatus != ModemStatus.rotating &&
-                !isRotating,
+            enabled: hasRotationUrl && !isRotating,
             statusColor: _statusColor,
             onPressed: onRotateIp,
           ),

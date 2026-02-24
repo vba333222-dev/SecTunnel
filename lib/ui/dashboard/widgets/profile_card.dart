@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
 import 'package:pbrowser/models/proxy_config.dart';
-import 'package:pbrowser/services/proxy/mobile_proxy_service.dart';
 import 'package:intl/intl.dart';
 import 'package:pbrowser/ui/shared/proxy_signal_widget.dart';
 
@@ -10,13 +9,15 @@ import 'package:pbrowser/ui/shared/proxy_signal_widget.dart';
 //  PROFILE CARD
 // ─────────────────────────────────────────────
 
-class ProfileCard extends StatefulWidget {
+class ProfileCard extends StatelessWidget {
   final BrowserProfile profile;
+  final bool isRotatingIp;
   final VoidCallback onRun;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onDuplicate;
   final VoidCallback onClearSession;
+  final VoidCallback onRotateIp;
   // ── Selection ──────────────────────────────
   final bool isSelectMode;
   final bool isSelected;
@@ -31,6 +32,8 @@ class ProfileCard extends StatefulWidget {
     required this.onDelete,
     required this.onDuplicate,
     required this.onClearSession,
+    required this.onRotateIp,
+    this.isRotatingIp = false,
     this.isSelectMode = false,
     this.isSelected = false,
     VoidCallback? onLongPress,
@@ -39,121 +42,21 @@ class ProfileCard extends StatefulWidget {
         onSelect = onSelect ?? onRun;
 
   @override
-  State<ProfileCard> createState() => _ProfileCardState();
-}
-
-class _ProfileCardState extends State<ProfileCard> {
-  bool _isRotatingIp = false;
-
-  Future<void> _rotateIp() async {
-    final url = widget.profile.proxyConfig.rotationUrl;
-    if (url == null || url.trim().isEmpty) return;
-    if (_isRotatingIp) return;
-
-    // ── Phase 1: Instant feedback ────────────────────────────────────
-    // Show a persistent "in-progress" SnackBar immediately so the user
-    // sees a reaction within one frame, rather than a frozen UI.
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.tealAccent.shade200,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Text(
-              'Requesting rotation for "${widget.profile.name}"…',
-              style: const TextStyle(fontSize: 13),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF1E1E2A),
-        behavior: SnackBarBehavior.floating,
-        // Long duration — we'll manually dismiss it when the result arrives
-        duration: const Duration(minutes: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      ),
-    );
-
-    // ── Phase 2: Async call (non-blocking) ───────────────────────────
-    // Card icon updates to spinner while waiting; rest of UI stays interactive.
-    setState(() => _isRotatingIp = true);
-    HapticFeedback.mediumImpact();
-    final success = await MobileProxyService.rotateIp(url);
-
-    if (!mounted) return;
-    setState(() => _isRotatingIp = false);
-
-    // Triple vibrate on failure — error tactile signal
-    if (!success) {
-      HapticFeedback.vibrate();
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (mounted) HapticFeedback.vibrate();
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (mounted) HapticFeedback.vibrate();
-    }
-
-    if (!mounted) return;
-    setState(() => _isRotatingIp = false);
-
-    // ── Phase 3: Replace toast with result ───────────────────────────
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              success ? Icons.check_circle_rounded : Icons.error_rounded,
-              size: 18,
-              color: success ? Colors.tealAccent : Colors.redAccent,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                success
-                    ? 'IP rotated for "${widget.profile.name}"'
-                    : 'Rotation failed for "${widget.profile.name}"',
-                style: const TextStyle(fontSize: 13),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: success
-            ? const Color(0xFF0D2B25)
-            : const Color(0xFF2B0D0D),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      ),
-    );
-  }
-
-
-  @override
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: _CardBody(
-        profile: widget.profile,
-        isRotatingIp: _isRotatingIp,
-        isSelectMode: widget.isSelectMode,
-        isSelected: widget.isSelected,
-        onRun: widget.onRun,
-        onEdit: widget.onEdit,
-        onDelete: widget.onDelete,
-        onDuplicate: widget.onDuplicate,
-        onClearSession: widget.onClearSession,
-        onRotateIp: _rotateIp,
-        onLongPress: widget.onLongPress,
-        onSelect: widget.onSelect,
+        profile: profile,
+        isRotatingIp: isRotatingIp,
+        isSelectMode: isSelectMode,
+        isSelected: isSelected,
+        onRun: onRun,
+        onEdit: onEdit,
+        onDelete: onDelete,
+        onDuplicate: onDuplicate,
+        onClearSession: onClearSession,
+        onRotateIp: onRotateIp,
+        onLongPress: onLongPress,
+        onSelect: onSelect,
       ),
     );
   }
@@ -377,19 +280,28 @@ class _CardBodyState extends State<_CardBody> {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             // OS badge
-                            _OsBadge(platform: fp.platform),
+                            Hero(
+                              tag: 'os_badge_${profile.id}',
+                              child: OsBadge(platform: fp.platform),
+                            ),
                             const SizedBox(width: 10),
                             // Profile name
                   Expanded(
-                    child: Text(
-                      profile.name,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                    child: Hero(
+                      tag: 'profile_name_${profile.id}',
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: Text(
+                          profile.name,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   // Rotate IP spinner / icon
@@ -547,9 +459,9 @@ class _CheckboxBadge extends StatelessWidget {
 //  OS BADGE
 // ─────────────────────────────────────────────
 
-class _OsBadge extends StatelessWidget {
+class OsBadge extends StatelessWidget {
   final String platform;
-  const _OsBadge({required this.platform});
+  const OsBadge({super.key, required this.platform});
 
   @override
   Widget build(BuildContext context) {

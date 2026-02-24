@@ -8,6 +8,9 @@ import 'package:pbrowser/ui/profile/profile_form_screen.dart';
 import 'package:pbrowser/ui/browser/browser_screen.dart';
 import 'package:pbrowser/ui/dashboard/widgets/profile_card.dart';
 import 'package:pbrowser/ui/shared/skeleton_card.dart';
+import 'package:animations/animations.dart';
+import 'package:provider/provider.dart';
+import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ProfileRepository repository;
@@ -88,8 +91,21 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _createNewProfile() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ProfileFormScreen(repository: widget.repository),
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return ProfileFormScreen(repository: widget.repository);
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SharedAxisTransition(
+            animation: animation,
+            secondaryAnimation: secondaryAnimation,
+            transitionType: SharedAxisTransitionType.scaled,
+            fillColor: const Color(0xFF0A0A0A),
+            child: child,
+          );
+        },
       ),
     );
   }
@@ -97,11 +113,24 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _editProfile(BrowserProfile profile) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ProfileFormScreen(
-          repository: widget.repository,
-          existingProfile: profile,
-        ),
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return ProfileFormScreen(
+            repository: widget.repository,
+            existingProfile: profile,
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SharedAxisTransition(
+            animation: animation,
+            secondaryAnimation: secondaryAnimation,
+            transitionType: SharedAxisTransitionType.scaled,
+            fillColor: const Color(0xFF0A0A0A),
+            child: child,
+          );
+        },
       ),
     );
   }
@@ -430,19 +459,39 @@ class _DashboardScreenState extends State<DashboardScreen>
               if (isLoading)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 340,
-                      mainAxisExtent: 190,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (_, __) => const SkeletonCard(),
-                      childCount: 6,
-                      addRepaintBoundaries: false,
-                    ),
+                  sliver: SliverLayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.crossAxisExtent < 600;
+                      if (isNarrow) {
+                        return SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (_, __) => const Padding(
+                              padding: EdgeInsets.only(bottom: 12),
+                              child: SizedBox(
+                                height: 190,
+                                child: SkeletonCard(),
+                              ),
+                            ),
+                            childCount: 6,
+                          ),
+                        );
+                      } else {
+                        return SliverGrid(
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 400, // Wider for tablets
+                            mainAxisExtent: 190,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (_, __) => const SkeletonCard(),
+                            childCount: 6,
+                            addRepaintBoundaries: false,
+                          ),
+                        );
+                      }
+                    },
                   ),
                 )
               else if (allProfiles.isEmpty)
@@ -466,27 +515,21 @@ class _DashboardScreenState extends State<DashboardScreen>
               else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 340,
-                      mainAxisExtent: 190,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      addRepaintBoundaries: true,
-                      addAutomaticKeepAlives: false,
-                      childCount: filtered.length,
-                      (context, index) {
-                        final profile = filtered[index];
-                        final isSelected =
-                            _selectedIds.contains(profile.id);
+                  sliver: SliverLayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.crossAxisExtent < 600;
+                      
+                      Widget buildCard(BrowserProfile profile) {
+                        final isSelected = _selectedIds.contains(profile.id);
+                        final rotator = context.watch<ModemRotatorService>();
+                        final isThisRotating = rotator.isRotating && rotator.targetProfileId == profile.id;
+                        
                         return ProfileCard(
                           key: ValueKey(profile.id),
                           profile: profile,
                           isSelectMode: _isSelecting,
                           isSelected: isSelected,
+                          isRotatingIp: isThisRotating,
                           onLongPress: () => _enterSelectMode(profile.id),
                           onSelect: () => _toggleSelect(profile.id),
                           onRun: () => _launchBrowser(profile),
@@ -494,9 +537,53 @@ class _DashboardScreenState extends State<DashboardScreen>
                           onDelete: () => _deleteProfile(profile),
                           onDuplicate: () => _duplicateProfile(profile),
                           onClearSession: () => _clearSession(profile),
+                          onRotateIp: () {
+                            if (profile.proxyConfig.rotationUrl?.isNotEmpty == true) {
+                              context.read<ModemRotatorService>().rotateIp(
+                                profile.proxyConfig.rotationUrl!,
+                                profile.id,
+                                profile.name,
+                              );
+                            }
+                          },
                         );
-                      },
-                    ),
+                      }
+
+                      if (isNarrow) {
+                        return SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            addRepaintBoundaries: true,
+                            addAutomaticKeepAlives: false,
+                            childCount: filtered.length,
+                            (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: SizedBox(
+                                  height: 190,
+                                  child: buildCard(filtered[index]),
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      } else {
+                        return SliverGrid(
+                          gridDelegate:
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 400, // Wider for tablets
+                            mainAxisExtent: 190,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            addRepaintBoundaries: true,
+                            addAutomaticKeepAlives: false,
+                            childCount: filtered.length,
+                            (context, index) => buildCard(filtered[index]),
+                          ),
+                        );
+                      }
+                    },
                   ),
                 ),
             ],

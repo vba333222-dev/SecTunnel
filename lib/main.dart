@@ -12,6 +12,10 @@ import 'package:pbrowser/repositories/profile_repository.dart';
 
 // UI
 import 'package:pbrowser/ui/dashboard/dashboard_screen.dart';
+import 'package:pbrowser/ui/shared/global_task_overlay.dart';
+
+// Services
+import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,8 +49,13 @@ class PBrowserApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Provider<ProfileRepository>.value(
-      value: profileRepository,
+    return MultiProvider(
+      providers: [
+        Provider<ProfileRepository>.value(value: profileRepository),
+        ChangeNotifierProvider<ModemRotatorService>(
+          create: (_) => ModemRotatorService(),
+        ),
+      ],
       child: MaterialApp(
         title: 'PBrowser',
         debugShowCheckedModeBanner: false,
@@ -63,6 +72,11 @@ class PBrowserApp extends StatelessWidget {
             elevation: 0,
           ),
         ),
+        builder: (context, child) {
+          return GlobalTaskOverlay(
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
         home: DashboardScreen(repository: profileRepository),
       ),
     );

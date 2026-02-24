@@ -1,91 +1,52 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import 'package:pbrowser/models/proxy_config.dart';
+import 'package:pbrowser/services/proxy/mobile_proxy_service.dart';
 
-enum ModemStatus {
-  online,
-  offline,
-  rotating,
-}
+/// Global service to track IP Rotation state across the entire application.
+class ModemRotatorService extends ChangeNotifier {
+  bool _isRotating = false;
+  String? _targetProfileId;
+  String? _targetProfileName;
+  bool _lastStatus = false;
+  String? _errorMessage;
 
-/// Service to monitor a physical modem (e.g. Huawei E3372h) or proxy IP changes.
-/// Prevents the browser from leaking real IPs during a connection drop or IP rotation.
-class ModemRotatorService {
-  final ProxyConfig proxyConfig;
-  
-  // Huawei E3372h typical HiLink API endpoint for checking WAN IP / status
-  // For generic proxies, replacing this with an external IP checker might be needed.
-  static const String _huaweiApiUrl = 'http://192.168.8.1/api/monitoring/status';
-  
-  Timer? _pollingTimer;
-  final ValueNotifier<ModemStatus> statusNotifier = ValueNotifier(ModemStatus.offline);
-  
-  bool _isDisposed = false;
+  bool get isRotating => _isRotating;
+  String? get targetProfileId => _targetProfileId;
+  String? get targetProfileName => _targetProfileName;
+  bool get lastStatus => _lastStatus;
+  String? get errorMessage => _errorMessage;
 
-  ModemRotatorService({required this.proxyConfig});
+  /// Trigger rotation globally
+  Future<void> rotateIp(String url, String profileId, String profileName) async {
+    if (_isRotating) {
+      debugPrint('[ModemRotatorService] Already rotating another proxy. Ignoring request.');
+      return;
+    }
 
-  /// Starts monitoring the modem connection status
-  void startMonitoring({Duration interval = const Duration(seconds: 3)}) {
-    _isDisposed = false;
-    // Initial check
-    _checkStatus();
-    
-    // Setup polling
-    _pollingTimer = Timer.periodic(interval, (_) => _checkStatus());
-  }
+    _isRotating = true;
+    _targetProfileId = profileId;
+    _targetProfileName = profileName;
+    _errorMessage = null;
+    notifyListeners();
 
-  /// Stops monitoring the modem
-  void stopMonitoring() {
-    _isDisposed = true;
-    _pollingTimer?.cancel();
-    _pollingTimer = null;
-  }
-
-  Future<void> _checkStatus() async {
-    if (_isDisposed) return;
-    
     try {
-      // If we are strictly routed through a proxy, we need to ensure this check
-      // either traverses the proxy or checks the local modem gateway.
-      // Usually, HiLink APIs (192.168.8.1) need to bypass the proxy.
-      // Our Android ProxyConfig bypasses <local>, allowing this HTTP call.
-      
-      // Simulating the check since we cannot guarantee the hardware API structure here.
-      // In production, parse XML from _huaweiApiUrl: <ConnectionStatus>901</ConnectionStatus>
-      final response = await http.get(
-        Uri.parse(_huaweiApiUrl),
-        // Timeout very fast to detect dropped connection instantly
-        headers: {'Accept': 'text/xml'},
-      ).timeout(const Duration(seconds: 2));
-
-      if (response.statusCode == 200) {
-        // Connected to Modem Gateway. Now verify if it actually has WAN internet.
-        // Assuming the XML response indicates '901' for connected.
-        if (response.body.contains('<ConnectionStatus>901</ConnectionStatus>')) {
-          _updateStatus(ModemStatus.online);
-        } else {
-          _updateStatus(ModemStatus.rotating);
-        }
-      } else {
-        _updateStatus(ModemStatus.offline);
-      }
+      _lastStatus = await MobileProxyService.rotateIp(url);
     } catch (e) {
-      // Timeout or connection refused means the modem is physically disconnected or rebooting
-      _updateStatus(ModemStatus.offline);
-    }
-  }
+      _lastStatus = false;
+      _errorMessage = e.toString();
+    } finally {
+      _isRotating = false;
+      notifyListeners();
 
-  void _updateStatus(ModemStatus newStatus) {
-    if (_isDisposed) return;
-    if (statusNotifier.value != newStatus) {
-      statusNotifier.value = newStatus;
-      debugPrint('[ModemRotator] Status changed to: \${newStatus.name}');
+      // Clear the target profile after a short delay so the UI can show success/failure state briefly
+      Timer(const Duration(seconds: 3), () {
+        if (!_isRotating) { // Only clear if a new one hasn't started
+          _targetProfileId = null;
+          _targetProfileName = null;
+          _errorMessage = null;
+          notifyListeners();
+        }
+      });
     }
-  }
-  
-  void dispose() {
-    stopMonitoring();
-    statusNotifier.dispose();
   }
 }

@@ -5,6 +5,8 @@ import 'package:pbrowser/models/browser_profile.dart';
 import 'package:pbrowser/models/proxy_config.dart';
 import 'package:pbrowser/models/fingerprint_config.dart';
 import 'package:pbrowser/repositories/profile_repository.dart';
+import 'package:pbrowser/ui/dashboard/widgets/profile_card.dart';
+import 'package:pbrowser/ui/shared/info_tooltip.dart';
 
 // ─────────────────────────────────────────────
 //  MAIN SCREEN
@@ -469,24 +471,54 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
           elevation: 0,
           backgroundColor: const Color(0xFF141414),
           surfaceTintColor: Colors.transparent,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          title: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                isEdit ? 'Edit Profile' : 'New Profile',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+              if (isEdit) ...[
+                Hero(
+                  tag: 'os_badge_${widget.existingProfile!.id}',
+                  child: OsBadge(platform: widget.existingProfile!.fingerprintConfig.platform),
                 ),
-              ),
-              Text(
-                isEdit
-                    ? widget.existingProfile!.name
-                    : 'Configure browser fingerprint',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: 0.5),
+                const SizedBox(width: 14),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      isEdit ? 'Edit Profile' : 'New Profile',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (isEdit)
+                      Hero(
+                        tag: 'profile_name_${widget.existingProfile!.id}',
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: Text(
+                            widget.existingProfile!.name,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.5),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                    else
+                      Text(
+                        'Configure browser fingerprint',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.5),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -942,7 +974,7 @@ class _RandomizeButton extends StatelessWidget {
 
 /// Standard dark-theme input decoration used across all tabs.
 InputDecoration _inputDeco(String label, IconData icon,
-    {String? hint, Color? accent}) {
+    {String? hint, Color? accent, String? tooltip}) {
   final accentColor = accent ?? Colors.tealAccent.shade200;
   return InputDecoration(
     labelText: label,
@@ -950,6 +982,7 @@ InputDecoration _inputDeco(String label, IconData icon,
     hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.25), fontSize: 13),
     labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
     prefixIcon: Icon(icon, color: accentColor.withValues(alpha: 0.8), size: 20),
+    suffixIcon: tooltip != null ? InfoTooltipWidget(message: tooltip) : null,
     filled: true,
     fillColor: Colors.white.withValues(alpha: 0.045),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -977,7 +1010,7 @@ InputDecoration _inputDeco(String label, IconData icon,
 }
 
 /// Section header used inside each tab.
-Widget _sectionHeader(String title, {IconData? icon}) {
+Widget _sectionHeader(String title, {IconData? icon, String? tooltip}) {
   return Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: Row(
@@ -995,6 +1028,7 @@ Widget _sectionHeader(String title, {IconData? icon}) {
             letterSpacing: 0.5,
           ),
         ),
+        if (tooltip != null) InfoTooltipWidget(message: tooltip),
         const SizedBox(width: 12),
         Expanded(
           child: Container(
@@ -1141,6 +1175,7 @@ class _GeneralTab extends StatelessWidget {
           uaManualOverride ? 'User-Agent (Manual)' : 'User-Agent (Auto)',
           Icons.fingerprint,
           hint: 'Auto-generated from OS + Browser selection',
+          tooltip: 'The User-Agent tells websites your browser version and Operating System. PBrowser spoofs this to match your selection, hiding your real device identity.',
         ).copyWith(
           suffixIcon: uaManualOverride
               ? IconButton(
@@ -1218,7 +1253,7 @@ class _NetworkTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── Proxy Configuration ───────────────
-      _sectionHeader('Proxy Configuration', icon: Icons.vpn_lock_outlined),
+      _sectionHeader('Proxy Configuration', icon: Icons.vpn_lock_outlined, tooltip: 'Proxies hide your real IP address. Selecting HTTP or SOCKS5 routes your browser traffic through a remote server.'),
       _darkDropdown<ProxyType>(
         value: selectedProxyType,
         items: const [
@@ -1296,7 +1331,7 @@ class _NetworkTab extends StatelessWidget {
               hint: 'Optional', accent: Colors.orangeAccent),
         ),
         const SizedBox(height: 28),
-        _sectionHeader('Modem Rotator', icon: Icons.autorenew),
+        _sectionHeader('Modem Rotator', icon: Icons.autorenew, tooltip: 'Automatically forces a physical 4G/5G mobile router to fetch a new IP address before launching the browser.'),
         TextFormField(
           controller: rotationUrlController,
           style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -1320,7 +1355,7 @@ class _NetworkTab extends StatelessWidget {
 
       const SizedBox(height: 28),
       // ── WebRTC ────────────────────────────
-      _sectionHeader('WebRTC', icon: Icons.wifi_channel),
+      _sectionHeader('WebRTC', icon: Icons.wifi_channel, tooltip: 'WebRTC is used for real-time video/audio. If enabled without a proxy, it will leak your real local IP address. Disabling it is safer but may break video conferencing sites.'),
       _SettingsToggleCard(
         title: 'WebRTC Enabled',
         subtitle: 'Disable to prevent IP leakage through WebRTC',
@@ -1397,7 +1432,7 @@ class _HardwareTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── WebGL ─────────────────────────────
-      _sectionHeader('WebGL Fingerprint', icon: Icons.grain),
+      _sectionHeader('WebGL Fingerprint', icon: Icons.grain, tooltip: 'Graphics hardware exposes a unique identifier. Matching this to your Operating System is crucial to avoid bot-detection (e.g., do not use an Apple GPU on Windows).'),
       _darkDropdown<String>(
         value: resolvedWebgl,
         items: webglOptions
@@ -1446,7 +1481,7 @@ class _HardwareTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── Canvas ────────────────────────────
-      _sectionHeader('Canvas Fingerprint', icon: Icons.brush_outlined),
+      _sectionHeader('Canvas Fingerprint', icon: Icons.brush_outlined, tooltip: 'Canvas Spoofing adds invisible, microscopic noise to images rendered by the browser. This prevents tracking scripts from linking your device to a persistent identity.'),
       TextFormField(
         controller: canvasSaltController,
         style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -1455,6 +1490,7 @@ class _HardwareTab extends StatelessWidget {
           Icons.texture,
           hint: 'Random 32-char string',
           accent: Colors.purpleAccent,
+          tooltip: 'The cryptographic seed used to generate the unique image noise. Generating a new fingerprint changes this salt.',
         ),
       ),
       const SizedBox(height: 28),
