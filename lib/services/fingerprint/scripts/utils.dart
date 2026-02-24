@@ -171,6 +171,22 @@ function seededRandom(seed) {
   const _origGOPD  = Object.getOwnPropertyDescriptor;
   const _origGOPDs = Object.getOwnPropertyDescriptors;
 
+  const desktopKeys = [
+    'vendorSub', 'productSub', 'vendor', 'maxTouchPoints', 'scheduling', 
+    'userActivation', 'doNotTrack', 'geolocation', 'connection', 'plugins', 
+    'mimeTypes', 'pdfViewerEnabled', 'webkitTemporaryStorage', 
+    'webkitPersistentStorage', 'windowControlsOverlay', 'hardwareConcurrency', 
+    'cookieEnabled', 'appCodeName', 'appName', 'appVersion', 'platform', 
+    'product', 'userAgent', 'language', 'languages', 'onLine', 'webdriver', 
+    'getGamepads', 'javaEnabled', 'sendBeacon', 'vibrate', 'ink', 
+    'mediaCapabilities', 'mediaSession', 'permissions', 'locks', 'credentials', 
+    'storageBuckets', 'clipboard', 'managed', 'mediaDevices', 'storage', 
+    'serviceWorker', 'virtualKeyboard', 'wakeLock', 'deviceMemory', 
+    'userAgentData', 'login', 'keyboard', 'bluetooth', 'hid', 'serial', 
+    'usb', 'xr', 'presentation', 'clearAppBadge', 'getBattery', 'getUserAgent', 
+    'setAppBadge'
+  ];
+
   // Targets whose descriptors should be hardened
   const _targets = () => [
     typeof Navigator !== 'undefined' ? Navigator.prototype : null,
@@ -207,8 +223,23 @@ function seededRandom(seed) {
       const descs = Reflect.apply(target, thisArg, args);
       if (_targets().includes(obj)) {
         const hardened = {};
-        for (const key of Object.keys(descs)) {
-          hardened[key] = _hardenDescriptor(descs[key]);
+        
+        // Rebuild the object with strict Chrome Desktop ordering
+        if (obj === (typeof Navigator !== 'undefined' ? Navigator.prototype : null)) {
+           desktopKeys.forEach(k => {
+              if (descs[k]) {
+                 hardened[k] = _hardenDescriptor(descs[k]);
+                 delete descs[k];
+              }
+           });
+           // Append remaining unused properties at the end just in case
+           for (const key of Object.keys(descs)) {
+              hardened[key] = _hardenDescriptor(descs[key]);
+           }
+        } else {
+           for (const key of Object.keys(descs)) {
+             hardened[key] = _hardenDescriptor(descs[key]);
+           }
         }
         return hardened;
       }

@@ -18,40 +18,6 @@ class TimezoneSpoof {
   const spoofedLongitude = $longitude;
   const spoofedAccuracy = $accuracy;
   
-  // ===== TIMEZONE SPOOFING =====
-  
-  // Override Intl.DateTimeFormat
-  const OriginalDateTimeFormat = Intl.DateTimeFormat;
-  
-  Intl.DateTimeFormat = new Proxy(OriginalDateTimeFormat, {
-    construct(target, args) {
-      const instance = new target(...args);
-      
-      // Override resolvedOptions
-      const originalResolvedOptions = instance.resolvedOptions;
-      instance.resolvedOptions = function() {
-        const options = originalResolvedOptions.call(this);
-        options.timeZone = spoofedTimezone;
-        return options;
-      };
-      
-      return instance;
-    }
-  });
-  
-  // Make Intl.DateTimeFormat.prototype.resolvedOptions look native
-  ${NativeUtils.protectFunction(
-    'Intl.DateTimeFormat.prototype',
-    'resolvedOptions',
-    '''
-function() {
-  const options = OriginalDateTimeFormat.prototype.resolvedOptions.call(this);
-  options.timeZone = spoofedTimezone;
-  return options;
-}
-'''
-  )}
-  
   // Override Date.prototype.getTimezoneOffset
   const originalGetTimezoneOffset = Date.prototype.getTimezoneOffset;
   
@@ -65,23 +31,6 @@ function() {
   const spoofedDate = new Date(this.toLocaleString('en-US', { timeZone: spoofedTimezone }));
   const realDate = new Date(this.toLocaleString('en-US', { timeZone: 'UTC' }));
   return (realDate - spoofedDate) / 60000; // Return offset in minutes
-}
-'''
-  )}
-  
-  // Override toLocaleString to use spoofed timezone
-  const originalToLocaleString = Date.prototype.toLocaleString;
-  
-  ${NativeUtils.protectFunction(
-    'Date.prototype',
-    'toLocaleString',
-    '''
-function(locales, options) {
-  if (!options) options = {};
-  if (!options.timeZone) {
-    options.timeZone = spoofedTimezone;
-  }
-  return originalToLocaleString.call(this, locales, options);
 }
 '''
   )}

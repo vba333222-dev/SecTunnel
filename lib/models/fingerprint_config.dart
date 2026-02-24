@@ -286,5 +286,9 @@ class FingerprintConfig {
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     return List.generate(32, (_) => chars[random.nextInt(chars.length)]).join();
   }
+
+  /// Public alias so external callers (e.g. ProfileFormScreen) can generate
+  /// a fresh canvas noise salt without triggering a full [FingerprintConfig.random].
+  static String generateNewSalt() => _generateRandomSalt();
 }
 

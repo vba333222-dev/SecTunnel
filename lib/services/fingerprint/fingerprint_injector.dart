@@ -27,7 +27,11 @@ import 'package:pbrowser/services/fingerprint/scripts/error_stack_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/geolocation_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/keyboard_api_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/service_worker_guard.dart';
+import 'package:pbrowser/services/fingerprint/scripts/iframe_sandbox_guard.dart';
 import 'package:pbrowser/services/fingerprint/scripts/scrollbar_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/css_metrics_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/navigator_keys_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/intl_api_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/utils.dart';
 
 /// Orchestrates all fingerprint spoofing scripts
@@ -128,6 +132,8 @@ class FingerprintInjector {
   
   ${AudioSpoof.generate(config)}
   
+  ${IntlApiSpoof.generate(config)}
+  
   ${TimezoneSpoof.generate(config)}
   
   ${BatterySpoof.generate(config)}
@@ -137,6 +143,9 @@ class FingerprintInjector {
   ${DOMRectSpoof.generate(config)}
 
   ${ScrollbarSpoof.generate(config)}
+  
+  // Cloak Android WebView specific CSS capabilities (-webkit-tap-highlight-color)
+  ${CSSMetricsSpoof.generate(config)}
 
   // scrollX / scrollY non-zero: fresh WebView always starts at 0,0 — a detection signal
   // Spoof to a plausible small scroll offset that looks like the user has scrolled a bit
@@ -159,53 +168,15 @@ class FingerprintInjector {
     } catch(e) {}
   })();
   
-  // --- Iframe Context Shield (contentWindow & contentDocument Proxy) ---
-  // Prevents trackers from creating an iframe and reading its raw .navigator
-  (() => {
-    try {
-      // 1. contentWindow
-      const origContentWindowDesc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'contentWindow');
-      if (origContentWindowDesc && origContentWindowDesc.get) {
-        const spoofedGetCW = function() {
-          const cw = origContentWindowDesc.get.call(this);
-          if (cw && !cw.__pbrowser_injected_secure) {
-            try {
-              // Inject our entire script into the new child window immediately upon access
-              // (Only works for same-origin, which is what trackers use for this exploit)
-              const childDoc = cw.document;
-              const script = childDoc.createElement('script');
-              // window.__pbrowser_frame_script is now replaced by self-referencing the IIFE or using a Dart variable
-              script.textContent = `(\${arguments.callee.caller.caller.toString()})(window);`; 
-              // We could also inject the whole script again but that is huge.
-              // We'll rely on the WebView 'For_All_Frames' injection flag to cover actual frame creation.
-              // However, just to be safe if it's dynamically created:
-            } catch(e) {}
-          }
-          return cw;
-        };
-        self.__pbrowser_cloak(spoofedGetCW, 'function get contentWindow() { [native code] }');
-        Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
-            get: spoofedGetCW, enumerable: true, configurable: true
-        });
-      }
-
-      // 2. contentDocument
-      const origContentDocDesc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'contentDocument');
-      if (origContentDocDesc && origContentDocDesc.get) {
-        const spoofedGetCD = function() {
-          const doc = origContentDocDesc.get.call(this);
-          return doc;
-        };
-        self.__pbrowser_cloak(spoofedGetCD, 'function get contentDocument() { [native code] }');
-        Object.defineProperty(HTMLIFrameElement.prototype, 'contentDocument', {
-            get: spoofedGetCD, enumerable: true, configurable: true
-        });
-      }
-    } catch(e) {}
-  })();
+  // --- Iframe Context Shield (contentWindow & contentDocument Eager Injection) ---
+  // Prevents trackers from creating an about:blank iframe and reading its raw .navigator
+  ${IframeSandboxGuard.generate(config)}
   
   // Protect Service Worker scope from real navigator leaks (H-1 fix)
   ${ServiceWorkerGuard.generate(config)}
+
+  // Lock the property iteration order for pure Desktop imitation
+  ${NavigatorKeysSpoof.generate(config)}
 
   // Final protection layer
   ${NativeUtils.preventNavigatorDetection()}

@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:pbrowser/models/browser_profile.dart';
-import 'package:intl/intl.dart';
+import 'package:pbrowser/models/proxy_config.dart';
 import 'package:pbrowser/services/proxy/mobile_proxy_service.dart';
+import 'package:intl/intl.dart';
+
+// ─────────────────────────────────────────────
+//  PROFILE CARD
+// ─────────────────────────────────────────────
 
 class ProfileCard extends StatefulWidget {
   final BrowserProfile profile;
   final VoidCallback onRun;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  
+
   const ProfileCard({
     super.key,
     required this.profile,
@@ -27,255 +32,551 @@ class _ProfileCardState extends State<ProfileCard> {
   Future<void> _rotateIp() async {
     final url = widget.profile.proxyConfig.rotationUrl;
     if (url == null || url.trim().isEmpty) return;
+    if (_isRotatingIp) return;
 
+    // ── Phase 1: Instant feedback ────────────────────────────────────
+    // Show a persistent "in-progress" SnackBar immediately so the user
+    // sees a reaction within one frame, rather than a frozen UI.
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.tealAccent.shade200,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Text(
+              'Requesting rotation for "${widget.profile.name}"…',
+              style: const TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF1E1E2A),
+        behavior: SnackBarBehavior.floating,
+        // Long duration — we'll manually dismiss it when the result arrives
+        duration: const Duration(minutes: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      ),
+    );
+
+    // ── Phase 2: Async call (non-blocking) ───────────────────────────
+    // Card icon updates to spinner while waiting; rest of UI stays interactive.
     setState(() => _isRotatingIp = true);
     final success = await MobileProxyService.rotateIp(url);
-    
-    if (mounted) {
-      setState(() => _isRotatingIp = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'IP Rotation Successful' : 'IP Rotation Failed'),
-          backgroundColor: success ? Colors.green : Colors.red,
-          duration: const Duration(seconds: 2),
+
+    if (!mounted) return;
+    setState(() => _isRotatingIp = false);
+
+    // ── Phase 3: Replace toast with result ───────────────────────────
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              success ? Icons.check_circle_rounded : Icons.error_rounded,
+              size: 18,
+              color: success ? Colors.tealAccent : Colors.redAccent,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                success
+                    ? 'IP rotated for "${widget.profile.name}"'
+                    : 'Rotation failed for "${widget.profile.name}"',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
         ),
-      );
-    }
+        backgroundColor: success
+            ? const Color(0xFF0D2B25)
+            : const Color(0xFF2B0D0D),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      ),
+    );
   }
+
 
   @override
   Widget build(BuildContext context) {
-    final profile = widget.profile;
-    
+    // Wrap in RepaintBoundary so each card's paint is isolated — no full-grid
+    // repaint when a single card changes hover/tap ink state.
+    return RepaintBoundary(
+      child: _CardBody(
+        profile: widget.profile,
+        isRotatingIp: _isRotatingIp,
+        onRun: widget.onRun,
+        onEdit: widget.onEdit,
+        onDelete: widget.onDelete,
+        onRotateIp: _rotateIp,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  CARD BODY  (StatelessWidget → no extra setState)
+// ─────────────────────────────────────────────
+
+class _CardBody extends StatelessWidget {
+  final BrowserProfile profile;
+  final bool isRotatingIp;
+  final VoidCallback onRun;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onRotateIp;
+
+  const _CardBody({
+    required this.profile,
+    required this.isRotatingIp,
+    required this.onRun,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onRotateIp,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fp = profile.fingerprintConfig;
+    final proxy = profile.proxyConfig;
+    final hasProxy = proxy.type != ProxyType.none;
+    final hasRotation =
+        proxy.rotationUrl != null && proxy.rotationUrl!.isNotEmpty;
+
     return Card(
-      color: const Color(0xFF1E1E1E),
+      elevation: 0,
+      color: const Color(0xFF16161F),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: InkWell(
-        onTap: widget.onRun,
+        onTap: onRun,
         borderRadius: BorderRadius.circular(16),
+        splashColor: Colors.tealAccent.withValues(alpha: 0.08),
+        highlightColor: Colors.tealAccent.withValues(alpha: 0.04),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Row
+              // ── Header row ────────────────────────────
               Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _buildProxyIcon(),
-                  const SizedBox(width: 8),
+                  // OS badge
+                  _OsBadge(platform: fp.platform),
+                  const SizedBox(width: 10),
+                  // Profile name
                   Expanded(
                     child: Text(
                       profile.name,
                       style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, color: Colors.white54),
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        widget.onEdit();
-                      } else if (value == 'delete') {
-                        widget.onDelete();
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 20),
-                            SizedBox(width: 8),
-                            Text('Edit'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 20, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Delete', style: TextStyle(color: Colors.red)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              
-              // Proxy Info
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildInfoRow(
-                      Icons.vpn_lock_outlined,
-                      _getProxyText(),
-                      Colors.green,
+                  // Rotate IP spinner / icon
+                  if (hasRotation)
+                    SizedBox(
+                      width: 30,
+                      height: 30,
+                      child: isRotatingIp
+                          ? const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.tealAccent,
+                              ),
+                            )
+                          : IconButton(
+                              icon: const Icon(Icons.swap_horiz_rounded,
+                                  size: 18, color: Colors.tealAccent),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: 'Rotate IP',
+                              onPressed: onRotateIp,
+                            ),
                     ),
-                  ),
-                  if (profile.proxyConfig.rotationUrl != null && profile.proxyConfig.rotationUrl!.isNotEmpty)
-                    _isRotatingIp 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : IconButton(
-                            icon: const Icon(Icons.autorenew, color: Colors.blueAccent, size: 20),
-                            onPressed: _rotateIp,
-                            tooltip: 'Rotate IP',
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
+                  // Context menu
+                  _ContextMenu(onEdit: onEdit, onDelete: onDelete),
                 ],
               ),
-              
-              const SizedBox(height: 8),
-              
-              // User Agent Info
-              _buildInfoRow(
-                Icons.phone_android,
-                _getUserAgentPreview(),
-                Colors.blue,
+
+              const SizedBox(height: 10),
+
+              // ── Visual chip row ───────────────────────
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _BrowserChip(userAgent: fp.userAgent),
+                  _ProxyChip(proxy: proxy),
+                  if (!fp.webrtcEnabled)
+                    const _InfoChip(
+                      label: 'WebRTC OFF',
+                      icon: Icons.shield_outlined,
+                      color: Colors.deepOrangeAccent,
+                    ),
+                ],
               ),
-              
+
               const Spacer(),
-              
-              // Last Used
+
+              // ── Footer row ────────────────────────────
               Row(
                 children: [
-                  const Icon(Icons.access_time, size: 14, color: Colors.white38),
+                  const Icon(Icons.access_time_rounded,
+                      size: 13, color: Colors.white24),
                   const SizedBox(width: 4),
                   Text(
-                    _getLastUsedText(),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.white38,
+                    _lastUsedText(profile.lastUsedAt),
+                    style:
+                        const TextStyle(fontSize: 11, color: Colors.white38),
+                  ),
+                  const Spacer(),
+                  // Proxy status dot
+                  _StatusDot(active: hasProxy),
+                  const SizedBox(width: 4),
+                  Text(
+                    hasProxy ? 'Proxy' : 'Direct',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: hasProxy
+                          ? Colors.greenAccent.shade100
+                          : Colors.white38,
                     ),
                   ),
                 ],
               ),
-              
-              const SizedBox(height: 12),
-              
-              // Run Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: widget.onRun,
-                  icon: const Icon(Icons.play_arrow, size: 20),
-                  label: const Text('Launch'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueGrey,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
+
+              const SizedBox(height: 10),
+
+              // ── Launch button ─────────────────────────
+              _LaunchButton(onTap: onRun),
             ],
           ),
         ),
       ),
     );
   }
-  
-  Widget _buildProxyIcon() {
-    IconData icon;
-    Color color;
-    
-    switch (widget.profile.proxyConfig.type.toString()) {
-      case 'http':
-        icon = Icons.http;
-        color = Colors.orange;
-        break;
-      case 'socks5':
-        icon = Icons.security;
-        color = Colors.purple;
-        break;
-      default:
-        icon = Icons.public_off;
-        color = Colors.grey;
-    }
-    
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(8),
+
+  static String _lastUsedText(DateTime lastUsedAt) {
+    final diff = DateTime.now().difference(lastUsedAt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return DateFormat('MMM d').format(lastUsedAt);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  OS BADGE
+// ─────────────────────────────────────────────
+
+class _OsBadge extends StatelessWidget {
+  final String platform;
+  const _OsBadge({required this.platform});
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, color, label) = _resolve(platform);
+    return Tooltip(
+      message: label,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Icon(icon, size: 18, color: color),
       ),
-      child: Icon(icon, color: color, size: 20),
     );
   }
-  
-  Widget _buildInfoRow(IconData icon, String text, Color iconColor) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: iconColor),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.white70,
+
+  static (IconData, Color, String) _resolve(String platform) {
+    final p = platform.toLowerCase();
+    if (p.contains('win')) {
+      return (Icons.window_rounded, Colors.blueAccent, 'Windows');
+    }
+    if (p.contains('mac') || p.contains('intel')) {
+      return (Icons.apple, const Color(0xFFB0B0B0), 'macOS');
+    }
+    if (p.contains('iphone') || p.contains('ipad')) {
+      return (Icons.phone_iphone, Colors.blueGrey, 'iOS');
+    }
+    if (p.contains('android') || p.contains('arm')) {
+      return (Icons.android, Colors.greenAccent, 'Android');
+    }
+    // Linux
+    return (Icons.terminal, Colors.amberAccent, 'Linux');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  BROWSER CHIP
+// ─────────────────────────────────────────────
+
+class _BrowserChip extends StatelessWidget {
+  final String userAgent;
+  const _BrowserChip({required this.userAgent});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = _parse(userAgent);
+    return _InfoChip(label: label, icon: Icons.public_rounded, color: color);
+  }
+
+  static (String, Color) _parse(String ua) {
+    // Edge check must come before Chrome
+    if (ua.contains('Edg/')) {
+      final m = RegExp(r'Edg/(\d+)').firstMatch(ua);
+      return ('Edge ${m?.group(1) ?? ''}', Colors.blueAccent);
+    }
+    if (ua.contains('Firefox/')) {
+      final m = RegExp(r'Firefox/(\d+)').firstMatch(ua);
+      return ('Firefox ${m?.group(1) ?? ''}', Colors.orangeAccent);
+    }
+    if (ua.contains('Chrome/')) {
+      final m = RegExp(r'Chrome/(\d+)').firstMatch(ua);
+      return ('Chrome ${m?.group(1) ?? ''}', Colors.tealAccent);
+    }
+    if (ua.contains('Safari/') && !ua.contains('Chrome')) {
+      return ('Safari', Colors.blueGrey);
+    }
+    return ('Browser', Colors.white54);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  PROXY CHIP
+// ─────────────────────────────────────────────
+
+class _ProxyChip extends StatelessWidget {
+  final ProxyConfig proxy;
+  const _ProxyChip({required this.proxy});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (proxy.type) {
+      case ProxyType.socks5:
+        return const _InfoChip(
+          label: 'SOCKS5',
+          icon: Icons.security_rounded,
+          color: Colors.purpleAccent,
+        );
+      case ProxyType.http:
+        return const _InfoChip(
+          label: 'HTTP',
+          icon: Icons.http_rounded,
+          color: Colors.orangeAccent,
+        );
+      case ProxyType.none:
+        return const _InfoChip(
+          label: 'Direct',
+          icon: Icons.public_off_rounded,
+          color: Colors.white38,
+        );
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  GENERIC INFO CHIP
+// ─────────────────────────────────────────────
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _InfoChip({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w600,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  STATUS DOT
+// ─────────────────────────────────────────────
+
+class _StatusDot extends StatelessWidget {
+  final bool active;
+  const _StatusDot({required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? Colors.greenAccent : Colors.white24;
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: Colors.greenAccent.withValues(alpha: 0.5),
+                  blurRadius: 6,
+                )
+              ]
+            : null,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  LAUNCH BUTTON
+// ─────────────────────────────────────────────
+
+class _LaunchButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _LaunchButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 36,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.tealAccent.shade700,
+              Colors.teal.shade400,
+            ],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.tealAccent.withValues(alpha: 0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            splashColor: Colors.white12,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.play_arrow_rounded, size: 18, color: Colors.black),
+                SizedBox(width: 6),
+                Text(
+                  'Launch',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  CONTEXT MENU
+// ─────────────────────────────────────────────
+
+class _ContextMenu extends StatelessWidget {
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _ContextMenu({required this.onEdit, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.more_vert_rounded,
+          color: Colors.white.withValues(alpha: 0.4), size: 20),
+      color: const Color(0xFF1E1E2A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (v) {
+        if (v == 'edit') { onEdit(); }
+        else if (v == 'delete') { onDelete(); }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 18, color: Colors.white70),
+              SizedBox(width: 10),
+              Text('Edit', style: TextStyle(color: Colors.white70)),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+              SizedBox(width: 10),
+              Text('Delete', style: TextStyle(color: Colors.redAccent)),
+            ],
           ),
         ),
       ],
     );
-  }
-  
-  String _getProxyText() {
-    if (widget.profile.proxyConfig.type.toString() == 'none') {
-      return 'No Proxy (Direct)';
-    }
-    
-    final host = widget.profile.proxyConfig.host ?? 'unknown';
-    final port = widget.profile.proxyConfig.port ?? 0;
-    final type = widget.profile.proxyConfig.type.toString().toUpperCase();
-    
-    return '$type: $host:$port';
-  }
-  
-  String _getUserAgentPreview() {
-    final ua = widget.profile.fingerprintConfig.userAgent;
-    
-    // Extract browser name
-    if (ua.contains('Chrome/')) {
-      final match = RegExp(r'Chrome/(\d+)').firstMatch(ua);
-      if (match != null) {
-        return 'Chrome ${match.group(1)}';
-      }
-    }
-    
-    return ua.substring(0, ua.length > 30 ? 30 : ua.length);
-  }
-  
-  String _getLastUsedText() {
-    final now = DateTime.now();
-    final diff = now.difference(widget.profile.lastUsedAt);
-    
-    if (diff.inMinutes < 1) {
-      return 'Just now';
-    } else if (diff.inHours < 1) {
-      return '${diff.inMinutes}m ago';
-    } else if (diff.inDays < 1) {
-      return '${diff.inHours}h ago';
-    } else if (diff.inDays < 7) {
-      return '${diff.inDays}d ago';
-    } else {
-      return DateFormat('MMM d').format(widget.profile.lastUsedAt);
-    }
   }
 }
