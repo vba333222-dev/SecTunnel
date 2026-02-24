@@ -103,7 +103,7 @@ class DashboardScreen extends StatelessWidget {
           Icon(
             Icons.folder_open,
             size: 100,
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
           ),
           const SizedBox(height: 24),
           const Text(

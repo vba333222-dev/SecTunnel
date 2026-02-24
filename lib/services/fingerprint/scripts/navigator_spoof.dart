@@ -1,13 +1,11 @@
 import 'package:pbrowser/models/fingerprint_config.dart';
-import 'package:pbrowser/services/fingerprint/scripts/utils.dart';
 
-/// JavaScript code generator for navigator spoofing
 class NavigatorSpoof {
   static String generate(FingerprintConfig config) {
     final userAgent = _escapeJs(config.userAgent);
     final platform = _escapeJs(config.platform);
     final language = _escapeJs(config.language);
-    
+
     return '''
 // ===== NAVIGATOR SPOOFING =====
 (() => {
@@ -39,15 +37,15 @@ class NavigatorSpoof {
   };
 
   // Mock primary ident properties
-  modifyNavigatorProp('userAgent', '\$userAgent');
-  modifyNavigatorProp('appVersion', '\$userAgent'.replace('Mozilla/', ''));
-  modifyNavigatorProp('platform', '\$platform');
-  modifyNavigatorProp('language', '\$language');
+  modifyNavigatorProp('userAgent', '$userAgent');
+  modifyNavigatorProp('appVersion', '$userAgent'.replace('Mozilla/', ''));
+  modifyNavigatorProp('platform', '$platform');
+  modifyNavigatorProp('language', '$language');
   // H-5 fix: languages array must align with language setting
   // e.g. 'id-ID' → ['id-ID', 'id', 'en-US', 'en'] (Chrome Desktop ordering)
   (() => {
     try {
-      const lang    = '\$language';
+      const lang    = '$language';
       const base    = lang.split('-')[0];
       const langArr = [lang];
       if (base !== lang) langArr.push(base);
@@ -269,6 +267,12 @@ class NavigatorSpoof {
   // Chrome Desktop always has a "PDF Viewer" plugin. Empty array = red flag.
   (() => {
     try {
+      // --- Helper to cloak functions ---
+      const cloakObjFunction = (obj, propName, fnStr) => {
+          if(!obj[propName]) return;
+          window.__pbrowser_cloak(obj[propName], fnStr);
+      };
+
       // --- Build MimeType mock objects ---
       const makeMimeType = (type, description, suffixes, plugin) => {
         const mt = Object.create(MimeType.prototype);
@@ -276,6 +280,8 @@ class NavigatorSpoof {
         Object.defineProperty(mt, 'description', { value: description, enumerable: true, configurable: true });
         Object.defineProperty(mt, 'suffixes',    { value: suffixes,    enumerable: true, configurable: true });
         Object.defineProperty(mt, 'enabledPlugin', { get: () => plugin, enumerable: true, configurable: true });
+        
+        // Define toString behavior using Symbol.toStringTag if possible or just rely on prototype
         return mt;
       };
 
@@ -292,10 +298,17 @@ class NavigatorSpoof {
           Object.defineProperty(plugin, i, { value: mt, enumerable: true, configurable: true });
         });
 
-        plugin.item = function(i) { return mimeTypes[i] || null; };
-        plugin.namedItem = function(name) { return mimeTypes.find(m => m.type === name) || null; };
-        window.__pbrowser_cloak(plugin.item,      'function item() { [native code] }');
-        window.__pbrowser_cloak(plugin.namedItem, 'function namedItem() { [native code] }');
+        Object.defineProperty(plugin, 'item', {
+            value: function item(i) { return mimeTypes[i] || null; },
+            writable: true, enumerable: true, configurable: true
+        });
+        Object.defineProperty(plugin, 'namedItem', {
+            value: function namedItem(name) { return mimeTypes.find(m => m.type === name) || null; },
+            writable: true, enumerable: true, configurable: true
+        });
+        
+        cloakObjFunction(plugin, 'item', 'function item() { [native code] }');
+        cloakObjFunction(plugin, 'namedItem', 'function namedItem() { [native code] }');
 
         plugin[Symbol.iterator] = function*() { for (const mt of mimeTypes) yield mt; };
 
@@ -312,12 +325,22 @@ class NavigatorSpoof {
           Object.defineProperty(pa, p.name, { value: p, enumerable: true, configurable: true });
         });
 
-        pa.item      = function(i)    { return plugins[i]                            || null; };
-        pa.namedItem = function(name) { return plugins.find(p => p.name === name) || null; };
-        pa.refresh   = function() {};
-        window.__pbrowser_cloak(pa.item,      'function item() { [native code] }');
-        window.__pbrowser_cloak(pa.namedItem, 'function namedItem() { [native code] }');
-        window.__pbrowser_cloak(pa.refresh,   'function refresh() { [native code] }');
+        Object.defineProperty(pa, 'item', {
+            value: function item(i) { return plugins[i] || null; },
+            writable: true, enumerable: true, configurable: true
+        });
+        Object.defineProperty(pa, 'namedItem', {
+            value: function namedItem(name) { return plugins.find(p => p.name === name) || null; },
+            writable: true, enumerable: true, configurable: true
+        });
+        Object.defineProperty(pa, 'refresh', {
+            value: function refresh() {},
+            writable: true, enumerable: true, configurable: true
+        });
+
+        cloakObjFunction(pa, 'item', 'function item() { [native code] }');
+        cloakObjFunction(pa, 'namedItem', 'function namedItem() { [native code] }');
+        cloakObjFunction(pa, 'refresh', 'function refresh() { [native code] }');
 
         pa[Symbol.iterator] = function*() { for (const p of plugins) yield p; };
 
@@ -334,10 +357,17 @@ class NavigatorSpoof {
           Object.defineProperty(mta, mt.type, { value: mt, enumerable: true, configurable: true });
         });
 
-        mta.item      = function(i)    { return mimeTypes[i]                              || null; };
-        mta.namedItem = function(type) { return mimeTypes.find(m => m.type === type) || null; };
-        window.__pbrowser_cloak(mta.item,      'function item() { [native code] }');
-        window.__pbrowser_cloak(mta.namedItem, 'function namedItem() { [native code] }');
+        Object.defineProperty(mta, 'item', {
+            value: function item(i) { return mimeTypes[i] || null; },
+            writable: true, enumerable: true, configurable: true
+        });
+        Object.defineProperty(mta, 'namedItem', {
+            value: function namedItem(type) { return mimeTypes.find(m => m.type === type) || null; },
+            writable: true, enumerable: true, configurable: true
+        });
+
+        cloakObjFunction(mta, 'item', 'function item() { [native code] }');
+        cloakObjFunction(mta, 'namedItem', 'function namedItem() { [native code] }');
 
         mta[Symbol.iterator] = function*() { for (const mt of mimeTypes) yield mt; };
 

@@ -16,11 +16,6 @@ class MediaCodecSpoof {
       return '// [MediaCodecSpoof] Mobile profile — codec capabilities intact.';
     }
 
-    // macOS supports HEVC/H.265 natively; Windows only via hardware
-    final supportsHEVC = isMac ? "'probably'" : "'maybe'";
-    // macOS Safari pattern: ProRes — only Mac
-    final supportsProRes = isMac ? "'maybe'" : "''";
-
     return '''
 // ===== MEDIA CODEC FINGERPRINTING SPOOFING =====
 (() => {

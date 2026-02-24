@@ -43,31 +43,47 @@ class WebGLSpoof {
     const patchWebGLContext = (ctx) => {
       if (!ctx) return;
 
+      // --- High-End Desktop GPU Limits Dictionary ---
+      const desktopGPULimits = {
+        3379: 16384, // MAX_TEXTURE_SIZE (0x0D33)
+        3386: new Int32Array([32768, 32768]), // MAX_VIEWPORT_DIMS (0x0D30)
+        34076: 16384, // MAX_CUBE_MAP_TEXTURE_SIZE (0x851C)
+        34024: 16384, // MAX_RENDERBUFFER_SIZE (0x0D3A)
+        36348: 30, // MAX_VARYING_VECTORS (0x8DFC)
+        34921: 16, // MAX_VERTEX_ATTRIBS (0x8869)
+        35660: 32, // MAX_VERTEX_TEXTURE_IMAGE_UNITS (0x8B4C)
+        36347: 4096, // MAX_VERTEX_UNIFORM_VECTORS (0x8DFB)
+        33901: new Float32Array([1, 1]), // ALIASED_LINE_WIDTH_RANGE (0x846D)
+        33902: new Float32Array([1, 1024]), // ALIASED_POINT_SIZE_RANGE (0x846E)
+        36349: 4096, // MAX_FRAGMENT_UNIFORM_VECTORS (0x8DFD)
+        34930: 32, // MAX_TEXTURE_IMAGE_UNITS (0x8872)
+        36345: 32, // MAX_COMBINED_TEXTURE_IMAGE_UNITS (0x8DF9)
+        
+        // WebGL 2 specific limits
+        32883: 2048, // MAX_3D_TEXTURE_SIZE (0x8073)
+        35071: 2048, // MAX_ARRAY_TEXTURE_LAYERS (0x88FF)
+        36063: 8, // MAX_COLOR_ATTACHMENTS (0x8CDF)
+        34852: 8, // MAX_DRAW_BUFFERS (0x8824)
+        35661: 32, // MAX_FRAGMENT_INPUT_COMPONENTS (0x8B4D, WebGL2)
+        35659: 32, // MAX_VERTEX_OUTPUT_COMPONENTS (0x8B4B, WebGL2)
+        34045: 16, // MAX_PROGRAM_TEXEL_OFFSET (0x84FD)
+        34044: -8, // MIN_PROGRAM_TEXEL_OFFSET (0x84FC)
+        
+        // Identity info
+        37445: '$vendor',   // UNMASKED_VENDOR_WEBGL
+        37446: '$renderer', // UNMASKED_RENDERER_WEBGL
+        7938:  'WebGL 1.0 (OpenGL ES 2.0 Chromium)', // VERSION (0x1F02)
+        7936:  '$vendor',  // VENDOR (0x1F00)
+        7937:  'WebKit', // RENDERER (0x1F01)
+      };
+
       // --- getParameter spoof (Vendor / Renderer + key hardware params) ---
       const originalGetParameter = ctx.getParameter;
       const spoofedGetParameter = function(parameter) {
-        switch(parameter) {
-          // Identity
-          case 37445: return '$vendor';   // UNMASKED_VENDOR_WEBGL
-          case 37446: return '$renderer'; // UNMASKED_RENDERER_WEBGL
-          // Desktop-grade texture limits (Intel iGPU baseline)
-          case 0x0D33: return 16384;      // MAX_TEXTURE_SIZE (mobile: 4096–8192)
-          case 0x851C: return 16384;      // MAX_CUBE_MAP_TEXTURE_SIZE
-          case 0x8C29: return 4096;       // MAX_TEXTURE_IMAGE_UNITS (FS)
-          case 0x84E8: return 16;         // MAX_TEXTURE_IMAGE_UNITS (total)
-          case 0x0D3A: return 16384;      // MAX_RENDERBUFFER_SIZE
-          case 0x8DF9: return 4096;       // MAX_COMBINED_TEXTURE_IMAGE_UNITS
-          // Viewport / drawing limits
-          case 0x0D30: return new Int32Array([16384, 16384]); // MAX_VIEWPORT_DIMS
-          case 0x846D: return new Float32Array([1, 1]);       // ALIASED_LINE_WIDTH_RANGE
-          case 0x846E: return new Float32Array([1, 1024]);    // ALIASED_POINT_SIZE_RANGE
-          // Precision / version
-          case 0x1F02: return 'WebGL 1.0 (OpenGL ES 2.0 Chromium)'; // VERSION
-          case 0x1F00: return '$vendor';  // VENDOR
-          case 0x1F01: return 'WebKit'; // RENDERER (non-unmasked, not real GPU)
-          default:
-            return originalGetParameter.apply(this, arguments);
+        if (parameter in desktopGPULimits) {
+            return desktopGPULimits[parameter];
         }
+        return originalGetParameter.apply(this, arguments);
       };
       window.__pbrowser_cloak(spoofedGetParameter, 'function getParameter() { [native code] }');
       ctx.getParameter = spoofedGetParameter;

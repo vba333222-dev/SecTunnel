@@ -1,5 +1,4 @@
 import 'package:pbrowser/models/fingerprint_config.dart';
-import 'package:pbrowser/services/fingerprint/scripts/utils.dart';
 
 /// JavaScript code generator for Battery Status API spoofing
 class BatterySpoof {

@@ -21,8 +21,6 @@ class ModemRotatorService {
   Timer? _pollingTimer;
   final ValueNotifier<ModemStatus> statusNotifier = ValueNotifier(ModemStatus.offline);
   
-  // Store the last known IP. If it changes while online, a rotation occurred.
-  String? _lastKnownIp;
   bool _isDisposed = false;
 
   ModemRotatorService({required this.proxyConfig});
@@ -82,7 +80,7 @@ class ModemRotatorService {
     if (_isDisposed) return;
     if (statusNotifier.value != newStatus) {
       statusNotifier.value = newStatus;
-      print('[ModemRotator] Status changed to: \${newStatus.name}');
+      debugPrint('[ModemRotator] Status changed to: \${newStatus.name}');
     }
   }
   

@@ -15,13 +15,6 @@ class KeyboardApiSpoof {
     }
 
     // Provide a QWERTY layout map consistent with the profile language
-    final lang = config.language.toLowerCase();
-    final layoutId = lang.startsWith('id') ? 'id' :
-                     lang.startsWith('ja') ? 'ja-JP-106' :
-                     lang.startsWith('ko') ? 'ko-KR-101' :
-                     lang.startsWith('zh') ? 'zh-CN-pinyin' :
-                     lang.startsWith('de') ? 'de-DE-qwertz' :
-                     lang.startsWith('fr') ? 'fr-FR-azerty' : 'en-US';
 
     return '''
 // ===== NAVIGATOR.KEYBOARD API DESKTOP STUB =====

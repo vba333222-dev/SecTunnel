@@ -13,6 +13,7 @@ class BrowserProfiles extends Table {
   IntColumn get proxyPort => integer().nullable()();
   TextColumn get proxyUsername => text().nullable()();
   TextColumn get proxyPassword => text().nullable()();
+  TextColumn get proxyRotationUrl => text().nullable()();
   
   // Fingerprint configuration (stored as JSON)
   TextColumn get fingerprintJson => text()();
@@ -30,10 +31,10 @@ class BrowserProfiles extends Table {
 
 @DriftDatabase(tables: [BrowserProfiles])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase(QueryExecutor e) : super(e);
+  AppDatabase(super.e);
   
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
   
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -44,6 +45,11 @@ class AppDatabase extends _$AppDatabase {
       await customStatement(
         'CREATE INDEX idx_profiles_last_used ON browser_profiles(last_used_at DESC)'
       );
+    },
+    onUpgrade: (Migrator m, int from, int to) async {
+      if (from < 2) {
+        await m.addColumn(browserProfiles, browserProfiles.proxyRotationUrl);
+      }
     },
   );
 }

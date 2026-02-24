@@ -5,9 +5,9 @@ class NativeUtils {
   /// This must be injected before any other spoofing scripts.
   static String initCloaking() {
     return '''
-// Initialize global cloaking mechanism
+// Initialize internal cloaking mechanism inside closure
 (() => {
-  if (window.__pbrowser_cloak) return;
+  if (typeof __pbrowser_cloak !== 'undefined') return; // Already initialized in this scope
   
   const fns = new WeakMap();
   const originalToString = Function.prototype.toString;
@@ -27,8 +27,9 @@ class NativeUtils {
   // Replace the global toString
   Function.prototype.toString = spoofToString;
   
-  // Expose cloak helper internally
-  window.__pbrowser_cloak = function(fn, nativeStr) {
+  // Define cloak helper as a local constant in the parent closure
+  // We will wrap ALL scripts in one giant IIFE later, so this behaves globally within our scope
+  const __pbrowser_cloak = function(fn, nativeStr) {
     let fnName = '';
     if (fn && typeof fn.name === 'string') {
         fnName = fn.name;
@@ -37,6 +38,9 @@ class NativeUtils {
     fns.set(fn, str);
     return fn;
   };
+
+  // Expose it to the IIFE scope
+  self.__pbrowser_cloak = __pbrowser_cloak;
 })();
 ''';
   }
@@ -47,23 +51,21 @@ class NativeUtils {
   /// but regenerated on each new tab / app restart.
   static String initSessionEntropy(int profileSeed) {
     return '''
-// Session-level entropy mix (L-1 audit fix)
-// Produces a stable per-session variant of the profile seed
+// Session-level entropy mix
 (() => {
   try {
-    const _STORAGE_KEY = '__pbr_ss_' + ${profileSeed};
+    const _STORAGE_KEY = '__pbr_ss_' + $profileSeed;
     let sessionSalt = parseInt(sessionStorage.getItem(_STORAGE_KEY) || '0', 10);
     if (!sessionSalt || isNaN(sessionSalt)) {
-      // Generate fresh random salt for this session
       const _arr = new Uint32Array(1);
       crypto.getRandomValues(_arr);
-      sessionSalt = _arr[0] & 0x0000FFFF; // 16-bit session jitter
+      sessionSalt = _arr[0] & 0x0000FFFF;
       try { sessionStorage.setItem(_STORAGE_KEY, String(sessionSalt)); } catch(e) {}
     }
-    // Expose as global: canvas/domrect generators add this to their seeds
-    window.__pbr_session_salt = sessionSalt;
+    // Instead of window., we expose it to the local IIFE scope
+    self.__pbr_session_salt = sessionSalt;
   } catch(e) {
-    window.__pbr_session_salt = 0;
+    self.__pbr_session_salt = 0;
   }
 })();
 ''';
@@ -82,7 +84,7 @@ class NativeUtils {
   };
   
   const proxy = new Proxy(function $functionName() {}, handler);
-  window.__pbrowser_cloak(proxy, 'function $functionName() { [native code] }');
+  __pbrowser_cloak(proxy, 'function $functionName() { [native code] }');
   
   return proxy;
 })()
@@ -99,7 +101,7 @@ class NativeUtils {
     }
   });
   
-  window.__pbrowser_cloak(getterFn, 'function get $propertyName() { [native code] }');
+  __pbrowser_cloak(getterFn, 'function get $propertyName() { [native code] }');
   
   Object.defineProperty(Object.getPrototypeOf(navigator), '$propertyName', {
     get: getterFn,
@@ -137,7 +139,7 @@ class NativeUtils {
     nativeStr = `function $methodName() { [native code] }`;
   }
   
-  window.__pbrowser_cloak(_spoofProxy, nativeStr);
+  __pbrowser_cloak(_spoofProxy, nativeStr);
   
   // Replace the method
   $objectPath.$methodName = _spoofProxy;
@@ -214,8 +216,8 @@ function seededRandom(seed) {
     }
   });
 
-  window.__pbrowser_cloak(_spoofProxy, Function.prototype.toString.call(_origGOPD));
-  window.__pbrowser_cloak(_spoofProxyPlural, Function.prototype.toString.call(_origGOPDs));
+  __pbrowser_cloak(_spoofProxy, Function.prototype.toString.call(_origGOPD));
+  __pbrowser_cloak(_spoofProxyPlural, Function.prototype.toString.call(_origGOPDs));
   Object.getOwnPropertyDescriptor  = _spoofProxy;
   Object.getOwnPropertyDescriptors = _spoofProxyPlural;
 })();

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:pbrowser/models/browser_profile.dart';
 import 'package:intl/intl.dart';
+import 'package:pbrowser/services/proxy/mobile_proxy_service.dart';
 
-class ProfileCard extends StatelessWidget {
+class ProfileCard extends StatefulWidget {
   final BrowserProfile profile;
   final VoidCallback onRun;
   final VoidCallback onEdit;
@@ -17,15 +18,43 @@ class ProfileCard extends StatelessWidget {
   });
 
   @override
+  State<ProfileCard> createState() => _ProfileCardState();
+}
+
+class _ProfileCardState extends State<ProfileCard> {
+  bool _isRotatingIp = false;
+
+  Future<void> _rotateIp() async {
+    final url = widget.profile.proxyConfig.rotationUrl;
+    if (url == null || url.trim().isEmpty) return;
+
+    setState(() => _isRotatingIp = true);
+    final success = await MobileProxyService.rotateIp(url);
+    
+    if (mounted) {
+      setState(() => _isRotatingIp = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'IP Rotation Successful' : 'IP Rotation Failed'),
+          backgroundColor: success ? Colors.green : Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final profile = widget.profile;
+    
     return Card(
       color: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.white.withOpacity(0.1)),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: InkWell(
-        onTap: onRun,
+        onTap: widget.onRun,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -53,9 +82,9 @@ class ProfileCard extends StatelessWidget {
                     icon: const Icon(Icons.more_vert, color: Colors.white54),
                     onSelected: (value) {
                       if (value == 'edit') {
-                        onEdit();
+                        widget.onEdit();
                       } else if (value == 'delete') {
-                        onDelete();
+                        widget.onDelete();
                       }
                     },
                     itemBuilder: (context) => [
@@ -86,10 +115,26 @@ class ProfileCard extends StatelessWidget {
               const SizedBox(height: 12),
               
               // Proxy Info
-              _buildInfoRow(
-                Icons.vpn_lock_outlined,
-                _getProxyText(),
-                Colors.green,
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInfoRow(
+                      Icons.vpn_lock_outlined,
+                      _getProxyText(),
+                      Colors.green,
+                    ),
+                  ),
+                  if (profile.proxyConfig.rotationUrl != null && profile.proxyConfig.rotationUrl!.isNotEmpty)
+                    _isRotatingIp 
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                        : IconButton(
+                            icon: const Icon(Icons.autorenew, color: Colors.blueAccent, size: 20),
+                            onPressed: _rotateIp,
+                            tooltip: 'Rotate IP',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                ],
               ),
               
               const SizedBox(height: 8),
@@ -124,7 +169,7 @@ class ProfileCard extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: onRun,
+                  onPressed: widget.onRun,
                   icon: const Icon(Icons.play_arrow, size: 20),
                   label: const Text('Launch'),
                   style: ElevatedButton.styleFrom(
@@ -147,7 +192,7 @@ class ProfileCard extends StatelessWidget {
     IconData icon;
     Color color;
     
-    switch (profile.proxyConfig.type.toString()) {
+    switch (widget.profile.proxyConfig.type.toString()) {
       case 'http':
         icon = Icons.http;
         color = Colors.orange;
@@ -164,7 +209,7 @@ class ProfileCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(icon, color: color, size: 20),
@@ -192,19 +237,19 @@ class ProfileCard extends StatelessWidget {
   }
   
   String _getProxyText() {
-    if (profile.proxyConfig.type.toString() == 'none') {
+    if (widget.profile.proxyConfig.type.toString() == 'none') {
       return 'No Proxy (Direct)';
     }
     
-    final host = profile.proxyConfig.host ?? 'unknown';
-    final port = profile.proxyConfig.port ?? 0;
-    final type = profile.proxyConfig.type.toString().toUpperCase();
+    final host = widget.profile.proxyConfig.host ?? 'unknown';
+    final port = widget.profile.proxyConfig.port ?? 0;
+    final type = widget.profile.proxyConfig.type.toString().toUpperCase();
     
     return '$type: $host:$port';
   }
   
   String _getUserAgentPreview() {
-    final ua = profile.fingerprintConfig.userAgent;
+    final ua = widget.profile.fingerprintConfig.userAgent;
     
     // Extract browser name
     if (ua.contains('Chrome/')) {
@@ -219,7 +264,7 @@ class ProfileCard extends StatelessWidget {
   
   String _getLastUsedText() {
     final now = DateTime.now();
-    final diff = now.difference(profile.lastUsedAt);
+    final diff = now.difference(widget.profile.lastUsedAt);
     
     if (diff.inMinutes < 1) {
       return 'Just now';
@@ -230,7 +275,7 @@ class ProfileCard extends StatelessWidget {
     } else if (diff.inDays < 7) {
       return '${diff.inDays}d ago';
     } else {
-      return DateFormat('MMM d').format(profile.lastUsedAt);
+      return DateFormat('MMM d').format(widget.profile.lastUsedAt);
     }
   }
 }

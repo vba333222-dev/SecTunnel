@@ -22,7 +22,7 @@ class FontMetricsSpoof {
     const HEIGHT_DELTA = $heightDelta;
 
     // Mulberry32 for measureText sub-pixel noise (position-dependent)
-    let _rng = ${seed};
+    let _rng = $seed;
     const nextφ = () => {
       _rng += 0x6D2B79F5;
       let z = _rng;

@@ -1,8 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
@@ -32,7 +30,7 @@ Future<AppDatabase> _initializeDatabase() async {
   final dbPath = path.join(dbFolder.path, 'pbrowser.db');
   final executor = NativeDatabase(File(dbPath));
   
-  print('[Database] Initialized at: $dbPath');
+  debugPrint('[Database] Initialized at: $dbPath');
   return AppDatabase(executor);
 }
 
@@ -59,7 +57,6 @@ class PBrowserApp extends StatelessWidget {
           colorScheme: const ColorScheme.dark(
             primary: Colors.blueGrey,
             surface: Color(0xFF1E1E1E),
-            background: Color(0xFF0A0A0A),
           ),
           appBarTheme: const AppBarTheme(
             backgroundColor: Color(0xFF1E1E1E),

@@ -35,6 +35,7 @@ class ProxyConfig {
   final int? port;
   final String? username;
   final String? password;
+  final String? rotationUrl;
   
   const ProxyConfig({
     required this.type,
@@ -42,6 +43,7 @@ class ProxyConfig {
     this.port,
     this.username,
     this.password,
+    this.rotationUrl,
   });
   
   const ProxyConfig.none()
@@ -49,7 +51,8 @@ class ProxyConfig {
         host = null,
         port = null,
         username = null,
-        password = null;
+        password = null,
+        rotationUrl = null;
   
   bool get isConfigured => type != ProxyType.none && host != null && port != null;
   
@@ -60,6 +63,7 @@ class ProxyConfig {
       'port': port,
       'username': username,
       'password': password,
+      'rotationUrl': rotationUrl,
     };
   }
   
@@ -70,6 +74,7 @@ class ProxyConfig {
       port: json['port'] as int?,
       username: json['username'] as String?,
       password: json['password'] as String?,
+      rotationUrl: json['rotationUrl'] as String?,
     );
   }
   
@@ -85,6 +90,7 @@ class ProxyConfig {
     int? port,
     String? username,
     String? password,
+    String? rotationUrl,
   }) {
     return ProxyConfig(
       type: type ?? this.type,
@@ -92,6 +98,7 @@ class ProxyConfig {
       port: port ?? this.port,
       username: username ?? this.username,
       password: password ?? this.password,
+      rotationUrl: rotationUrl ?? this.rotationUrl,
     );
   }
 }

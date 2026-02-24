@@ -1,7 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:pbrowser/models/fingerprint_config.dart';
 import 'package:pbrowser/models/proxy_config.dart';
 
 /// Service to fetch Geolocation and Timezone data matching the active external IP.
@@ -42,7 +42,7 @@ class GeoIpService {
         }
       }
     } catch (e) {
-      print('[GeoIpService] Exception fetching geo data: $e');
+      debugPrint('[GeoIpService] Exception fetching geo data: $e');
     } finally {
       client.close();
     }

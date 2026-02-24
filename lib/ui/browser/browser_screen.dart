@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
@@ -9,9 +11,7 @@ import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
 import 'package:pbrowser/services/proxy/geo_ip_service.dart';
 
 // WebView imports
-import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
-import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class BrowserScreen extends StatefulWidget {
   final BrowserProfile profile;
@@ -26,8 +26,8 @@ class BrowserScreen extends StatefulWidget {
 }
 
 class _BrowserScreenState extends State<BrowserScreen> {
-  // Controllers - Android only
-  late final WebViewController _mobileController;
+  // Controllers
+  InAppWebViewController? _mobileController;
   final TextEditingController _urlController = TextEditingController();
   
   // Services
@@ -43,6 +43,9 @@ class _BrowserScreenState extends State<BrowserScreen> {
   
   static const String _initialUrl = 'https://whoer.net/ip';
   static final platform = const MethodChannel('com.example.pbrowser/proxy');
+
+  late InAppWebViewSettings _settings;
+  late List<UserScript> _userScripts;
 
   @override
   void initState() {
@@ -70,10 +73,9 @@ class _BrowserScreenState extends State<BrowserScreen> {
     
     final status = _modemRotator.statusNotifier.value;
     if (status == ModemStatus.rotating || status == ModemStatus.offline) {
-      // Pause webview execution or intercept navigation to prevent IP leaks
-      if (_isControllerInitialized) {
+      if (_mobileController != null) {
          try {
-           _mobileController.runJavaScript('window.stop();'); 
+           _mobileController!.evaluateJavascript(source: 'window.stop();'); 
          } catch(_) {}
       }
     } else if (status == ModemStatus.online) {
@@ -117,10 +119,10 @@ class _BrowserScreenState extends State<BrowserScreen> {
             ),
           );
         });
-        print('[Browser] Applied dynamic Geo-IP sync: \${geoData['timezone']} / $lang');
+        debugPrint('[Browser] Applied dynamic Geo-IP sync: ${geoData['timezone']} / $lang');
       }
     } catch (e) {
-       print('[Browser] Failed to dynamically sync Geo-IP: $e');
+       debugPrint('[Browser] Failed to dynamically sync Geo-IP: $e');
     }
 
     // 3. Set the profile data directory suffix FIRST (Android API 28+)
@@ -129,17 +131,45 @@ class _BrowserScreenState extends State<BrowserScreen> {
         final success = await platform.invokeMethod<bool>('setProfileDirectory', {
           'profileId': widget.profile.id,
         });
-        print('[Browser] Profile directory sandboxing applied: $success');
+        debugPrint('[Browser] Profile directory sandboxing applied: $success');
       } catch (e) {
-        print('[Browser] Failed to isolate profile directory: $e');
+        debugPrint('[Browser] Failed to isolate profile directory: $e');
       }
     }
 
     // 4. Set Proxy configuration (enforcing scheme for DNS resolution)
     await _setAndroidProxy();
 
-    // 5. Initialize the WebView Controller
-    _initMobileWebView();
+    // 5. Setup native InAppWebViewSettings
+    _settings = InAppWebViewSettings(
+        userAgent: _activeFingerprint.userAgent,
+        javaScriptEnabled: true,
+        transparentBackground: false,
+        clearCache: true, // as androidController.clearCache()
+        useShouldInterceptRequest: true,
+        useShouldInterceptFetchRequest: true,
+        useShouldInterceptAjaxRequest: true,
+        mediaPlaybackRequiresUserGesture: false,
+        allowsInlineMediaPlayback: true,
+    );
+
+    // Prepare UserScripts for Anti-Detect mechanism
+    final injector = FingerprintInjector(_activeFingerprint);
+    _userScripts = [
+      UserScript(
+        source: injector.generateInjectionScript(),
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        forMainFrameOnly: false, // Applies to ALL IFRAMES - Fixes Iframe context leak!
+      )
+    ];
+
+    // Controller is ready. Trigger UI rebuild to show InAppWebView
+    if (mounted) {
+      setState(() {
+        _isControllerInitialized = true;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _setAndroidProxy() async {
@@ -152,99 +182,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
         });
       }
     } catch (e) {
-      print('[Browser] Android proxy error: $e');
-    }
-  }
-
-  void _initMobileWebView() {
-    final PlatformWebViewControllerCreationParams params = 
-        WebViewPlatform.instance is WebKitWebViewPlatform 
-        ? WebKitWebViewControllerCreationParams(allowsInlineMediaPlayback: true)
-        : const PlatformWebViewControllerCreationParams();
-
-    final WebViewController controller = WebViewController.fromPlatformCreationParams(params);
-
-    controller
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.black)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: (request) {
-            // Block navigation if modem is rotating to prevent leak!
-            if (_modemRotator.statusNotifier.value != ModemStatus.online && _modemRotator.statusNotifier.value != ModemStatus.offline /* Allow initial load? */) {
-                // To be extremely strict, you would block all requests if != online
-                // return NavigationDecision.prevent; 
-            }
-            return NavigationDecision.navigate;
-          },
-          onPageStarted: (url) async {
-            if (mounted) {
-              setState(() {
-                _isWebViewLoading = true;
-                _urlController.text = url;
-              });
-            }
-            
-            // Inject fingerprint early using the DYNAMIC environment variables
-            try {
-              final injector = FingerprintInjector(_activeFingerprint);
-              final script = injector.generateInjectionScript();
-              await controller.runJavaScript(script);
-            } catch (e) {
-              print('[Browser] Mobile fingerprint injection error: $e');
-            }
-          },
-          onProgress: (p) {
-            if (mounted) {
-              setState(() => _progress = p / 100);
-            }
-          },
-          onPageFinished: (url) {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _isWebViewLoading = false;
-                _urlController.text = url;
-              });
-            }
-          },
-          onHttpAuthRequest: (request) {
-            // Handle proxy authentication with OS Header Context
-            if (widget.profile.proxyConfig.username != null) {
-              String osType = 'LINUX';
-              final platformLower = _activeFingerprint.platform.toLowerCase();
-              if (platformLower.contains('win')) osType = 'WINDOWS';
-              if (platformLower.contains('mac') || platformLower.contains('iphone') || platformLower.contains('ipad')) osType = 'MAC';
-               
-              // e.g. "myUser__OS_WINDOWS"
-              final contextUsername = '\${widget.profile.proxyConfig.username!}__OS_\$osType';
-
-              request.onProceed(WebViewCredential(
-                user: contextUsername,
-                password: widget.profile.proxyConfig.password!,
-              ));
-            } else {
-              request.onCancel();
-            }
-          },
-        ),
-      );
-      
-    // Android-specific optimizations (ClearCache as a fallback/clean slate)
-    if (controller.platform is AndroidWebViewController) {
-      final androidController = controller.platform as AndroidWebViewController;
-      androidController.setMediaPlaybackRequiresUserGesture(false);
-      androidController.clearCache();
-    }
-    
-    _mobileController = controller;
-    
-    // Controller is ready. Trigger UI rebuild to show WebViewWidget
-    if (mounted) {
-      setState(() {
-        _isControllerInitialized = true;
-      });
-      _mobileController.loadRequest(Uri.parse(_initialUrl));
+      debugPrint('[Browser] Android proxy error: $e');
     }
   }
 
@@ -260,8 +198,23 @@ class _BrowserScreenState extends State<BrowserScreen> {
     if (!url.startsWith('http')) url = 'https://$url';
     
     // Android/iOS only
-    _mobileController.loadRequest(Uri.parse(url));
+    _mobileController?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
     FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  // ========================================================================
+  // NATIVE TOUCH INJECTION
+  // ========================================================================
+  
+  void _injectNativeTouch(double x, double y) {
+    if (Platform.isAndroid) {
+        try {
+            platform.invokeMethod('injectTouch', {'x': x, 'y': y});
+            debugPrint('[Browser] Injected Native Touch at: $x, $y');
+        } catch(e) {
+            debugPrint('[Browser] Failed to inject touch: $e');
+        }
+    }
   }
 
   // ========================================================================
@@ -279,7 +232,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.blueGrey.withOpacity(0.3),
+                color: Colors.blueGrey.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
@@ -300,7 +253,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                     hintText: "Enter URL",
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.1),
+                    fillColor: Colors.white.withValues(alpha: 0.1),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
                       borderSide: BorderSide.none,
@@ -319,7 +272,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
             icon: const Icon(Icons.refresh),
             onPressed: () {
               if (_isControllerInitialized && _isProxyHealthy) {
-                _mobileController.reload();
+                _mobileController?.reload();
               } else if (!_isProxyHealthy) {
                  setState(() {
                    _isLoading = true;
@@ -335,15 +288,95 @@ class _BrowserScreenState extends State<BrowserScreen> {
         children: [
           // WebView - Android/iOS only
           if (_isControllerInitialized && _isProxyHealthy)
-            WebViewWidget(controller: _mobileController),
+            GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                // We don't block taps, we let them pass through but also send Native Touch
+                onTapDown: (details) {
+                    _injectNativeTouch(details.globalPosition.dx, details.globalPosition.dy);
+                },
+                child: InAppWebView(
+                    initialUrlRequest: URLRequest(url: WebUri(_initialUrl)),
+                    initialSettings: _settings,
+                    initialUserScripts: UnmodifiableListView<UserScript>(_userScripts),
+                    onWebViewCreated: (controller) {
+                        _mobileController = controller;
+                    },
+                    onLoadStart: (controller, url) {
+                        if (mounted) {
+                            setState(() {
+                                _isWebViewLoading = true;
+                                _urlController.text = url?.toString() ?? '';
+                            });
+                        }
+                    },
+                    onLoadStop: (controller, url) async {
+                        if (mounted) {
+                            setState(() {
+                                _isWebViewLoading = false;
+                                _urlController.text = url?.toString() ?? '';
+                            });
+                        }
+                    },
+                    onProgressChanged: (controller, p) {
+                        if (mounted) {
+                            setState(() => _progress = p / 100);
+                        }
+                    },
+                    onReceivedHttpAuthRequest: (controller, challenge) async {
+                      if (widget.profile.proxyConfig.username != null) {
+                        String osType = 'LINUX';
+                        final platformLower = _activeFingerprint.platform.toLowerCase();
+                        if (platformLower.contains('win')) osType = 'WINDOWS';
+                        if (platformLower.contains('mac') || platformLower.contains('iphone') || platformLower.contains('ipad')) osType = 'MAC';
+                        
+                        final contextUsername = '${widget.profile.proxyConfig.username!}__OS_$osType';
+
+                        return HttpAuthResponse(
+                            action: HttpAuthResponseAction.PROCEED,
+                            username: contextUsername,
+                            password: widget.profile.proxyConfig.password!,
+                        );
+                      }
+                      return HttpAuthResponse(action: HttpAuthResponseAction.CANCEL);
+                    },
+                    shouldInterceptRequest: (controller, request) async {
+                        if (_modemRotator.statusNotifier.value != ModemStatus.online && _modemRotator.statusNotifier.value != ModemStatus.offline) {
+                            // Block requests if rotating
+                            return WebResourceResponse(statusCode: 403, reasonPhrase: 'Proxy Rotating', data: Uint8List(0));
+                        }
+                        
+                        // We could modify headers here by performing DART http request 
+                        // but it's slow. We rely on Fetch interception + App level User-Agent
+                        return null; 
+                    },
+                    shouldInterceptFetchRequest: (controller, request) async {
+                        // Dynamically override headers for Fetch (Client Hints)
+                        request.headers ??= {};
+                        request.headers!['User-Agent'] = _activeFingerprint.userAgent;
+                        if (_activeFingerprint.secChUa.isNotEmpty) {
+                            request.headers!['Sec-CH-UA'] = _activeFingerprint.secChUa;
+                            request.headers!['Sec-CH-UA-Mobile'] = _activeFingerprint.platform.toLowerCase().contains('android') ? '?1' : '?0';
+                            request.headers!['Sec-CH-UA-Platform'] = '"${_activeFingerprint.platform}"';
+                        }
+                        return request;
+                    },
+                    shouldOverrideUrlLoading: (controller, navigationAction) async {
+                        if (_modemRotator.statusNotifier.value != ModemStatus.online && _modemRotator.statusNotifier.value != ModemStatus.offline) {
+                            return NavigationActionPolicy.CANCEL;
+                        }
+                        return NavigationActionPolicy.ALLOW;
+                    },
+                ),
+            ),
           
           // Progress bar
           if (_isWebViewLoading && _isProxyHealthy)
-            const Positioned(
+            Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: LinearProgressIndicator(
+                value: _progress,
                 minHeight: 2,
                 color: Colors.blueAccent,
               ),

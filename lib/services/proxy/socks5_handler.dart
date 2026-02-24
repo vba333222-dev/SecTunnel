@@ -1,6 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
 
 /// SOCKS5 Protocol Handler
 /// Implements SOCKS5 proxy protocol for connecting to SOCKS5 proxies
@@ -45,7 +45,7 @@ class SOCKS5Handler {
       _relayData(clientSocket, upstreamSocket);
       
     } catch (e) {
-      print('[SOCKS5] Connection error: $e');
+      debugPrint('[SOCKS5] Connection error: $e');
       _closeConnections(clientSocket, upstreamSocket);
     }
   }
@@ -74,7 +74,7 @@ class SOCKS5Handler {
       // Read server choice
       final serverChoice = await _readBytes(upstreamSocket, 2);
       if (serverChoice == null || serverChoice[0] != socks5Version) {
-        print('[SOCKS5] Invalid version in greeting response');
+        debugPrint('[SOCKS5] Invalid version in greeting response');
         return false;
       }
       
@@ -83,7 +83,7 @@ class SOCKS5Handler {
       // Step 2: Authentication (if required)
       if (chosenMethod == authMethodUserPass) {
         if (username == null || password == null) {
-          print('[SOCKS5] Authentication required but no credentials provided');
+          debugPrint('[SOCKS5] Authentication required but no credentials provided');
           return false;
         }
         
@@ -94,20 +94,20 @@ class SOCKS5Handler {
         );
         
         if (!authSuccess) {
-          print('[SOCKS5] Authentication failed');
+          debugPrint('[SOCKS5] Authentication failed');
           return false;
         }
       } else if (chosenMethod == authMethodNone) {
         // No authentication needed
       } else {
-        print('[SOCKS5] Unsupported authentication method: $chosenMethod');
+        debugPrint('[SOCKS5] Unsupported authentication method: $chosenMethod');
         return false;
       }
       
       return true;
       
     } catch (e) {
-      print('[SOCKS5] Handshake error: $e');
+      debugPrint('[SOCKS5] Handshake error: $e');
       return false;
     }
   }
@@ -142,7 +142,7 @@ class SOCKS5Handler {
       return true;
       
     } catch (e) {
-      print('[SOCKS5] Auth error: $e');
+      debugPrint('[SOCKS5] Auth error: $e');
       return false;
     }
   }
@@ -178,14 +178,14 @@ class SOCKS5Handler {
       
       final reply = response[1];
       if (reply != 0x00) {
-        print('[SOCKS5] Connection request failed with reply: $reply');
+        debugPrint('[SOCKS5] Connection request failed with reply: $reply');
         return false;
       }
       
       return true;
       
     } catch (e) {
-      print('[SOCKS5] Connection request error: $e');
+      debugPrint('[SOCKS5] Connection request error: $e');
       return false;
     }
   }
@@ -231,7 +231,7 @@ class SOCKS5Handler {
         }
       }
     } catch (e) {
-      print('[SOCKS5] Read timeout or error: $e');
+      debugPrint('[SOCKS5] Read timeout or error: $e');
     }
     
     return null;

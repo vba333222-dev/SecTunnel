@@ -19,9 +19,8 @@ class NetworkInfoSpoof {
     final seed     = config.canvasNoiseSalt.hashCode.abs();
     final downlink = 8.0 + (seed % 87);     // 8–95 Mbps
     final rtt      = 10 + (seed % 40);      // 10–49 ms
-    final rttDown  = (downlink * 0.9).toStringAsFixed(1);
 
-    return r'''
+    return '''
 // ===== NETWORK INFORMATION API SPOOFING =====
 // Chrome Desktop exposes: effectiveType, downlink, rtt, onchange
 // Chrome Desktop does NOT expose: type, saveData (mobile-only)

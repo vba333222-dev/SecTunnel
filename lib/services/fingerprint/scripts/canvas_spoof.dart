@@ -117,6 +117,46 @@ function(...args) {
 '''
   )}
   
+  // ===== OFFSCREEN CANVAS SPOOFING =====
+  // Advanced trackers use OffscreenCanvas in Web Workers to quietly fingerprint.
+  if (typeof OffscreenCanvas !== 'undefined' && typeof OffscreenCanvasRenderingContext2D !== 'undefined') {
+    const originalOffscreenConvertToBlob = OffscreenCanvas.prototype.convertToBlob;
+    const originalOffscreenGetImageData = OffscreenCanvasRenderingContext2D.prototype.getImageData;
+
+    if (originalOffscreenConvertToBlob) {
+      ${NativeUtils.protectFunction(
+        'OffscreenCanvas.prototype',
+        'convertToBlob',
+        '''
+function(options) {
+  try {
+    const ctx = this.getContext('2d');
+    if (ctx && this.width > 0 && this.height > 0) {
+      const imageData = ctx.getImageData(0, 0, this.width, this.height);
+      addNoiseToImageData(imageData, 3);
+      ctx.putImageData(imageData, 0, 0);
+    }
+  } catch(e) {}
+  return originalOffscreenConvertToBlob.call(this, options);
+}
+'''
+      )}
+    }
+
+    if (originalOffscreenGetImageData) {
+      ${NativeUtils.protectFunction(
+        'OffscreenCanvasRenderingContext2D.prototype',
+        'getImageData',
+        '''
+function(...args) {
+  const imageData = originalOffscreenGetImageData.apply(this, args);
+  return addNoiseToImageData(imageData, 4);
+}
+'''
+      )}
+    }
+  }
+  
   // ===== CANVAS TEXT SUB-PIXEL RENDERING CORRUPTION =====
   // Intercept fillText/strokeText to apply micro-shadow before draw.
   // The shadow shifts the sub-pixel alpha compositing sequence, destroying
@@ -141,7 +181,7 @@ function(...args) {
         const prevComposite     = ctx.globalCompositeOperation;
 
         // Inject imperceptible shadow — disrupts sub-pixel anti-aliasing compositing
-        ctx.shadowColor   = `rgba(0,0,0,${shadowAlpha})`;
+        ctx.shadowColor   = `rgba(0,0,0,\${shadowAlpha})`;
         ctx.shadowBlur    = 0;
         ctx.shadowOffsetX = shadowX;
         ctx.shadowOffsetY = shadowY;
@@ -178,6 +218,31 @@ function(...args) {
 
       CanvasRenderingContext2D.prototype.fillText   = spoofedFillText;
       CanvasRenderingContext2D.prototype.strokeText = spoofedStrokeText;
+
+      // Also apply to OffscreenCanvasRenderingContext2D if available
+      if (typeof OffscreenCanvasRenderingContext2D !== 'undefined') {
+        const offSpoofedFillText = function(text, x, y, maxWidth) {
+          withShadow(this, () => {
+            maxWidth !== undefined
+              ? originalFillText.call(this, text, x, y, maxWidth)
+              : originalFillText.call(this, text, x, y);
+          });
+        };
+
+        const offSpoofedStrokeText = function(text, x, y, maxWidth) {
+          withShadow(this, () => {
+            maxWidth !== undefined
+              ? originalStrokeText.call(this, text, x, y, maxWidth)
+              : originalStrokeText.call(this, text, x, y);
+          });
+        };
+
+        window.__pbrowser_cloak(offSpoofedFillText,   'function fillText() { [native code] }');
+        window.__pbrowser_cloak(offSpoofedStrokeText, 'function strokeText() { [native code] }');
+
+        OffscreenCanvasRenderingContext2D.prototype.fillText   = offSpoofedFillText;
+        OffscreenCanvasRenderingContext2D.prototype.strokeText = offSpoofedStrokeText;
+      }
 
     } catch(e) {}
   })();

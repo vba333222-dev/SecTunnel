@@ -11,6 +11,9 @@ import android.os.Bundle
 import android.util.Log
 import androidx.core.content.ContextCompat
 import java.util.concurrent.Executor
+import android.os.SystemClock
+import android.view.MotionEvent
+import android.view.View
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.pbrowser/proxy"
@@ -57,6 +60,35 @@ class MainActivity: FlutterActivity() {
                     }
                 } else {
                     result.error("INVALID_ARGS", "Profile ID missing", null)
+                }
+            } else if (call.method == "injectTouch") {
+                val rawX = call.argument<Double>("x")?.toFloat() ?: 0f
+                val rawY = call.argument<Double>("y")?.toFloat() ?: 0f
+                
+                try {
+                    val density = resources.displayMetrics.density
+                    val x = rawX * density
+                    val y = rawY * density
+                    
+                    val rootView: View = window.decorView.rootView
+                    val downTime = SystemClock.uptimeMillis()
+                    val eventTime = downTime + 50
+                    
+                    // Dispatch ACTION_DOWN
+                    val downEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
+                    rootView.dispatchTouchEvent(downEvent)
+                    downEvent.recycle()
+
+                    // Dispatch ACTION_UP
+                    val upEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_UP, x, y, 0)
+                    rootView.dispatchTouchEvent(upEvent)
+                    upEvent.recycle()
+                    
+                    Log.i(TAG, "Injected native touch at: $x, $y")
+                    result.success(true)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to inject native touch: ${e.message}")
+                    result.success(false)
                 }
             } else {
                 result.notImplemented()

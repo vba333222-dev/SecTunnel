@@ -74,6 +74,23 @@ class ScreenSpoof {
       } catch(e) {}
     }
 
+    // --- devicePixelRatio Spoofing ---
+    // Android scales differ wildly (e.g. 2.75, 3.15). Mobile profiles skip this.
+    // Desktop usually uses 1, 1.25, 1.5, or 2 (Mac Retina).
+    // Pick a deterministic realistic scale based on the session seed.
+    const _scales = [1, 1.25, 1.5, 2];
+    const _dpr = _scales[$seed % _scales.length];
+    
+    try {
+        const spoofedDpr = function() { return _dpr; };
+        self.__pbrowser_cloak(spoofedDpr, 'function get devicePixelRatio() { [native code] }');
+        Object.defineProperty(window, 'devicePixelRatio', {
+            get: spoofedDpr,
+            configurable: true,
+            enumerable: true
+        });
+    } catch(e) {}
+
   } catch(e) {}
 })();
 ''';

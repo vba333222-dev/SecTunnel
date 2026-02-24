@@ -19,7 +19,7 @@ class TimingSpoof {
   try {
     const JITTER_MAX     = $jitterMax;   // Max random jitter in ms
     const ROUND_MS       = $roundMs;     // Bucket size for rounding
-    const profileSeed    = ${seed};
+    const profileSeed    = $seed;
 
     // Simple stateless PRNG for jitter generation (not security-critical)
     let _rngState = profileSeed | 0; // C-7 fix: force signed 32-bit from start

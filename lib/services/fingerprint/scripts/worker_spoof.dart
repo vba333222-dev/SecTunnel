@@ -92,8 +92,17 @@ class WorkerSpoof {
             return w;
           } catch(e) {
             URL.revokeObjectURL(wrappedUrl);
-            // CORS fallback — use the original URL directly
-            return new OriginalWorker(scriptURL, options);
+            // CSP Blocked Blob? Try Data URI as secondary fallback
+            try {
+              // Encode to base64 to avoid quotes/newlines issues in the data URI
+              // Using btoa with encodeURIComponent for widespread unicode support just in case
+              const b64 = btoa(unescape(encodeURIComponent(wrappedCode)));
+              const dataUrl = 'data:application/javascript;base64,' + b64;
+              return new OriginalWorker(dataUrl, options);
+            } catch(e2) {
+              // CORS / strict CSP fallback — use the original URL directly (no spoofing)
+              return new OriginalWorker(scriptURL, options);
+            }
           }
         }
 
@@ -123,7 +132,14 @@ class WorkerSpoof {
             return sw;
           } catch(e) {
             URL.revokeObjectURL(wrappedUrl);
-            return new OriginalSharedWorker(scriptURL, options);
+            // CSP fallback via base64 encoded data URI
+            try {
+              const b64 = btoa(unescape(encodeURIComponent(wrappedCode)));
+              const dataUrl = 'data:application/javascript;base64,' + b64;
+              return new OriginalSharedWorker(dataUrl, options);
+            } catch (e2) {
+              return new OriginalSharedWorker(scriptURL, options);
+            }
           }
         }
         return new OriginalSharedWorker(scriptURL, options);

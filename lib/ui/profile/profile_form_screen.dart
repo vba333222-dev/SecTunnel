@@ -25,6 +25,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
   final _proxyPortController = TextEditingController();
   final _proxyUsernameController = TextEditingController();
   final _proxyPasswordController = TextEditingController();
+  final _proxyRotationUrlController = TextEditingController();
   
   ProxyType _selectedProxyType = ProxyType.none;
   late FingerprintConfig _fingerprintConfig;
@@ -42,6 +43,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
       _proxyPortController.text = widget.existingProfile!.proxyConfig.port?.toString() ?? '';
       _proxyUsernameController.text = widget.existingProfile!.proxyConfig.username ?? '';
       _proxyPasswordController.text = widget.existingProfile!.proxyConfig.password ?? '';
+      _proxyRotationUrlController.text = widget.existingProfile!.proxyConfig.rotationUrl ?? '';
       _fingerprintConfig = widget.existingProfile!.fingerprintConfig;
     } else {
       // Create mode - random fingerprint
@@ -56,6 +58,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
     _proxyPortController.dispose();
     _proxyUsernameController.dispose();
     _proxyPasswordController.dispose();
+    _proxyRotationUrlController.dispose();
     super.dispose();
   }
 
@@ -108,7 +111,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
             
             _buildSection('Proxy Configuration', [
               DropdownButtonFormField<ProxyType>(
-                value: _selectedProxyType,
+                initialValue: _selectedProxyType,
                 decoration: _inputDecoration('Proxy Type', Icons.vpn_lock),
                 dropdownColor: const Color(0xFF2A2A2A),
                 style: const TextStyle(color: Colors.white),
@@ -167,6 +170,13 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
                   style: const TextStyle(color: Colors.white),
                   obscureText: true,
                 ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _proxyRotationUrlController,
+                  decoration: _inputDecoration('IP Rotation API URL (optional)', Icons.autorenew),
+                  style: const TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.url,
+                ),
               ],
             ]),
             
@@ -176,9 +186,9 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,7 +267,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
             child: Text(
               '$label:',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
             ),
@@ -281,17 +291,17 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
   InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
       prefixIcon: Icon(icon, color: Colors.white70),
       filled: true,
-      fillColor: Colors.white.withOpacity(0.05),
+      fillColor: Colors.white.withValues(alpha: 0.05),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -319,6 +329,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
         port: _selectedProxyType != ProxyType.none ? int.parse(_proxyPortController.text.trim()) : null,
         username: _proxyUsernameController.text.trim().isNotEmpty ? _proxyUsernameController.text.trim() : null,
         password: _proxyPasswordController.text.trim().isNotEmpty ? _proxyPasswordController.text.trim() : null,
+        rotationUrl: _proxyRotationUrlController.text.trim().isNotEmpty ? _proxyRotationUrlController.text.trim() : null,
       );
       
       // Create or update profile

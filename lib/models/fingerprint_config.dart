@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
 
-part 'fingerprint_config.g.dart';
-
 /// Geolocation configuration
 class GeolocationConfig {
   final double latitude;
@@ -105,6 +103,17 @@ class FingerprintConfig {
     this.timezone = 'Asia/Jakarta',
     this.geolocation,
   });
+  
+  String get secChUa {
+    if (userAgent.contains('Chrome/')) {
+      final match = RegExp(r'Chrome\/([0-9]+)').firstMatch(userAgent);
+      if (match != null) {
+        final version = match.group(1);
+        return '"Not_A Brand";v="8", "Chromium";v="$version", "Google Chrome";v="$version"';
+      }
+    }
+    return '';
+  }
   
   Map<String, dynamic> toJson() {
     return {

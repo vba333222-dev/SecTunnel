@@ -49,6 +49,12 @@ class $BrowserProfilesTable extends BrowserProfiles
   late final GeneratedColumn<String> proxyPassword = GeneratedColumn<String>(
       'proxy_password', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _proxyRotationUrlMeta =
+      const VerificationMeta('proxyRotationUrl');
+  @override
+  late final GeneratedColumn<String> proxyRotationUrl = GeneratedColumn<String>(
+      'proxy_rotation_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _fingerprintJsonMeta =
       const VerificationMeta('fingerprintJson');
   @override
@@ -82,6 +88,7 @@ class $BrowserProfilesTable extends BrowserProfiles
         proxyPort,
         proxyUsername,
         proxyPassword,
+        proxyRotationUrl,
         fingerprintJson,
         userDataFolder,
         createdAt,
@@ -133,6 +140,12 @@ class $BrowserProfilesTable extends BrowserProfiles
           _proxyPasswordMeta,
           proxyPassword.isAcceptableOrUnknown(
               data['proxy_password']!, _proxyPasswordMeta));
+    }
+    if (data.containsKey('proxy_rotation_url')) {
+      context.handle(
+          _proxyRotationUrlMeta,
+          proxyRotationUrl.isAcceptableOrUnknown(
+              data['proxy_rotation_url']!, _proxyRotationUrlMeta));
     }
     if (data.containsKey('fingerprint_json')) {
       context.handle(
@@ -187,6 +200,8 @@ class $BrowserProfilesTable extends BrowserProfiles
           .read(DriftSqlType.string, data['${effectivePrefix}proxy_username']),
       proxyPassword: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}proxy_password']),
+      proxyRotationUrl: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}proxy_rotation_url']),
       fingerprintJson: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}fingerprint_json'])!,
       userDataFolder: attachedDatabase.typeMapping.read(
@@ -212,6 +227,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
   final int? proxyPort;
   final String? proxyUsername;
   final String? proxyPassword;
+  final String? proxyRotationUrl;
   final String fingerprintJson;
   final String userDataFolder;
   final DateTime createdAt;
@@ -224,6 +240,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       this.proxyPort,
       this.proxyUsername,
       this.proxyPassword,
+      this.proxyRotationUrl,
       required this.fingerprintJson,
       required this.userDataFolder,
       required this.createdAt,
@@ -245,6 +262,9 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
     }
     if (!nullToAbsent || proxyPassword != null) {
       map['proxy_password'] = Variable<String>(proxyPassword);
+    }
+    if (!nullToAbsent || proxyRotationUrl != null) {
+      map['proxy_rotation_url'] = Variable<String>(proxyRotationUrl);
     }
     map['fingerprint_json'] = Variable<String>(fingerprintJson);
     map['user_data_folder'] = Variable<String>(userDataFolder);
@@ -270,6 +290,9 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       proxyPassword: proxyPassword == null && nullToAbsent
           ? const Value.absent()
           : Value(proxyPassword),
+      proxyRotationUrl: proxyRotationUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(proxyRotationUrl),
       fingerprintJson: Value(fingerprintJson),
       userDataFolder: Value(userDataFolder),
       createdAt: Value(createdAt),
@@ -288,6 +311,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       proxyPort: serializer.fromJson<int?>(json['proxyPort']),
       proxyUsername: serializer.fromJson<String?>(json['proxyUsername']),
       proxyPassword: serializer.fromJson<String?>(json['proxyPassword']),
+      proxyRotationUrl: serializer.fromJson<String?>(json['proxyRotationUrl']),
       fingerprintJson: serializer.fromJson<String>(json['fingerprintJson']),
       userDataFolder: serializer.fromJson<String>(json['userDataFolder']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -305,6 +329,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       'proxyPort': serializer.toJson<int?>(proxyPort),
       'proxyUsername': serializer.toJson<String?>(proxyUsername),
       'proxyPassword': serializer.toJson<String?>(proxyPassword),
+      'proxyRotationUrl': serializer.toJson<String?>(proxyRotationUrl),
       'fingerprintJson': serializer.toJson<String>(fingerprintJson),
       'userDataFolder': serializer.toJson<String>(userDataFolder),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -320,6 +345,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           Value<int?> proxyPort = const Value.absent(),
           Value<String?> proxyUsername = const Value.absent(),
           Value<String?> proxyPassword = const Value.absent(),
+          Value<String?> proxyRotationUrl = const Value.absent(),
           String? fingerprintJson,
           String? userDataFolder,
           DateTime? createdAt,
@@ -334,6 +360,9 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
             proxyUsername.present ? proxyUsername.value : this.proxyUsername,
         proxyPassword:
             proxyPassword.present ? proxyPassword.value : this.proxyPassword,
+        proxyRotationUrl: proxyRotationUrl.present
+            ? proxyRotationUrl.value
+            : this.proxyRotationUrl,
         fingerprintJson: fingerprintJson ?? this.fingerprintJson,
         userDataFolder: userDataFolder ?? this.userDataFolder,
         createdAt: createdAt ?? this.createdAt,
@@ -352,6 +381,9 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       proxyPassword: data.proxyPassword.present
           ? data.proxyPassword.value
           : this.proxyPassword,
+      proxyRotationUrl: data.proxyRotationUrl.present
+          ? data.proxyRotationUrl.value
+          : this.proxyRotationUrl,
       fingerprintJson: data.fingerprintJson.present
           ? data.fingerprintJson.value
           : this.fingerprintJson,
@@ -374,6 +406,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           ..write('proxyPort: $proxyPort, ')
           ..write('proxyUsername: $proxyUsername, ')
           ..write('proxyPassword: $proxyPassword, ')
+          ..write('proxyRotationUrl: $proxyRotationUrl, ')
           ..write('fingerprintJson: $fingerprintJson, ')
           ..write('userDataFolder: $userDataFolder, ')
           ..write('createdAt: $createdAt, ')
@@ -391,6 +424,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       proxyPort,
       proxyUsername,
       proxyPassword,
+      proxyRotationUrl,
       fingerprintJson,
       userDataFolder,
       createdAt,
@@ -406,6 +440,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           other.proxyPort == this.proxyPort &&
           other.proxyUsername == this.proxyUsername &&
           other.proxyPassword == this.proxyPassword &&
+          other.proxyRotationUrl == this.proxyRotationUrl &&
           other.fingerprintJson == this.fingerprintJson &&
           other.userDataFolder == this.userDataFolder &&
           other.createdAt == this.createdAt &&
@@ -420,6 +455,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
   final Value<int?> proxyPort;
   final Value<String?> proxyUsername;
   final Value<String?> proxyPassword;
+  final Value<String?> proxyRotationUrl;
   final Value<String> fingerprintJson;
   final Value<String> userDataFolder;
   final Value<DateTime> createdAt;
@@ -433,6 +469,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     this.proxyPort = const Value.absent(),
     this.proxyUsername = const Value.absent(),
     this.proxyPassword = const Value.absent(),
+    this.proxyRotationUrl = const Value.absent(),
     this.fingerprintJson = const Value.absent(),
     this.userDataFolder = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -447,6 +484,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     this.proxyPort = const Value.absent(),
     this.proxyUsername = const Value.absent(),
     this.proxyPassword = const Value.absent(),
+    this.proxyRotationUrl = const Value.absent(),
     required String fingerprintJson,
     required String userDataFolder,
     required DateTime createdAt,
@@ -467,6 +505,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     Expression<int>? proxyPort,
     Expression<String>? proxyUsername,
     Expression<String>? proxyPassword,
+    Expression<String>? proxyRotationUrl,
     Expression<String>? fingerprintJson,
     Expression<String>? userDataFolder,
     Expression<DateTime>? createdAt,
@@ -481,6 +520,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       if (proxyPort != null) 'proxy_port': proxyPort,
       if (proxyUsername != null) 'proxy_username': proxyUsername,
       if (proxyPassword != null) 'proxy_password': proxyPassword,
+      if (proxyRotationUrl != null) 'proxy_rotation_url': proxyRotationUrl,
       if (fingerprintJson != null) 'fingerprint_json': fingerprintJson,
       if (userDataFolder != null) 'user_data_folder': userDataFolder,
       if (createdAt != null) 'created_at': createdAt,
@@ -497,6 +537,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       Value<int?>? proxyPort,
       Value<String?>? proxyUsername,
       Value<String?>? proxyPassword,
+      Value<String?>? proxyRotationUrl,
       Value<String>? fingerprintJson,
       Value<String>? userDataFolder,
       Value<DateTime>? createdAt,
@@ -510,6 +551,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       proxyPort: proxyPort ?? this.proxyPort,
       proxyUsername: proxyUsername ?? this.proxyUsername,
       proxyPassword: proxyPassword ?? this.proxyPassword,
+      proxyRotationUrl: proxyRotationUrl ?? this.proxyRotationUrl,
       fingerprintJson: fingerprintJson ?? this.fingerprintJson,
       userDataFolder: userDataFolder ?? this.userDataFolder,
       createdAt: createdAt ?? this.createdAt,
@@ -542,6 +584,9 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     if (proxyPassword.present) {
       map['proxy_password'] = Variable<String>(proxyPassword.value);
     }
+    if (proxyRotationUrl.present) {
+      map['proxy_rotation_url'] = Variable<String>(proxyRotationUrl.value);
+    }
     if (fingerprintJson.present) {
       map['fingerprint_json'] = Variable<String>(fingerprintJson.value);
     }
@@ -570,6 +615,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
           ..write('proxyPort: $proxyPort, ')
           ..write('proxyUsername: $proxyUsername, ')
           ..write('proxyPassword: $proxyPassword, ')
+          ..write('proxyRotationUrl: $proxyRotationUrl, ')
           ..write('fingerprintJson: $fingerprintJson, ')
           ..write('userDataFolder: $userDataFolder, ')
           ..write('createdAt: $createdAt, ')
@@ -601,6 +647,7 @@ typedef $$BrowserProfilesTableCreateCompanionBuilder = BrowserProfilesCompanion
   Value<int?> proxyPort,
   Value<String?> proxyUsername,
   Value<String?> proxyPassword,
+  Value<String?> proxyRotationUrl,
   required String fingerprintJson,
   required String userDataFolder,
   required DateTime createdAt,
@@ -616,6 +663,7 @@ typedef $$BrowserProfilesTableUpdateCompanionBuilder = BrowserProfilesCompanion
   Value<int?> proxyPort,
   Value<String?> proxyUsername,
   Value<String?> proxyPassword,
+  Value<String?> proxyRotationUrl,
   Value<String> fingerprintJson,
   Value<String> userDataFolder,
   Value<DateTime> createdAt,
@@ -652,6 +700,10 @@ class $$BrowserProfilesTableFilterComposer
 
   ColumnFilters<String> get proxyPassword => $composableBuilder(
       column: $table.proxyPassword, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get proxyRotationUrl => $composableBuilder(
+      column: $table.proxyRotationUrl,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get fingerprintJson => $composableBuilder(
       column: $table.fingerprintJson,
@@ -700,6 +752,10 @@ class $$BrowserProfilesTableOrderingComposer
       column: $table.proxyPassword,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get proxyRotationUrl => $composableBuilder(
+      column: $table.proxyRotationUrl,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get fingerprintJson => $composableBuilder(
       column: $table.fingerprintJson,
       builder: (column) => ColumnOrderings(column));
@@ -744,6 +800,9 @@ class $$BrowserProfilesTableAnnotationComposer
 
   GeneratedColumn<String> get proxyPassword => $composableBuilder(
       column: $table.proxyPassword, builder: (column) => column);
+
+  GeneratedColumn<String> get proxyRotationUrl => $composableBuilder(
+      column: $table.proxyRotationUrl, builder: (column) => column);
 
   GeneratedColumn<String> get fingerprintJson => $composableBuilder(
       column: $table.fingerprintJson, builder: (column) => column);
@@ -792,6 +851,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             Value<int?> proxyPort = const Value.absent(),
             Value<String?> proxyUsername = const Value.absent(),
             Value<String?> proxyPassword = const Value.absent(),
+            Value<String?> proxyRotationUrl = const Value.absent(),
             Value<String> fingerprintJson = const Value.absent(),
             Value<String> userDataFolder = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
@@ -806,6 +866,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             proxyPort: proxyPort,
             proxyUsername: proxyUsername,
             proxyPassword: proxyPassword,
+            proxyRotationUrl: proxyRotationUrl,
             fingerprintJson: fingerprintJson,
             userDataFolder: userDataFolder,
             createdAt: createdAt,
@@ -820,6 +881,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             Value<int?> proxyPort = const Value.absent(),
             Value<String?> proxyUsername = const Value.absent(),
             Value<String?> proxyPassword = const Value.absent(),
+            Value<String?> proxyRotationUrl = const Value.absent(),
             required String fingerprintJson,
             required String userDataFolder,
             required DateTime createdAt,
@@ -834,6 +896,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             proxyPort: proxyPort,
             proxyUsername: proxyUsername,
             proxyPassword: proxyPassword,
+            proxyRotationUrl: proxyRotationUrl,
             fingerprintJson: fingerprintJson,
             userDataFolder: userDataFolder,
             createdAt: createdAt,

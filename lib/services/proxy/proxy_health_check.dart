@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 
 import 'package:pbrowser/models/proxy_config.dart';
@@ -6,9 +7,6 @@ import 'package:pbrowser/services/proxy/socks5_handler.dart';
 /// Service to validate if a proxy connection is alive and working
 /// before allowing a WebView to expose any fingerprint telemetry.
 class ProxyHealthCheckService {
-  /// Test target that is highly reliable for checking internet access
-  static const String _testTargetHost = '1.1.1.1';
-  static const int _testTargetPort = 443;
   
   /// Checks if the provided proxy configuration is currently alive
   /// by attempting a full connection through it.
@@ -48,7 +46,7 @@ class ProxyHealthCheckService {
         config.password
       );
     } catch (e) {
-      print('[ProxyHealth] SOCKS5 check failed: $e');
+      debugPrint('[ProxyHealth] SOCKS5 check failed: $e');
       return false;
     } finally {
       try {
@@ -97,7 +95,7 @@ class ProxyHealthCheckService {
       // If we can open the TCP socket, assume it's up
       return true;
     } catch (e) {
-      print('[ProxyHealth] HTTP check failed: $e');
+      debugPrint('[ProxyHealth] HTTP check failed: $e');
       return false;
     } finally {
       try {
