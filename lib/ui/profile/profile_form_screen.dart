@@ -67,6 +67,10 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
   // ── loading ───────────────────────────────
   bool _isLoading = false;
 
+  // ── Sparkle animation (triggered on random fingerprint) ──────────────
+  late final AnimationController _sparkleController;
+  bool _showSparkle = false;
+
   // ── Lookup maps ───────────────────────────
   static const _osList = [
     'Windows',
@@ -116,6 +120,10 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _sparkleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
 
     if (widget.existingProfile != null) {
       _populateFromProfile(widget.existingProfile!);
@@ -199,7 +207,73 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
       _hardwareConcurrency = f.hardwareConcurrency;
       _deviceMemory = f.deviceMemory;
       _timezone = f.timezone;
+      // Trigger sparkle burst
+      _showSparkle = true;
     });
+    _sparkleController.forward(from: 0).then((_) {
+      if (mounted) setState(() => _showSparkle = false);
+    });
+  }
+
+  // ── Anonymity heuristic ───────────────────────────────────────────────
+  AnonymityResult _computeAnonymityScore() {
+    int score = 100;
+    final issues = <String>[];
+
+    // 1. No proxy → real IP exposed
+    final hasProxy = _selectedProxyType != ProxyType.none;
+    if (!hasProxy) {
+      score -= 30;
+      issues.add('No proxy — real IP exposed');
+    }
+
+    // 2. WebRTC risk
+    if (_webrtcEnabled) {
+      if (!hasProxy) {
+        score -= 15;
+        issues.add('WebRTC leaks local IP');
+      } else {
+        score -= 5;
+        issues.add('WebRTC enabled (minor risk)');
+      }
+    }
+
+    // 3. OS / Resolution mismatch
+    //    Mobile OS (Android/iOS) should have narrow resolution (≤500px wide)
+    //    Desktop OS should have wide resolution (>600px wide)
+    final isMobileOs = _selectedOs == 'Android' || _selectedOs == 'iOS';
+    final isMobileRes = _screenWidth <= 500;
+    if (isMobileOs && !isMobileRes) {
+      score -= 20;
+      issues.add('Resolution ≠ OS (mobile OS + desktop res)');
+    } else if (!isMobileOs && isMobileRes) {
+      score -= 20;
+      issues.add('Resolution ≠ OS (desktop OS + mobile res)');
+    }
+
+    // 4. WebGL vendor / OS mismatch
+    final vendorLower = _webglVendor.toLowerCase();
+    final appleGpu = vendorLower.contains('apple');
+    final qualcomm = vendorLower.contains('qualcomm') || vendorLower.contains('adreno');
+    if (appleGpu && (_selectedOs == 'Windows' || _selectedOs == 'Linux' || _selectedOs == 'Android')) {
+      score -= 10;
+      issues.add('WebGL vendor/OS mismatch (Apple GPU ≠ $_selectedOs)');
+    } else if (qualcomm && (_selectedOs == 'Windows' || _selectedOs == 'macOS' || _selectedOs == 'Linux')) {
+      score -= 10;
+      issues.add('WebGL vendor/OS mismatch (Qualcomm ≠ $_selectedOs)');
+    }
+
+    // 5. Canvas salt too weak
+    final salt = _canvasSaltController.text.trim();
+    if (salt.length < 8) {
+      score -= 10;
+      issues.add('Canvas noise salt too weak (< 8 chars)');
+    }
+
+    return AnonymityResult(
+      score: score.clamp(0, 100),
+      issues: issues,
+    );
   }
 
   String _buildUserAgent() {
@@ -359,6 +433,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _sparkleController.dispose();
     _nameController.dispose();
     _uaController.dispose();
     _proxyHostController.dispose();
@@ -460,11 +535,21 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
             ],
           ),
         ),
-        body: Form(
-          key: _formKey,
-          child: TabBarView(
-            controller: _tabController,
-            children: [
+        body: Column(
+          children: [
+            // ── Anonymity Health Gauge ───────────────────────────
+            AnonymityScoreBar(
+              result: _computeAnonymityScore(),
+              showSparkle: _showSparkle,
+              sparkleController: _sparkleController,
+            ),
+            // ── Form Tabs ────────────────────────────────────────
+            Expanded(
+              child: Form(
+                key: _formKey,
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
               // ── Tab 1: General ──────────────────────────
               _GeneralTab(
                 nameController: _nameController,
@@ -548,9 +633,237 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
                 onRandomize: () =>
                     _applyRandomFingerprint(FingerprintConfig.random()),
               ),
+              ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  ANONYMITY SCORE BAR
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Immutable result from the heuristic scoring engine.
+class AnonymityResult {
+  final int score;          // 0–100
+  final List<String> issues;
+
+  const AnonymityResult({required this.score, required this.issues});
+
+  String get grade {
+    if (score >= 80) return 'Excellent';
+    if (score >= 60) return 'Good';
+    if (score >= 40) return 'Fair';
+    return 'At Risk';
+  }
+
+  Color get barColor {
+    if (score >= 80) return Colors.tealAccent;
+    if (score >= 50) return Colors.amberAccent;
+    return Colors.redAccent;
+  }
+
+  Color get gradeChipColor {
+    if (score >= 80) return const Color(0xFF0D2B1E);
+    if (score >= 50) return const Color(0xFF2B1E00);
+    return const Color(0xFF2B0D0D);
+  }
+
+  IconData get gradeIcon {
+    if (score >= 80) return Icons.verified_user_rounded;
+    if (score >= 50) return Icons.security_rounded;
+    return Icons.gpp_bad_rounded;
+  }
+}
+
+/// Animated gauge bar displayed above the tab form.
+class AnonymityScoreBar extends StatelessWidget {
+  final AnonymityResult result;
+  final bool showSparkle;
+  final AnimationController sparkleController;
+
+  const AnonymityScoreBar({
+    super.key,
+    required this.result,
+    required this.showSparkle,
+    required this.sparkleController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sparkleAnimation = CurvedAnimation(
+      parent: sparkleController,
+      curve: Curves.easeOut,
+    );
+
+    return Container(
+      color: const Color(0xFF111118),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Score row ────────────────────────────────────────────
+          Row(
+            children: [
+              Icon(result.gradeIcon, size: 16, color: result.barColor),
+              const SizedBox(width: 8),
+              Text(
+                'Anonymity Score',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Animated score number
+              TweenAnimationBuilder<int>(
+                tween: IntTween(begin: 0, end: result.score),
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeOut,
+                builder: (_, val, __) => Text(
+                  '$val / 100',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: result.barColor,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Sparkle overlay (visible immediately on randomize)
+              if (showSparkle)
+                FadeTransition(
+                  opacity: Tween<double>(begin: 1, end: 0).animate(sparkleAnimation),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.auto_awesome_rounded, size: 13, color: Colors.purpleAccent.shade100),
+                      const SizedBox(width: 3),
+                      Icon(Icons.auto_awesome_rounded, size: 16, color: Colors.purpleAccent.shade200),
+                      const SizedBox(width: 3),
+                      Icon(Icons.auto_awesome_rounded, size: 13, color: Colors.purpleAccent.shade100),
+                    ],
+                  ),
+                )
+              else
+                // Grade chip
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: result.gradeChipColor,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: result.barColor.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    result.grade,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: result.barColor,
+                    ),
+                  ),
+                ),
             ],
           ),
-        ),
+
+          const SizedBox(height: 8),
+
+          // ── Animated gauge bar ────────────────────────────────────
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 6,
+              child: Stack(
+                children: [
+                  // Track
+                  Container(
+                    width: double.infinity,
+                    color: Colors.white.withValues(alpha: 0.07),
+                  ),
+                  // Fill
+                  AnimatedFractionallySizedBox(
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeOutCubic,
+                    widthFactor: result.score / 100,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 400),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            result.barColor.withValues(alpha: 0.7),
+                            result.barColor,
+                          ],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: result.barColor.withValues(alpha: 0.5),
+                            blurRadius: 6,
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Issue chips ─────────────────────────────────────────
+          if (result.issues.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: result.issues
+                  .map((issue) => _IssueChip(label: issue))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _IssueChip extends StatelessWidget {
+  final String label;
+  const _IssueChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.redAccent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.warning_amber_rounded,
+              size: 11, color: Colors.redAccent.shade100),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Colors.redAccent.shade100,
+            ),
+          ),
+        ],
       ),
     );
   }

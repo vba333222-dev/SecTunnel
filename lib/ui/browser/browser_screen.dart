@@ -49,6 +49,12 @@ class _BrowserScreenState extends State<BrowserScreen> {
   bool _isIpFetching = false;
   bool _isRotating = false;
   bool _hudExpanded = false;
+  /// true = collapsed to a 48px semi-transparent bubble (50% opacity).
+  bool _hudMinimized = false;
+  /// Driven by onScrollChanged — false hides the HUD entirely.
+  bool _hudVisible = true;
+  /// Last known scroll-Y; used to detect scroll direction.
+  int _lastScrollY = 0;
   /// Position of the HUD's top-left corner relative to Stack.
   /// Initialized lazily on first layout.
   Offset? _hudOffset;
@@ -111,10 +117,10 @@ class _BrowserScreenState extends State<BrowserScreen> {
     if (!mounted) return;
 
     if (!isHealthy) {
-      setState(() {
-        _isLoading = false;
-        _isProxyHealthy = false;
-      });
+      // Stay on loading screen but show the actionable bottom sheet.
+      // Keep _isLoading=false so the "Verifying Proxy" overlay hides.
+      if (mounted) setState(() => _isLoading = false);
+      if (mounted) _showProxyFailureSheet();
       return; // HALT INITIALIZATION
     }
 
@@ -275,6 +281,56 @@ class _BrowserScreenState extends State<BrowserScreen> {
         await _fetchPublicIp();
       }
     }
+  }
+
+  // ── Proxy failure sheet & bypass helpers ───────────────────────────────
+
+  void _showProxyFailureSheet() {
+    final rotationUrl = widget.profile.proxyConfig.rotationUrl ?? '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ProxyFailureSheet(
+        profileName: widget.profile.name,
+        hasRotationUrl: rotationUrl.isNotEmpty,
+        onRotateIp: () {
+          Navigator.pop(context);
+          _rotateAndRetry();
+        },
+        onRetry: () {
+          Navigator.pop(context);
+          setState(() => _isLoading = true);
+          _initializeApp();
+        },
+        onOpenWithoutProxy: () {
+          Navigator.pop(context);
+          _bypassProxyAndLoad();
+        },
+      ),
+    );
+  }
+
+  /// Rotates IP then retries proxy initialization after a short delay.
+  Future<void> _rotateAndRetry() async {
+    await _rotateIpNow();
+    if (!mounted) return;
+    await Future.delayed(const Duration(seconds: 4));
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _isProxyHealthy = true;
+    });
+    _initializeApp();
+  }
+
+  /// Bypasses the proxy health check and proceeds directly to load the browser.
+  void _bypassProxyAndLoad() {
+    setState(() {
+      _isLoading = true;
+      _isProxyHealthy = true;
+    });
+    _initializeApp();
   }
 
   // =========================================================================
@@ -486,6 +542,20 @@ class _BrowserScreenState extends State<BrowserScreen> {
                   }
                   return NavigationActionPolicy.ALLOW;
                 },
+                // ── Scroll-direction auto-hide ───────────────
+                // Deadzone: hide after 20px down, restore after 10px up
+                // to avoid flicker on micro-scrolls.
+                onScrollChanged: (controller, x, y) {
+                  if (!mounted) return;
+                  final scrollingDown = y > _lastScrollY + 20;
+                  final scrollingUp   = y < _lastScrollY - 10;
+                  _lastScrollY = y;
+                  if (scrollingDown && _hudVisible) {
+                    setState(() => _hudVisible = false);
+                  } else if (scrollingUp && !_hudVisible) {
+                    setState(() => _hudVisible = true);
+                  }
+                },
               ),
             ),
 
@@ -531,46 +601,6 @@ class _BrowserScreenState extends State<BrowserScreen> {
             },
           ),
 
-          // ── Proxy Health Error Overlay ────────────────────
-          if (!_isProxyHealthy)
-            Container(
-              color: Colors.black87,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.security_update_warning,
-                        color: Colors.redAccent, size: 48),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Proxy Connection Failed!',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Initialization blocked to prevent original IP leak.',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _isLoading = true;
-                          _isProxyHealthy = true;
-                        });
-                        _initializeApp();
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry Connection'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
           // ── Loading overlay ───────────────────────────────
           if (_isLoading && _isProxyHealthy && !_isControllerInitialized)
             Container(
@@ -592,49 +622,67 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
           // ── FLOATING HUD ──────────────────────────────────
           if (_hasProxy)
-            ValueListenableBuilder<ModemStatus>(
-              valueListenable: _modemRotator.statusNotifier,
-              builder: (context, modemStatus, _) {
-                return _FloatingHud(
-                  offset: _hudOffset!,
-                  expanded: _hudExpanded,
-                  modemStatus: modemStatus,
-                  publicIp: _currentPublicIp,
-                  isIpFetching: _isIpFetching,
-                  isRotating: _isRotating,
-                  hasRotationUrl: (widget.profile.proxyConfig.rotationUrl ??
-                          '')
-                      .isNotEmpty,
-                  onDragUpdate: (delta) {
-                    setState(() {
-                      final newOffset = _hudOffset! + delta;
-                      final size = MediaQuery.of(context).size;
-                      // Clamp inside screen bounds
-                      _hudOffset = Offset(
-                        newOffset.dx.clamp(0, size.width - 64),
-                        newOffset.dy.clamp(0, size.height - 64),
-                      );
-                    });
+            // AnimatedOpacity drives both auto-hide (opacity 0) and
+            // minimized-bubble (opacity 0.5). AbsorbPointer prevents
+            // accidental taps when HUD is invisible.
+            AnimatedOpacity(
+              opacity: !_hudVisible
+                  ? 0.0
+                  : (_hudMinimized ? 0.50 : 1.0),
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOut,
+              child: AbsorbPointer(
+                absorbing: !_hudVisible,
+                child: ValueListenableBuilder<ModemStatus>(
+                  valueListenable: _modemRotator.statusNotifier,
+                  builder: (context, modemStatus, _) {
+                    return _FloatingHud(
+                      offset: _hudOffset!,
+                      expanded: _hudExpanded,
+                      minimized: _hudMinimized,
+                      modemStatus: modemStatus,
+                      publicIp: _currentPublicIp,
+                      isIpFetching: _isIpFetching,
+                      isRotating: _isRotating,
+                      hasRotationUrl: (widget.profile.proxyConfig.rotationUrl ??
+                              '')
+                          .isNotEmpty,
+                      onDragUpdate: (delta) {
+                        setState(() {
+                          final newOffset = _hudOffset! + delta;
+                          final size = MediaQuery.of(context).size;
+                          _hudOffset = Offset(
+                            newOffset.dx.clamp(0, size.width - 64),
+                            newOffset.dy.clamp(0, size.height - 64),
+                          );
+                        });
+                      },
+                      onToggleExpand: () =>
+                          setState(() => _hudExpanded = !_hudExpanded),
+                      onToggleMinimize: () => setState(() {
+                        _hudMinimized = !_hudMinimized;
+                        // Minimize collapses the panel too
+                        if (_hudMinimized) _hudExpanded = false;
+                      }),
+                      onRotateIp: _rotateIpNow,
+                      onRefreshIp: _fetchPublicIp,
+                      onCopyIp: () {
+                        if (_currentPublicIp != null) {
+                          Clipboard.setData(
+                              ClipboardData(text: _currentPublicIp!));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('IP copied to clipboard'),
+                              duration: Duration(seconds: 1),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                    );
                   },
-                  onToggleExpand: () =>
-                      setState(() => _hudExpanded = !_hudExpanded),
-                  onRotateIp: _rotateIpNow,
-                  onRefreshIp: _fetchPublicIp,
-                  onCopyIp: () {
-                    if (_currentPublicIp != null) {
-                      Clipboard.setData(
-                          ClipboardData(text: _currentPublicIp!));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('IP copied to clipboard'),
-                          duration: Duration(seconds: 1),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  },
-                );
-              },
+                ),
+              ),
             ),
         ],
       ),
@@ -649,6 +697,8 @@ class _BrowserScreenState extends State<BrowserScreen> {
 class _FloatingHud extends StatelessWidget {
   final Offset offset;
   final bool expanded;
+  /// When true the HUD collapses to a 48px bubble; parent sets opacity to 0.50.
+  final bool minimized;
   final ModemStatus modemStatus;
   final String? publicIp;
   final bool isIpFetching;
@@ -656,6 +706,8 @@ class _FloatingHud extends StatelessWidget {
   final bool hasRotationUrl;
   final void Function(Offset delta) onDragUpdate;
   final VoidCallback onToggleExpand;
+  /// Long-press FAB → minimize bubble. Tap bubble → restore.
+  final VoidCallback onToggleMinimize;
   final VoidCallback onRotateIp;
   final VoidCallback onRefreshIp;
   final VoidCallback onCopyIp;
@@ -663,6 +715,7 @@ class _FloatingHud extends StatelessWidget {
   const _FloatingHud({
     required this.offset,
     required this.expanded,
+    required this.minimized,
     required this.modemStatus,
     required this.publicIp,
     required this.isIpFetching,
@@ -670,6 +723,7 @@ class _FloatingHud extends StatelessWidget {
     required this.hasRotationUrl,
     required this.onDragUpdate,
     required this.onToggleExpand,
+    required this.onToggleMinimize,
     required this.onRotateIp,
     required this.onRefreshIp,
     required this.onCopyIp,
@@ -699,6 +753,9 @@ class _FloatingHud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // minimized → 48px bubble, no coloured glow (opacity set by parent)
+    final double radius = expanded ? 18 : 26;
+
     return Positioned(
       left: offset.dx,
       top: offset.dy,
@@ -707,31 +764,60 @@ class _FloatingHud extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 240),
           curve: Curves.easeInOutCubic,
-          width: expanded ? 220 : 52,
-          height: expanded ? null : 52,
+          width: minimized ? 48 : (expanded ? 220 : 52),
+          height: minimized ? 48 : (expanded ? null : 52),
           decoration: BoxDecoration(
-            color: const Color(0xE8141620),
-            borderRadius: BorderRadius.circular(expanded ? 18 : 26),
+            color: minimized
+                ? Colors.black.withValues(alpha: 0.60)
+                : const Color(0xE8141620),
+            borderRadius: BorderRadius.circular(
+                minimized ? 24 : radius),
             border: Border.all(
-              color: _statusColor.withValues(alpha: 0.45),
+              color: minimized
+                  ? Colors.white.withValues(alpha: 0.2)
+                  : _statusColor.withValues(alpha: 0.45),
               width: 1.5,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: _statusColor.withValues(alpha: 0.25),
-                blurRadius: 16,
-                spreadRadius: 1,
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.55),
-                blurRadius: 8,
-              ),
-            ],
+            boxShadow: minimized
+                ? null // no glow in minimized mode — reduces visual noise
+                : [
+                    BoxShadow(
+                      color: _statusColor.withValues(alpha: 0.25),
+                      blurRadius: 16,
+                      spreadRadius: 1,
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      blurRadius: 8,
+                    ),
+                  ],
           ),
           clipBehavior: Clip.antiAlias,
           child: Material(
             color: Colors.transparent,
-            child: expanded ? _expandedContent() : _collapsedFab(),
+            child: minimized
+                ? _minimizedBubble()
+                : (expanded ? _expandedContent() : _collapsedFab()),
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  // ── Minimized: 48px semi-transparent bubble ───────────────────────────
+
+  Widget _minimizedBubble() {
+    return Tooltip(
+      message: 'Tap to restore HUD',
+      child: InkWell(
+        onTap: onToggleMinimize,
+        borderRadius: BorderRadius.circular(24),
+        child: Center(
+          child: Icon(
+            Icons.radar_rounded,
+            size: 22,
+            color: _statusColor.withValues(alpha: 0.85),
           ),
         ),
       ),
@@ -746,38 +832,43 @@ class _FloatingHud extends StatelessWidget {
       height: 52,
       child: InkWell(
         onTap: onToggleExpand,
+        // Long-press → minimize to bubble
+        onLongPress: onToggleMinimize,
         borderRadius: BorderRadius.circular(26),
-        child: Center(
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Pulse ring
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 800),
-                width: modemStatus == ModemStatus.online ? 36 : 32,
-                height: modemStatus == ModemStatus.online ? 36 : 32,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _statusColor.withValues(alpha: 0.15),
+        child: Tooltip(
+          message: 'Long-press to minimize',
+          child: Center(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Pulse ring
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 800),
+                  width: modemStatus == ModemStatus.online ? 36 : 32,
+                  height: modemStatus == ModemStatus.online ? 36 : 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _statusColor.withValues(alpha: 0.15),
+                  ),
                 ),
-              ),
-              // Core dot
-              Container(
-                width: 14,
-                height: 14,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _statusColor,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _statusColor.withValues(alpha: 0.7),
-                      blurRadius: 8,
-                      spreadRadius: 2,
-                    ),
-                  ],
+                // Core dot
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _statusColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: _statusColor.withValues(alpha: 0.7),
+                        blurRadius: 8,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1002,6 +1093,268 @@ class _RotateButton extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+//  PROXY FAILURE BOTTOM SHEET
+// =============================================================================
+
+class _ProxyFailureSheet extends StatelessWidget {
+  final String profileName;
+  final bool hasRotationUrl;
+  final VoidCallback onRotateIp;
+  final VoidCallback onRetry;
+  final VoidCallback onOpenWithoutProxy;
+
+  const _ProxyFailureSheet({
+    required this.profileName,
+    required this.hasRotationUrl,
+    required this.onRotateIp,
+    required this.onRetry,
+    required this.onOpenWithoutProxy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A28),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.redAccent.withValues(alpha: 0.3),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.redAccent.withValues(alpha: 0.12),
+                blurRadius: 24,
+                spreadRadius: 2,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.6),
+                blurRadius: 12,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Drag handle ─────────────────────────────
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Header ───────────────────────────────────
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.wifi_off_rounded,
+                        color: Colors.redAccent,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Proxy Connection Failed',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            profileName,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.45),
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                Text(
+                  'Could not reach the proxy server. The modem may be '
+                  'resetting or the credentials are incorrect. '
+                  'What would you like to do?',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.55),
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Divider(color: Colors.white.withValues(alpha: 0.08)),
+
+                const SizedBox(height: 16),
+
+                // ── Action tiles ─────────────────────────────
+                if (hasRotationUrl) ...[
+                  _ActionTile(
+                    icon: Icons.swap_horiz_rounded,
+                    iconColor: Colors.tealAccent,
+                    bgColor: Colors.tealAccent.withValues(alpha: 0.10),
+                    title: 'Rotate IP Now',
+                    subtitle: 'Request a new IP from the modem, then retry',
+                    onTap: onRotateIp,
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                _ActionTile(
+                  icon: Icons.refresh_rounded,
+                  iconColor: Colors.purpleAccent,
+                  bgColor: Colors.purpleAccent.withValues(alpha: 0.10),
+                  title: 'Retry Connection',
+                  subtitle: 'Re-check proxy health and reconnect',
+                  onTap: onRetry,
+                ),
+
+                const SizedBox(height: 10),
+
+                _ActionTile(
+                  icon: Icons.public_rounded,
+                  iconColor: Colors.amberAccent,
+                  bgColor: Colors.amberAccent.withValues(alpha: 0.08),
+                  title: 'Open Without Proxy',
+                  subtitle: 'Browse using your real IP (anonymity reduced)',
+                  onTap: onOpenWithoutProxy,
+                  outlined: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ACTION TILE
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color bgColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool outlined;
+
+  const _ActionTile({
+    required this.icon,
+    required this.iconColor,
+    required this.bgColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.outlined = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        splashColor: iconColor.withValues(alpha: 0.1),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: outlined ? Colors.transparent : bgColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: outlined
+                  ? iconColor.withValues(alpha: 0.35)
+                  : iconColor.withValues(alpha: 0.18),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: outlined
+                      ? iconColor.withValues(alpha: 0.08)
+                      : bgColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: outlined ? iconColor : Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.42),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white.withValues(alpha: 0.25),
+                size: 20,
+              ),
+            ],
           ),
         ),
       ),

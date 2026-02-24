@@ -13,6 +13,11 @@ class ProfileCard extends StatefulWidget {
   final VoidCallback onRun;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  // ── Selection ──────────────────────────────
+  final bool isSelectMode;
+  final bool isSelected;
+  final VoidCallback onLongPress;
+  final VoidCallback onSelect;
 
   const ProfileCard({
     super.key,
@@ -20,7 +25,12 @@ class ProfileCard extends StatefulWidget {
     required this.onRun,
     required this.onEdit,
     required this.onDelete,
-  });
+    this.isSelectMode = false,
+    this.isSelected = false,
+    VoidCallback? onLongPress,
+    VoidCallback? onSelect,
+  })  : onLongPress = onLongPress ?? onRun,
+        onSelect = onSelect ?? onRun;
 
   @override
   State<ProfileCard> createState() => _ProfileCardState();
@@ -111,16 +121,18 @@ class _ProfileCardState extends State<ProfileCard> {
 
   @override
   Widget build(BuildContext context) {
-    // Wrap in RepaintBoundary so each card's paint is isolated — no full-grid
-    // repaint when a single card changes hover/tap ink state.
     return RepaintBoundary(
       child: _CardBody(
         profile: widget.profile,
         isRotatingIp: _isRotatingIp,
+        isSelectMode: widget.isSelectMode,
+        isSelected: widget.isSelected,
         onRun: widget.onRun,
         onEdit: widget.onEdit,
         onDelete: widget.onDelete,
         onRotateIp: _rotateIp,
+        onLongPress: widget.onLongPress,
+        onSelect: widget.onSelect,
       ),
     );
   }
@@ -133,18 +145,26 @@ class _ProfileCardState extends State<ProfileCard> {
 class _CardBody extends StatelessWidget {
   final BrowserProfile profile;
   final bool isRotatingIp;
+  final bool isSelectMode;
+  final bool isSelected;
   final VoidCallback onRun;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onRotateIp;
+  final VoidCallback onLongPress;
+  final VoidCallback onSelect;
 
   const _CardBody({
     required this.profile,
     required this.isRotatingIp,
+    required this.isSelectMode,
+    required this.isSelected,
     required this.onRun,
     required this.onEdit,
     required this.onDelete,
     required this.onRotateIp,
+    required this.onLongPress,
+    required this.onSelect,
   });
 
   @override
@@ -155,20 +175,43 @@ class _CardBody extends StatelessWidget {
     final hasRotation =
         proxy.rotationUrl != null && proxy.rotationUrl!.isNotEmpty;
 
-    return Card(
-      elevation: 0,
-      color: const Color(0xFF16161F),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: InkWell(
-        onTap: onRun,
-        borderRadius: BorderRadius.circular(16),
-        splashColor: Colors.tealAccent.withValues(alpha: 0.08),
-        highlightColor: Colors.tealAccent.withValues(alpha: 0.04),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+    // Selected card border animated
+    final borderColor = isSelected
+        ? Colors.tealAccent.withValues(alpha: 0.7)
+        : Colors.white.withValues(alpha: 0.08);
+    final borderWidth = isSelected ? 1.8 : 1.0;
+    final cardGlow = isSelected
+        ? [BoxShadow(color: Colors.tealAccent.withValues(alpha: 0.18), blurRadius: 12, spreadRadius: 1)]
+        : null;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // ── Main card ─────────────────────────────
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: cardGlow,
+          ),
+          child: Card(
+            elevation: 0,
+            color: isSelected
+                ? const Color(0xFF111A1A)
+                : const Color(0xFF16161F),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: borderColor, width: borderWidth),
+            ),
+            child: InkWell(
+              onTap: isSelectMode ? onSelect : onRun,
+              onLongPress: isSelectMode ? null : onLongPress,
+              borderRadius: BorderRadius.circular(16),
+              splashColor: Colors.tealAccent.withValues(alpha: 0.08),
+              highlightColor: Colors.tealAccent.withValues(alpha: 0.04),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -268,12 +311,27 @@ class _CardBody extends StatelessWidget {
 
               const SizedBox(height: 10),
 
-              // ── Launch button ─────────────────────────
-              _LaunchButton(onTap: onRun),
+              // ── Launch button ─────────────────
+              _LaunchButton(onTap: isSelectMode ? onSelect : onRun),
             ],
           ),
         ),
       ),
+    ),
+  ),
+        // ── Checkbox overlay ─────────────────────
+        // AnimatedScale: 0 → 1 when entering selection mode
+        Positioned(
+          top: 8,
+          left: 8,
+          child: AnimatedScale(
+            scale: isSelectMode ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutBack,
+            child: _CheckboxBadge(checked: isSelected),
+          ),
+        ),
+      ],
     );
   }
 
@@ -284,6 +342,44 @@ class _CardBody extends StatelessWidget {
     if (diff.inDays < 1) return '${diff.inHours}h ago';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     return DateFormat('MMM d').format(lastUsedAt);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  CHECKBOX BADGE  (animated fill circle)
+// ─────────────────────────────────────────────
+
+class _CheckboxBadge extends StatelessWidget {
+  final bool checked;
+  const _CheckboxBadge({required this.checked});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: checked ? Colors.tealAccent : Colors.black.withValues(alpha: 0.55),
+        border: Border.all(
+          color: checked
+              ? Colors.tealAccent
+              : Colors.white.withValues(alpha: 0.5),
+          width: 1.8,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 4,
+          ),
+        ],
+      ),
+      child: checked
+          ? const Icon(Icons.check_rounded, size: 14, color: Colors.black)
+          : null,
+    );
   }
 }
 
