@@ -54,6 +54,7 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
         userDataFolder: profile.userDataFolder,
         createdAt: profile.createdAt,
         lastUsedAt: profile.lastUsedAt,
+        tagsJson: Value(profile.tags.isEmpty ? null : profile.tagsString),
       ),
     );
   }
@@ -73,6 +74,7 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
         fingerprintJson: Value(profile.fingerprintConfig.toJsonString()),
         userDataFolder: Value(profile.userDataFolder),
         lastUsedAt: Value(profile.lastUsedAt),
+        tagsJson: Value(profile.tags.isEmpty ? null : profile.tagsString),
       ),
     );
   }
@@ -107,6 +109,7 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
       userDataFolder: row.userDataFolder,
       createdAt: row.createdAt,
       lastUsedAt: row.lastUsedAt,
+      tags: model.BrowserProfile.parseTags(row.tagsJson),
     );
   }
 }

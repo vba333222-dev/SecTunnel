@@ -24,6 +24,9 @@ class BrowserProfiles extends Table {
   // Metadata
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get lastUsedAt => dateTime()();
+
+  // Tags (stored as JSON array string, e.g. '["Airdrop","BCA"]')
+  TextColumn get tagsJson => text().nullable()();
   
   @override
   Set<Column> get primaryKey => {id};
@@ -34,7 +37,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
   
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
   
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -49,6 +52,9 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (Migrator m, int from, int to) async {
       if (from < 2) {
         await m.addColumn(browserProfiles, browserProfiles.proxyRotationUrl);
+      }
+      if (from < 3) {
+        await m.addColumn(browserProfiles, browserProfiles.tagsJson);
       }
     },
   );

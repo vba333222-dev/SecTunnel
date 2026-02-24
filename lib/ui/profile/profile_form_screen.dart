@@ -36,6 +36,9 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
   String _selectedBrowser = 'Chrome';
   final _uaController = TextEditingController();
   bool _uaManualOverride = false;
+  // ── Tags ───────────────────────────────────────────────
+  List<String> _tags = [];
+  final _tagInputController = TextEditingController();
 
   // ── Network tab ───────────────────────────
   ProxyType _selectedProxyType = ProxyType.none;
@@ -142,6 +145,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
     _uaManualOverride = true;
     _selectedOs = _detectOs(f.platform);
     _selectedBrowser = _detectBrowser(f.userAgent);
+    _tags = List<String>.from(p.tags);
 
     // Network
     _selectedProxyType = proxy.type;
@@ -407,6 +411,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
         userDataFolder: userDataPath,
         createdAt: widget.existingProfile?.createdAt ?? now,
         lastUsedAt: now,
+        tags: List<String>.from(_tags),
       );
 
       if (widget.existingProfile != null) {
@@ -435,6 +440,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
     _tabController.dispose();
     _sparkleController.dispose();
     _nameController.dispose();
+    _tagInputController.dispose();
     _uaController.dispose();
     _proxyHostController.dispose();
     _proxyPortController.dispose();
@@ -559,17 +565,18 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
                 osList: _osList,
                 browserList: _browserList,
                 uaManualOverride: _uaManualOverride,
-                onOsChanged: (v) =>
-                    setState(() {
-                      _selectedOs = v;
-                      _uaManualOverride = false;
-                    }),
-                onBrowserChanged: (v) =>
-                    setState(() {
-                      _selectedBrowser = v;
-                      _uaManualOverride = false;
-                    }),
+                onOsChanged: (v) => setState(() {
+                  _selectedOs = v;
+                  _uaManualOverride = false;
+                }),
+                onBrowserChanged: (v) => setState(() {
+                  _selectedBrowser = v;
+                  _uaManualOverride = false;
+                }),
                 onUaChanged: (_) => setState(() => _uaManualOverride = true),
+                tags: _tags,
+                tagController: _tagInputController,
+                onTagsChanged: (t) => setState(() => _tags = t),
                 onRandomize: () =>
                     _applyRandomFingerprint(FingerprintConfig.random()),
               ),
@@ -1049,6 +1056,9 @@ class _GeneralTab extends StatelessWidget {
   final ValueChanged<String> onOsChanged;
   final ValueChanged<String> onBrowserChanged;
   final ValueChanged<String> onUaChanged;
+  final List<String> tags;
+  final TextEditingController tagController;
+  final ValueChanged<List<String>> onTagsChanged;
   final VoidCallback onRandomize;
 
   const _GeneralTab({
@@ -1062,6 +1072,9 @@ class _GeneralTab extends StatelessWidget {
     required this.onOsChanged,
     required this.onBrowserChanged,
     required this.onUaChanged,
+    required this.tags,
+    required this.tagController,
+    required this.onTagsChanged,
     required this.onRandomize,
   });
 
@@ -1733,6 +1746,140 @@ class _SettingsToggleCard extends StatelessWidget {
         inactiveThumbColor: Colors.white38,
         inactiveTrackColor: Colors.white12,
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  TAG INPUT COMPONENT
+// ─────────────────────────────────────────────
+
+class _TagInputField extends StatefulWidget {
+  final List<String> tags;
+  final TextEditingController controller;
+  final ValueChanged<List<String>> onTagsChanged;
+
+  const _TagInputField({
+    required this.tags,
+    required this.controller,
+    required this.onTagsChanged,
+  });
+
+  @override
+  State<_TagInputField> createState() => _TagInputFieldState();
+}
+
+class _TagInputFieldState extends State<_TagInputField> {
+  static const int _maxTags = 8;
+  final FocusNode _focusNode = FocusNode();
+
+  void _addTag() {
+    final t = widget.controller.text.trim().toLowerCase();
+    if (t.isEmpty) return;
+    
+    // Split by comma in case user pastes comma-separated
+    final newTags = t.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty);
+    
+    bool varied = false;
+    final current = List<String>.from(widget.tags);
+    for (final tag in newTags) {
+      if (current.length >= _maxTags) break;
+      if (!current.contains(tag)) {
+        current.add(tag);
+        varied = true;
+      }
+    }
+
+    if (varied) {
+      widget.onTagsChanged(current);
+    }
+    
+    // Keep focus, just clear text
+    widget.controller.clear();
+    _focusNode.requestFocus();
+  }
+
+  void _removeTag(String tag) {
+    final current = List<String>.from(widget.tags)..remove(tag);
+    widget.onTagsChanged(current);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Generate color palette for chips locally (or use random deterministic)
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (widget.tags.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: widget.tags.map((tag) {
+                // simple deterministic color
+                final colors = [
+                  Colors.tealAccent,
+                  Colors.purpleAccent,
+                  Colors.amberAccent,
+                  Colors.blueAccent,
+                  Colors.greenAccent,
+                  Colors.orangeAccent,
+                  Colors.pinkAccent,
+                  Colors.cyanAccent,
+                ];
+                final color = colors[tag.hashCode.abs() % colors.length];
+
+                return Chip(
+                  label: Text(
+                    tag,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: color.withValues(alpha: 0.9),
+                    ),
+                  ),
+                  backgroundColor: color.withValues(alpha: 0.1),
+                  side: BorderSide(color: color.withValues(alpha: 0.3)),
+                  deleteIcon: Icon(Icons.close_rounded, size: 16, color: color),
+                  onDeleted: () => _removeTag(tag),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                );
+              }).toList(),
+            ),
+          ),
+        
+        // Input Field
+        TextFormField(
+          controller: widget.controller,
+          focusNode: _focusNode,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+          decoration: _inputDeco('Add a tag...', Icons.local_offer_outlined).copyWith(
+            helperText: 'Press Enter or type a comma to add. Max $_maxTags tags.',
+            helperStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35)),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.tealAccent),
+              onPressed: _addTag,
+              tooltip: 'Add tag',
+            ),
+          ),
+          enabled: widget.tags.length < _maxTags,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _addTag(),
+          onChanged: (val) {
+            if (val.contains(',')) {
+              _addTag();
+            }
+          },
+        ),
+      ],
     );
   }
 }

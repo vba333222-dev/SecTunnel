@@ -79,6 +79,12 @@ class $BrowserProfilesTable extends BrowserProfiles
   late final GeneratedColumn<DateTime> lastUsedAt = GeneratedColumn<DateTime>(
       'last_used_at', aliasedName, false,
       type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _tagsJsonMeta =
+      const VerificationMeta('tagsJson');
+  @override
+  late final GeneratedColumn<String> tagsJson = GeneratedColumn<String>(
+      'tags_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -92,7 +98,8 @@ class $BrowserProfilesTable extends BrowserProfiles
         fingerprintJson,
         userDataFolder,
         createdAt,
-        lastUsedAt
+        lastUsedAt,
+        tagsJson
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -177,6 +184,10 @@ class $BrowserProfilesTable extends BrowserProfiles
     } else if (isInserting) {
       context.missing(_lastUsedAtMeta);
     }
+    if (data.containsKey('tags_json')) {
+      context.handle(_tagsJsonMeta,
+          tagsJson.isAcceptableOrUnknown(data['tags_json']!, _tagsJsonMeta));
+    }
     return context;
   }
 
@@ -210,6 +221,8 @@ class $BrowserProfilesTable extends BrowserProfiles
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
       lastUsedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}last_used_at'])!,
+      tagsJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}tags_json']),
     );
   }
 
@@ -232,6 +245,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
   final String userDataFolder;
   final DateTime createdAt;
   final DateTime lastUsedAt;
+  final String? tagsJson;
   const BrowserProfile(
       {required this.id,
       required this.name,
@@ -244,7 +258,8 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       required this.fingerprintJson,
       required this.userDataFolder,
       required this.createdAt,
-      required this.lastUsedAt});
+      required this.lastUsedAt,
+      this.tagsJson});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -270,6 +285,9 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
     map['user_data_folder'] = Variable<String>(userDataFolder);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['last_used_at'] = Variable<DateTime>(lastUsedAt);
+    if (!nullToAbsent || tagsJson != null) {
+      map['tags_json'] = Variable<String>(tagsJson);
+    }
     return map;
   }
 
@@ -297,6 +315,9 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       userDataFolder: Value(userDataFolder),
       createdAt: Value(createdAt),
       lastUsedAt: Value(lastUsedAt),
+      tagsJson: tagsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tagsJson),
     );
   }
 
@@ -316,6 +337,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       userDataFolder: serializer.fromJson<String>(json['userDataFolder']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       lastUsedAt: serializer.fromJson<DateTime>(json['lastUsedAt']),
+      tagsJson: serializer.fromJson<String?>(json['tagsJson']),
     );
   }
   @override
@@ -334,6 +356,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       'userDataFolder': serializer.toJson<String>(userDataFolder),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'lastUsedAt': serializer.toJson<DateTime>(lastUsedAt),
+      'tagsJson': serializer.toJson<String?>(tagsJson),
     };
   }
 
@@ -349,7 +372,8 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           String? fingerprintJson,
           String? userDataFolder,
           DateTime? createdAt,
-          DateTime? lastUsedAt}) =>
+          DateTime? lastUsedAt,
+          Value<String?> tagsJson = const Value.absent()}) =>
       BrowserProfile(
         id: id ?? this.id,
         name: name ?? this.name,
@@ -367,6 +391,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
         userDataFolder: userDataFolder ?? this.userDataFolder,
         createdAt: createdAt ?? this.createdAt,
         lastUsedAt: lastUsedAt ?? this.lastUsedAt,
+        tagsJson: tagsJson.present ? tagsJson.value : this.tagsJson,
       );
   BrowserProfile copyWithCompanion(BrowserProfilesCompanion data) {
     return BrowserProfile(
@@ -393,6 +418,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       lastUsedAt:
           data.lastUsedAt.present ? data.lastUsedAt.value : this.lastUsedAt,
+      tagsJson: data.tagsJson.present ? data.tagsJson.value : this.tagsJson,
     );
   }
 
@@ -410,7 +436,8 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           ..write('fingerprintJson: $fingerprintJson, ')
           ..write('userDataFolder: $userDataFolder, ')
           ..write('createdAt: $createdAt, ')
-          ..write('lastUsedAt: $lastUsedAt')
+          ..write('lastUsedAt: $lastUsedAt, ')
+          ..write('tagsJson: $tagsJson')
           ..write(')'))
         .toString();
   }
@@ -428,7 +455,8 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       fingerprintJson,
       userDataFolder,
       createdAt,
-      lastUsedAt);
+      lastUsedAt,
+      tagsJson);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -444,7 +472,8 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           other.fingerprintJson == this.fingerprintJson &&
           other.userDataFolder == this.userDataFolder &&
           other.createdAt == this.createdAt &&
-          other.lastUsedAt == this.lastUsedAt);
+          other.lastUsedAt == this.lastUsedAt &&
+          other.tagsJson == this.tagsJson);
 }
 
 class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
@@ -460,6 +489,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
   final Value<String> userDataFolder;
   final Value<DateTime> createdAt;
   final Value<DateTime> lastUsedAt;
+  final Value<String?> tagsJson;
   final Value<int> rowid;
   const BrowserProfilesCompanion({
     this.id = const Value.absent(),
@@ -474,6 +504,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     this.userDataFolder = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.lastUsedAt = const Value.absent(),
+    this.tagsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BrowserProfilesCompanion.insert({
@@ -489,6 +520,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     required String userDataFolder,
     required DateTime createdAt,
     required DateTime lastUsedAt,
+    this.tagsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
@@ -510,6 +542,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     Expression<String>? userDataFolder,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? lastUsedAt,
+    Expression<String>? tagsJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -525,6 +558,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       if (userDataFolder != null) 'user_data_folder': userDataFolder,
       if (createdAt != null) 'created_at': createdAt,
       if (lastUsedAt != null) 'last_used_at': lastUsedAt,
+      if (tagsJson != null) 'tags_json': tagsJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -542,6 +576,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       Value<String>? userDataFolder,
       Value<DateTime>? createdAt,
       Value<DateTime>? lastUsedAt,
+      Value<String?>? tagsJson,
       Value<int>? rowid}) {
     return BrowserProfilesCompanion(
       id: id ?? this.id,
@@ -556,6 +591,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       userDataFolder: userDataFolder ?? this.userDataFolder,
       createdAt: createdAt ?? this.createdAt,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
+      tagsJson: tagsJson ?? this.tagsJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -599,6 +635,9 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     if (lastUsedAt.present) {
       map['last_used_at'] = Variable<DateTime>(lastUsedAt.value);
     }
+    if (tagsJson.present) {
+      map['tags_json'] = Variable<String>(tagsJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -620,6 +659,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
           ..write('userDataFolder: $userDataFolder, ')
           ..write('createdAt: $createdAt, ')
           ..write('lastUsedAt: $lastUsedAt, ')
+          ..write('tagsJson: $tagsJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -652,6 +692,7 @@ typedef $$BrowserProfilesTableCreateCompanionBuilder = BrowserProfilesCompanion
   required String userDataFolder,
   required DateTime createdAt,
   required DateTime lastUsedAt,
+  Value<String?> tagsJson,
   Value<int> rowid,
 });
 typedef $$BrowserProfilesTableUpdateCompanionBuilder = BrowserProfilesCompanion
@@ -668,6 +709,7 @@ typedef $$BrowserProfilesTableUpdateCompanionBuilder = BrowserProfilesCompanion
   Value<String> userDataFolder,
   Value<DateTime> createdAt,
   Value<DateTime> lastUsedAt,
+  Value<String?> tagsJson,
   Value<int> rowid,
 });
 
@@ -718,6 +760,9 @@ class $$BrowserProfilesTableFilterComposer
 
   ColumnFilters<DateTime> get lastUsedAt => $composableBuilder(
       column: $table.lastUsedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get tagsJson => $composableBuilder(
+      column: $table.tagsJson, builder: (column) => ColumnFilters(column));
 }
 
 class $$BrowserProfilesTableOrderingComposer
@@ -769,6 +814,9 @@ class $$BrowserProfilesTableOrderingComposer
 
   ColumnOrderings<DateTime> get lastUsedAt => $composableBuilder(
       column: $table.lastUsedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get tagsJson => $composableBuilder(
+      column: $table.tagsJson, builder: (column) => ColumnOrderings(column));
 }
 
 class $$BrowserProfilesTableAnnotationComposer
@@ -815,6 +863,9 @@ class $$BrowserProfilesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get lastUsedAt => $composableBuilder(
       column: $table.lastUsedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get tagsJson =>
+      $composableBuilder(column: $table.tagsJson, builder: (column) => column);
 }
 
 class $$BrowserProfilesTableTableManager extends RootTableManager<
@@ -856,6 +907,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             Value<String> userDataFolder = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> lastUsedAt = const Value.absent(),
+            Value<String?> tagsJson = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               BrowserProfilesCompanion(
@@ -871,6 +923,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             userDataFolder: userDataFolder,
             createdAt: createdAt,
             lastUsedAt: lastUsedAt,
+            tagsJson: tagsJson,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -886,6 +939,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             required String userDataFolder,
             required DateTime createdAt,
             required DateTime lastUsedAt,
+            Value<String?> tagsJson = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               BrowserProfilesCompanion.insert(
@@ -901,6 +955,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             userDataFolder: userDataFolder,
             createdAt: createdAt,
             lastUsedAt: lastUsedAt,
+            tagsJson: tagsJson,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

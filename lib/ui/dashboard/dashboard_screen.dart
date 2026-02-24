@@ -27,6 +27,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _showSearch = false;
+  String? _selectedTag;
 
   // ── Selection ─────────────────────────────────────────
   final Set<String> _selectedIds = {};
@@ -40,11 +41,20 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ── Filtering ─────────────────────────────────────────
   List<BrowserProfile> _applyFilter(List<BrowserProfile> profiles) {
+    var filtered = profiles;
+    
+    // Tag filter
+    if (_selectedTag != null) {
+      filtered = filtered.where((p) => p.tags.contains(_selectedTag)).toList(growable: false);
+    }
+
+    // Search query filter
     final q = _searchQuery.trim().toLowerCase();
-    if (q.isEmpty) return profiles;
-    return profiles
-        .where((p) => p.name.toLowerCase().contains(q))
-        .toList(growable: false);
+    if (q.isNotEmpty) {
+      filtered = filtered.where((p) => p.name.toLowerCase().contains(q)).toList(growable: false);
+    }
+    
+    return filtered;
   }
 
   // ── Selection helpers ─────────────────────────────────
@@ -118,6 +128,32 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
+  Future<void> _duplicateProfile(BrowserProfile profile) async {
+    HapticFeedback.mediumImpact();
+    await widget.repository.duplicateProfile(profile);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Profile duplicated successfully.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _clearSession(BrowserProfile profile) async {
+    HapticFeedback.lightImpact();
+    await widget.repository.clearProfileSession(profile.id);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Session cleared for "${profile.name}".'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   // ── Bulk actions ──────────────────────────────────────
 
   /// Bulk delete with a single confirm dialog.
@@ -133,6 +169,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
     if (confirmed != true || !mounted) return;
 
+    HapticFeedback.mediumImpact();
     _clearSelection();
     for (final p in targets) {
       await widget.repository.deleteProfile(p.id);
@@ -157,6 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       return;
     }
 
+    HapticFeedback.mediumImpact();
     _clearSelection();
 
     final messenger = ScaffoldMessenger.of(context);
@@ -229,6 +267,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         .where((p) => _selectedIds.contains(p.id))
         .toList(growable: false);
     if (targets.isEmpty) return;
+    HapticFeedback.lightImpact();
     _clearSelection();
 
     // Capture navigator before any async gap to satisfy
@@ -374,6 +413,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                 automaticallyImplyLeading: false,
               ),
 
+              // ── Horizontal Tag Filter Bar ──────────────
+              if (allProfiles.isNotEmpty && !_isSelecting)
+                SliverToBoxAdapter(
+                  child: _TagFilterBar(
+                    profiles: allProfiles,
+                    selectedTag: _selectedTag,
+                    onTagSelected: (tag) => setState(() {
+                      _selectedTag = tag;
+                      _clearSelection();
+                    }),
+                  ),
+                ),
+
               // ── Content ────────────────────────────────
               if (isLoading)
                 SliverPadding(
@@ -440,6 +492,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                           onRun: () => _launchBrowser(profile),
                           onEdit: () => _editProfile(profile),
                           onDelete: () => _deleteProfile(profile),
+                          onDuplicate: () => _duplicateProfile(profile),
+                          onClearSession: () => _clearSession(profile),
                         );
                       },
                     ),
@@ -1022,6 +1076,100 @@ class _FeatureTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  TAG FILTER BAR (Horizontal FilterChips)
+// ─────────────────────────────────────────────
+
+class _TagFilterBar extends StatelessWidget {
+  final List<BrowserProfile> profiles;
+  final String? selectedTag;
+  final ValueChanged<String?> onTagSelected;
+
+  const _TagFilterBar({
+    required this.profiles,
+    required this.selectedTag,
+    required this.onTagSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Extract unique sorted tags
+    final tagsSet = <String>{};
+    for (final p in profiles) {
+      tagsSet.addAll(p.tags);
+    }
+    final allTags = tagsSet.toList()..sort();
+
+    if (allTags.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      height: 48,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: allTags.length + 1, // +1 for "All"
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            // "All" chip
+            final isSelected = selectedTag == null;
+            return FilterChip(
+              label: const Text('All'),
+              selected: isSelected,
+              showCheckmark: false,
+              onSelected: (_) => onTagSelected(null),
+              backgroundColor: Colors.white.withValues(alpha: 0.05),
+              selectedColor: Colors.tealAccent.withValues(alpha: 0.15),
+              side: BorderSide(
+                color: isSelected ? Colors.tealAccent.shade400 : Colors.transparent,
+              ),
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.tealAccent.shade100 : Colors.white70,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 12,
+              ),
+            );
+          }
+
+          final tag = allTags[index - 1];
+          final isSelected = selectedTag == tag;
+
+          final colors = [
+            Colors.tealAccent,
+            Colors.purpleAccent,
+            Colors.amberAccent,
+            Colors.blueAccent,
+            Colors.greenAccent,
+            Colors.orangeAccent,
+            Colors.pinkAccent,
+            Colors.cyanAccent,
+          ];
+          final color = colors[tag.hashCode.abs() % colors.length];
+
+          return FilterChip(
+            label: Text(tag),
+            selected: isSelected,
+            showCheckmark: false,
+            onSelected: (_) => onTagSelected(isSelected ? null : tag),
+            backgroundColor: color.withValues(alpha: 0.08),
+            selectedColor: color.withValues(alpha: 0.2),
+            side: BorderSide(
+              color: isSelected ? color.shade400 : color.withValues(alpha: 0.3),
+            ),
+            labelStyle: TextStyle(
+              color: isSelected ? Colors.white : color.withValues(alpha: 0.9),
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 12,
+            ),
+          );
+        },
       ),
     );
   }

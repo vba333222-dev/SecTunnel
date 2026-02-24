@@ -255,6 +255,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
     if (_isRotating) return;
 
     setState(() => _isRotating = true);
+    HapticFeedback.mediumImpact();
 
     try {
       // Suspend WebView traffic during rotation
@@ -286,6 +287,10 @@ class _BrowserScreenState extends State<BrowserScreen> {
   // ── Proxy failure sheet & bypass helpers ───────────────────────────────
 
   void _showProxyFailureSheet() {
+    // Triple-pulse vibrate — alerts user to a critical connection failure
+    HapticFeedback.vibrate();
+    Future.delayed(const Duration(milliseconds: 100), HapticFeedback.vibrate);
+    Future.delayed(const Duration(milliseconds: 200), HapticFeedback.vibrate);
     final rotationUrl = widget.profile.proxyConfig.rotationUrl ?? '';
     showModalBottomSheet(
       context: context,
@@ -640,6 +645,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                       offset: _hudOffset!,
                       expanded: _hudExpanded,
                       minimized: _hudMinimized,
+                      proxyConfig: widget.profile.proxyConfig,
                       modemStatus: modemStatus,
                       publicIp: _currentPublicIp,
                       isIpFetching: _isIpFetching,
@@ -699,6 +705,7 @@ class _FloatingHud extends StatelessWidget {
   final bool expanded;
   /// When true the HUD collapses to a 48px bubble; parent sets opacity to 0.50.
   final bool minimized;
+  final ProxyConfig proxyConfig;
   final ModemStatus modemStatus;
   final String? publicIp;
   final bool isIpFetching;
@@ -716,6 +723,7 @@ class _FloatingHud extends StatelessWidget {
     required this.offset,
     required this.expanded,
     required this.minimized,
+    required this.proxyConfig,
     required this.modemStatus,
     required this.publicIp,
     required this.isIpFetching,

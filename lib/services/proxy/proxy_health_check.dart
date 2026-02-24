@@ -27,6 +27,39 @@ class ProxyHealthCheckService {
     return false;
   }
   
+  /// Measures connection latency to the proxy server in milliseconds.
+  /// Returns 0 if proxy is `none` (direct connection).
+  /// Returns -1 if connection fails or times out.
+  static Future<int> checkLatency(ProxyConfig config) async {
+    if (!config.isConfigured || config.host == null || config.port == null) {
+      return 0; // Direct connection has "0" proxy latency
+    }
+
+    final stopwatch = Stopwatch()..start();
+    Socket? upstreamSocket;
+    try {
+      upstreamSocket = await Socket.connect(
+        config.host!,
+        config.port!,
+        timeout: const Duration(seconds: 4),
+      );
+      
+      if (config.type == ProxyType.socks5) {
+        final ok = await _performHealthCheckHandshake(upstreamSocket, config.username, config.password);
+        if (!ok) return -1;
+      }
+      
+      stopwatch.stop();
+      return stopwatch.elapsedMilliseconds;
+    } catch (_) {
+      return -1;
+    } finally {
+      try {
+        upstreamSocket?.destroy();
+      } catch (_) {}
+    }
+  }
+  
   static Future<bool> _checkSocks5(ProxyConfig config) async {
     Socket? upstreamSocket;
     try {

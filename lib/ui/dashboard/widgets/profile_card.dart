@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
 import 'package:pbrowser/models/proxy_config.dart';
 import 'package:pbrowser/services/proxy/mobile_proxy_service.dart';
 import 'package:intl/intl.dart';
+import 'package:pbrowser/ui/shared/proxy_signal_widget.dart';
 
 // ─────────────────────────────────────────────
 //  PROFILE CARD
@@ -13,6 +15,8 @@ class ProfileCard extends StatefulWidget {
   final VoidCallback onRun;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onDuplicate;
+  final VoidCallback onClearSession;
   // ── Selection ──────────────────────────────
   final bool isSelectMode;
   final bool isSelected;
@@ -25,6 +29,8 @@ class ProfileCard extends StatefulWidget {
     required this.onRun,
     required this.onEdit,
     required this.onDelete,
+    required this.onDuplicate,
+    required this.onClearSession,
     this.isSelectMode = false,
     this.isSelected = false,
     VoidCallback? onLongPress,
@@ -80,7 +86,20 @@ class _ProfileCardState extends State<ProfileCard> {
     // ── Phase 2: Async call (non-blocking) ───────────────────────────
     // Card icon updates to spinner while waiting; rest of UI stays interactive.
     setState(() => _isRotatingIp = true);
+    HapticFeedback.mediumImpact();
     final success = await MobileProxyService.rotateIp(url);
+
+    if (!mounted) return;
+    setState(() => _isRotatingIp = false);
+
+    // Triple vibrate on failure — error tactile signal
+    if (!success) {
+      HapticFeedback.vibrate();
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) HapticFeedback.vibrate();
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) HapticFeedback.vibrate();
+    }
 
     if (!mounted) return;
     setState(() => _isRotatingIp = false);
@@ -130,6 +149,8 @@ class _ProfileCardState extends State<ProfileCard> {
         onRun: widget.onRun,
         onEdit: widget.onEdit,
         onDelete: widget.onDelete,
+        onDuplicate: widget.onDuplicate,
+        onClearSession: widget.onClearSession,
         onRotateIp: _rotateIp,
         onLongPress: widget.onLongPress,
         onSelect: widget.onSelect,
@@ -139,10 +160,10 @@ class _ProfileCardState extends State<ProfileCard> {
 }
 
 // ─────────────────────────────────────────────
-//  CARD BODY  (StatelessWidget → no extra setState)
+//  CARD BODY  (Stateful for press-scale animation)
 // ─────────────────────────────────────────────
 
-class _CardBody extends StatelessWidget {
+class _CardBody extends StatefulWidget {
   final BrowserProfile profile;
   final bool isRotatingIp;
   final bool isSelectMode;
@@ -150,6 +171,8 @@ class _CardBody extends StatelessWidget {
   final VoidCallback onRun;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onDuplicate;
+  final VoidCallback onClearSession;
   final VoidCallback onRotateIp;
   final VoidCallback onLongPress;
   final VoidCallback onSelect;
@@ -162,16 +185,138 @@ class _CardBody extends StatelessWidget {
     required this.onRun,
     required this.onEdit,
     required this.onDelete,
+    required this.onDuplicate,
+    required this.onClearSession,
     required this.onRotateIp,
     required this.onLongPress,
     required this.onSelect,
   });
 
   @override
+  State<_CardBody> createState() => _CardBodyState();
+}
+
+class _CardBodyState extends State<_CardBody> {
+  bool _isPressed = false;
+
+  void _handleTap() {
+    if (widget.isSelectMode) {
+      HapticFeedback.lightImpact();
+      widget.onSelect();
+    } else {
+      HapticFeedback.mediumImpact();
+      widget.onRun();
+    }
+  }
+
+  void _handleLongPress() {
+    if (widget.isSelectMode) return;
+    HapticFeedback.mediumImpact();
+    _showContextMenu(context);
+  }
+
+  void _showContextMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF16161F),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        final profile = widget.profile;
+        final hasRotation = profile.proxyConfig.rotationUrl?.isNotEmpty ?? false;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Drag Handle
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.play_arrow_rounded, color: Colors.tealAccent),
+                  title: const Text('Launch Browser', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onRun();
+                  },
+                ),
+                if (hasRotation)
+                  ListTile(
+                    leading: const Icon(Icons.swap_horiz_rounded, color: Colors.blueAccent),
+                    title: const Text('Force Rotate IP', style: TextStyle(fontWeight: FontWeight.w600)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      widget.onRotateIp();
+                    },
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.copy_rounded, color: Colors.white70),
+                  title: const Text('Duplicate Profile', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onDuplicate();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cookie_outlined, color: Colors.orangeAccent),
+                  title: const Text('Clear Cookies / Session', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onClearSession();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined, color: Colors.white70),
+                  title: const Text('Edit Configuration', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onEdit();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.check_box_outlined, color: Colors.white70),
+                  title: const Text('Select Profile', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onLongPress(); // triggers selection mode
+                  },
+                ),
+                const Divider(color: Colors.white12, height: 16),
+                ListTile(
+                  leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                  title: const Text('Delete Profile', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onDelete();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final profile = widget.profile;
     final fp = profile.fingerprintConfig;
     final proxy = profile.proxyConfig;
-    final hasProxy = proxy.type != ProxyType.none;
+    final isRotatingIp = widget.isRotatingIp;
+    final isSelectMode = widget.isSelectMode;
+    final isSelected = widget.isSelected;
     final hasRotation =
         proxy.rotationUrl != null && proxy.rotationUrl!.isNotEmpty;
 
@@ -184,45 +329,57 @@ class _CardBody extends StatelessWidget {
         ? [BoxShadow(color: Colors.tealAccent.withValues(alpha: 0.18), blurRadius: 12, spreadRadius: 1)]
         : null;
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        // ── Main card ─────────────────────────────
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: cardGlow,
-          ),
-          child: Card(
-            elevation: 0,
-            color: isSelected
-                ? const Color(0xFF111A1A)
-                : const Color(0xFF16161F),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: borderColor, width: borderWidth),
-            ),
-            child: InkWell(
-              onTap: isSelectMode ? onSelect : onRun,
-              onLongPress: isSelectMode ? null : onLongPress,
-              borderRadius: BorderRadius.circular(16),
-              splashColor: Colors.tealAccent.withValues(alpha: 0.08),
-              highlightColor: Colors.tealAccent.withValues(alpha: 0.04),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Header row ────────────────────────────
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // OS badge
-                  _OsBadge(platform: fp.platform),
-                  const SizedBox(width: 10),
-                  // Profile name
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) {
+        setState(() => _isPressed = false);
+        _handleTap();
+      },
+      onTapCancel: () => setState(() => _isPressed = false),
+      onLongPress: isSelectMode ? null : _handleLongPress,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // ── Main card ─────────────────────────────
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: cardGlow,
+              ),
+              child: Card(
+                elevation: 0,
+                color: isSelected
+                    ? const Color(0xFF111A1A)
+                    : const Color(0xFF16161F),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: borderColor, width: borderWidth),
+                ),
+                child: InkWell(
+                  onTap: null, // Tap handled by outer GestureDetector
+                  onLongPress: null,
+                  borderRadius: BorderRadius.circular(16),
+                  splashColor: Colors.tealAccent.withValues(alpha: 0.08),
+                  highlightColor: Colors.tealAccent.withValues(alpha: 0.04),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── Header row ────────────────────────────
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            // OS badge
+                            _OsBadge(platform: fp.platform),
+                            const SizedBox(width: 10),
+                            // Profile name
                   Expanded(
                     child: Text(
                       profile.name,
@@ -254,11 +411,19 @@ class _CardBody extends StatelessWidget {
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
                               tooltip: 'Rotate IP',
-                              onPressed: onRotateIp,
+                               onPressed: widget.onRotateIp,
                             ),
                     ),
-                  // Context menu
-                  _ContextMenu(onEdit: onEdit, onDelete: onDelete),
+                  // Context menu trigger
+                  IconButton(
+                    icon: Icon(Icons.more_vert_rounded, color: Colors.white.withValues(alpha: 0.4), size: 20),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _showContextMenu(context);
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
                 ],
               ),
 
@@ -277,6 +442,7 @@ class _CardBody extends StatelessWidget {
                       icon: Icons.shield_outlined,
                       color: Colors.deepOrangeAccent,
                     ),
+                  ...profile.tags.map((t) => _TagPill(tag: t)),
                 ],
               ),
 
@@ -294,44 +460,38 @@ class _CardBody extends StatelessWidget {
                         const TextStyle(fontSize: 11, color: Colors.white38),
                   ),
                   const Spacer(),
-                  // Proxy status dot
-                  _StatusDot(active: hasProxy),
-                  const SizedBox(width: 4),
-                  Text(
-                    hasProxy ? 'Proxy' : 'Direct',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: hasProxy
-                          ? Colors.greenAccent.shade100
-                          : Colors.white38,
-                    ),
-                  ),
+                  // Dynamic Proxy Ping Indicator
+                  ProxySignalWidget(config: proxy),
                 ],
               ),
 
               const SizedBox(height: 10),
 
               // ── Launch button ─────────────────
-              _LaunchButton(onTap: isSelectMode ? onSelect : onRun),
-            ],
-          ),
+              _LaunchButton(
+                onTap: isSelectMode ? widget.onSelect : widget.onRun,
+              ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // ── Checkbox overlay ─────────────────────
+            // AnimatedScale: 0 → 1 when entering selection mode
+            Positioned(
+              top: 8,
+              left: 8,
+              child: AnimatedScale(
+                scale: isSelectMode ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutBack,
+                child: _CheckboxBadge(checked: isSelected),
+              ),
+            ),
+          ],
         ),
       ),
-    ),
-  ),
-        // ── Checkbox overlay ─────────────────────
-        // AnimatedScale: 0 → 1 when entering selection mode
-        Positioned(
-          top: 8,
-          left: 8,
-          child: AnimatedScale(
-            scale: isSelectMode ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutBack,
-            child: _CheckboxBadge(checked: isSelected),
-          ),
-        ),
-      ],
     );
   }
 
@@ -540,36 +700,6 @@ class _InfoChip extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-//  STATUS DOT
-// ─────────────────────────────────────────────
-
-class _StatusDot extends StatelessWidget {
-  final bool active;
-  const _StatusDot({required this.active});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = active ? Colors.greenAccent : Colors.white24;
-    return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-        boxShadow: active
-            ? [
-                BoxShadow(
-                  color: Colors.greenAccent.withValues(alpha: 0.5),
-                  blurRadius: 6,
-                )
-              ]
-            : null,
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
 //  LAUNCH BUTTON
 // ─────────────────────────────────────────────
 
@@ -631,48 +761,43 @@ class _LaunchButton extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-//  CONTEXT MENU
+//  TAG PILL
 // ─────────────────────────────────────────────
 
-class _ContextMenu extends StatelessWidget {
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _ContextMenu({required this.onEdit, required this.onDelete});
+class _TagPill extends StatelessWidget {
+  final String tag;
+  const _TagPill({required this.tag});
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      icon: Icon(Icons.more_vert_rounded,
-          color: Colors.white.withValues(alpha: 0.4), size: 20),
-      color: const Color(0xFF1E1E2A),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      onSelected: (v) {
-        if (v == 'edit') { onEdit(); }
-        else if (v == 'delete') { onDelete(); }
-      },
-      itemBuilder: (_) => [
-        const PopupMenuItem(
-          value: 'edit',
-          child: Row(
-            children: [
-              Icon(Icons.edit_outlined, size: 18, color: Colors.white70),
-              SizedBox(width: 10),
-              Text('Edit', style: TextStyle(color: Colors.white70)),
-            ],
-          ),
+    final colors = [
+      Colors.tealAccent,
+      Colors.purpleAccent,
+      Colors.amberAccent,
+      Colors.blueAccent,
+      Colors.greenAccent,
+      Colors.orangeAccent,
+      Colors.pinkAccent,
+      Colors.cyanAccent,
+    ];
+    final color = colors[tag.hashCode.abs() % colors.length];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        tag,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: color.withValues(alpha: 0.9),
+          letterSpacing: 0.2,
         ),
-        const PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-              SizedBox(width: 10),
-              Text('Delete', style: TextStyle(color: Colors.redAccent)),
-            ],
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
