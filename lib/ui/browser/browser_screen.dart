@@ -14,6 +14,7 @@ import 'package:http/http.dart' as http;
 
 // WebView imports
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:pbrowser/ui/shared/themed_lottie.dart';
 
 class BrowserScreen extends StatefulWidget {
   final BrowserProfile profile;
@@ -575,7 +576,11 @@ class _BrowserScreenState extends State<BrowserScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const CircularProgressIndicator(color: Colors.white),
+                    const ThemedLottie(
+                      animation: LottieAnimation.connecting,
+                      width: 80,
+                      height: 80,
+                    ),
                     const SizedBox(height: 24),
                     Text(
                       'Initializing ${widget.profile.name} (Verifying Proxy)…',

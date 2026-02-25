@@ -38,6 +38,7 @@ dependencies:
   shared_preferences: ^2.5.4
   intl: ^0.20.1
   animations: ^2.1.1
+  lottie: ^3.3.2
 
 dev_dependencies:
   flutter_test:
@@ -55,6 +56,7 @@ flutter:
   
   assets:
     - assets/images/
+    - assets/lottie/
 
 flutter_launcher_icons:
   android: "launcher_icon"

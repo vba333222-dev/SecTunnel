@@ -11,7 +11,7 @@ import 'package:pbrowser/core/database/daos/profile_dao.dart';
 import 'package:pbrowser/repositories/profile_repository.dart';
 
 // UI
-import 'package:pbrowser/ui/dashboard/dashboard_screen.dart';
+import 'package:pbrowser/ui/splash/splash_screen.dart';
 import 'package:pbrowser/ui/shared/global_task_overlay.dart';
 
 // Services
@@ -77,7 +77,7 @@ class PBrowserApp extends StatelessWidget {
             child: child ?? const SizedBox.shrink(),
           );
         },
-        home: DashboardScreen(repository: profileRepository),
+        home: const SplashScreen(),
       ),
     );
   }

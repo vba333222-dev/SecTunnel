@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
+import 'package:pbrowser/ui/shared/themed_lottie.dart';
 
 class GlobalTaskOverlay extends StatelessWidget {
   final Widget child;
@@ -56,18 +57,25 @@ class GlobalTaskOverlay extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (isRotating)
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.tealAccent,
-                              ),
+                            const ThemedLottie(
+                              animation: LottieAnimation.networkLoading,
+                              width: 24,
+                              height: 24,
                             )
                           else if (hasError)
-                            const Icon(Icons.error_outline, size: 18, color: Colors.redAccent)
+                            const ThemedLottie(
+                              animation: LottieAnimation.connectionError,
+                              width: 24,
+                              height: 24,
+                              repeat: false,
+                            )
                           else
-                            const Icon(Icons.check_circle_outline, size: 18, color: Colors.greenAccent),
+                            const ThemedLottie(
+                              animation: LottieAnimation.actionSuccess,
+                              width: 24,
+                              height: 24,
+                              repeat: false,
+                            ),
                           
                           const SizedBox(width: 12),
                           Flexible(

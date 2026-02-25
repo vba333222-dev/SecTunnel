@@ -7,6 +7,7 @@ import 'package:pbrowser/models/fingerprint_config.dart';
 import 'package:pbrowser/repositories/profile_repository.dart';
 import 'package:pbrowser/ui/dashboard/widgets/profile_card.dart';
 import 'package:pbrowser/ui/shared/info_tooltip.dart';
+import 'package:pbrowser/ui/shared/themed_lottie.dart';
 
 // ─────────────────────────────────────────────
 //  MAIN SCREEN
@@ -527,13 +528,10 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
             if (_isLoading)
               const Padding(
                 padding: EdgeInsets.all(16),
-                child: SizedBox(
+                child: ThemedLottie(
+                  animation: LottieAnimation.loading,
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.tealAccent,
-                  ),
                 ),
               )
             else
@@ -1175,7 +1173,7 @@ class _GeneralTab extends StatelessWidget {
           uaManualOverride ? 'User-Agent (Manual)' : 'User-Agent (Auto)',
           Icons.fingerprint,
           hint: 'Auto-generated from OS + Browser selection',
-          tooltip: 'The User-Agent tells websites your browser version and Operating System. PBrowser spoofs this to match your selection, hiding your real device identity.',
+          tooltip: 'User-Agent: Memberitahu website versi browser dan OS Anda. PBrowser akan memalsukan data ini agar sesuai dengan OS pilihan Anda. Jangan diubah manual kecuali Anda pelajari strukturnya.',
         ).copyWith(
           suffixIcon: uaManualOverride
               ? IconButton(
@@ -1253,7 +1251,7 @@ class _NetworkTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── Proxy Configuration ───────────────
-      _sectionHeader('Proxy Configuration', icon: Icons.vpn_lock_outlined, tooltip: 'Proxies hide your real IP address. Selecting HTTP or SOCKS5 routes your browser traffic through a remote server.'),
+      _sectionHeader('Proxy Configuration', icon: Icons.vpn_lock_outlined, tooltip: 'Proxy: Menyembunyikan IP asli Anda. SOCKS5 sangat disarankan (dengan SOCKS5 Handshake) untuk tingkat anonimitas yang lebih kuat dari HTTP Proxy biasa.'),
       _darkDropdown<ProxyType>(
         value: selectedProxyType,
         items: const [
@@ -1331,7 +1329,7 @@ class _NetworkTab extends StatelessWidget {
               hint: 'Optional', accent: Colors.orangeAccent),
         ),
         const SizedBox(height: 28),
-        _sectionHeader('Modem Rotator', icon: Icons.autorenew, tooltip: 'Automatically forces a physical 4G/5G mobile router to fetch a new IP address before launching the browser.'),
+        _sectionHeader('Modem Rotator', icon: Icons.autorenew, tooltip: 'Modem Rotator: Jika Anda memakai modem router seluler fisik (4G/5G), masukkan URL rotasi API di sini untuk memaksa modem ganti IP baru sebelum membuka browser.'),
         TextFormField(
           controller: rotationUrlController,
           style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -1355,7 +1353,7 @@ class _NetworkTab extends StatelessWidget {
 
       const SizedBox(height: 28),
       // ── WebRTC ────────────────────────────
-      _sectionHeader('WebRTC', icon: Icons.wifi_channel, tooltip: 'WebRTC is used for real-time video/audio. If enabled without a proxy, it will leak your real local IP address. Disabling it is safer but may break video conferencing sites.'),
+      _sectionHeader('WebRTC', icon: Icons.wifi_channel, tooltip: 'WebRTC: Fitur koneksi untuk video call. PERHATIAN: Jika menyala tanpa Proxy, IP LAN lokal dan IP Publik Anda akan bocor! Disarankan DIMATIKAN jika target Anda hanya farming Airdrop.'),
       _SettingsToggleCard(
         title: 'WebRTC Enabled',
         subtitle: 'Disable to prevent IP leakage through WebRTC',
@@ -1432,7 +1430,7 @@ class _HardwareTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── WebGL ─────────────────────────────
-      _sectionHeader('WebGL Fingerprint', icon: Icons.grain, tooltip: 'Graphics hardware exposes a unique identifier. Matching this to your Operating System is crucial to avoid bot-detection (e.g., do not use an Apple GPU on Windows).'),
+      _sectionHeader('WebGL Fingerprint', icon: Icons.grain, tooltip: 'WebGL Vendor: Menyamarkan jenis kartu grafis hardware (GPU). Pastikan masuk akal! Jangan pilih Apple GPU jika OS profil Anda Windows, karena akan terlihat aneh dan dideteksi sebagai bot.'),
       _darkDropdown<String>(
         value: resolvedWebgl,
         items: webglOptions
@@ -1481,7 +1479,7 @@ class _HardwareTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── Canvas ────────────────────────────
-      _sectionHeader('Canvas Fingerprint', icon: Icons.brush_outlined, tooltip: 'Canvas Spoofing adds invisible, microscopic noise to images rendered by the browser. This prevents tracking scripts from linking your device to a persistent identity.'),
+      _sectionHeader('Canvas Fingerprint', icon: Icons.brush_outlined, tooltip: 'Canvas Spoofing & ClientRects: Menambahkan derau unik (noise) pada gambar yang di-render & layout agar perangkat ini tidak dapat dilacak oleh sistem anti-bot (seperti Cloudflare). Sangat disarankan AKTIF.'),
       TextFormField(
         controller: canvasSaltController,
         style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -1490,13 +1488,13 @@ class _HardwareTab extends StatelessWidget {
           Icons.texture,
           hint: 'Random 32-char string',
           accent: Colors.purpleAccent,
-          tooltip: 'The cryptographic seed used to generate the unique image noise. Generating a new fingerprint changes this salt.',
+          tooltip: 'Canvas Noise Salt: "Seed" atau kunci acak yang menghasilkan derau grafis di atas. Mengganti kode teks ini akan langsung mengubah identitas unik visual browser.',
         ),
       ),
       const SizedBox(height: 28),
 
       // ── Screen ────────────────────────────
-      _sectionHeader('Screen & Display', icon: Icons.monitor),
+      _sectionHeader('Screen & Display', icon: Icons.monitor, tooltip: 'Resolusi Layar: Pastikan resolusi cocok dengan target OS. Jangan membuat ukuran HP jika platform OS adalah Desktop.'),
       _darkDropdown<String>(
         value: resolvedRes,
         items: resolutionItems
@@ -1516,7 +1514,7 @@ class _HardwareTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── CPU / RAM ─────────────────────────
-      _sectionHeader('CPU & Memory', icon: Icons.memory),
+      _sectionHeader('CPU & Memory', icon: Icons.memory, tooltip: 'Memalsukan nilai Hardware Concurrency (Inti CPU) dan Device Memory (Kapasitas RAM). Biarkan di angka wajar agar terlihat seperti pengguna asli.'),
       Row(
         children: [
           Expanded(
@@ -1594,7 +1592,7 @@ class _AdvancedTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── Timezone ──────────────────────────
-      _sectionHeader('Timezone', icon: Icons.schedule_outlined),
+      _sectionHeader('Timezone', icon: Icons.schedule_outlined, tooltip: 'Timezone (Zona Waktu): Jika profil ini akan berjalan menggunakan Proxy Amerika (US), maka pastikan zona waktu ini juga diubah agar berada di area Amerika Serikat (misal America/New_York).'),
       _darkDropdown<String>(
         value: timezones.contains(timezone) ? timezone : timezones.first,
         items: timezones
@@ -1609,7 +1607,7 @@ class _AdvancedTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── Geolocation ───────────────────────
-      _sectionHeader('Geolocation', icon: Icons.location_on_outlined),
+      _sectionHeader('Geolocation', icon: Icons.location_on_outlined, tooltip: 'Geolocation: Menimpa pelacak koordinat GPS internal navigator. Jika mengaktifkan ini, sesuaikan latitude dan longitude dengan lokasi IP proxy Anda.'),
       _SettingsToggleCard(
         title: 'Override Geolocation',
         subtitle: 'Inject custom GPS coordinates into the browser',

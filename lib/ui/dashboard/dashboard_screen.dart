@@ -11,6 +11,7 @@ import 'package:pbrowser/ui/shared/skeleton_card.dart';
 import 'package:animations/animations.dart';
 import 'package:provider/provider.dart';
 import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
+import 'package:pbrowser/ui/shared/themed_lottie.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ProfileRepository repository;
@@ -896,32 +897,9 @@ class _EmptyState extends StatelessWidget {
 //  PREMIUM EMPTY STATE  (shown when there are no profiles at all)
 // ═════════════════════════════════════════════════════════════════════════════
 
-class _PremiumEmptyState extends StatefulWidget {
+class _PremiumEmptyState extends StatelessWidget {
   final VoidCallback onCreateProfile;
   const _PremiumEmptyState({required this.onCreateProfile});
-
-  @override
-  State<_PremiumEmptyState> createState() => _PremiumEmptyStateState();
-}
-
-class _PremiumEmptyStateState extends State<_PremiumEmptyState>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -931,8 +909,12 @@ class _PremiumEmptyStateState extends State<_PremiumEmptyState>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Pulsing Shield ────────────────────────────────
-            _PulsingShield(animation: _pulse),
+            // ── Lottie Shield ────────────────────────────────
+            const ThemedLottie(
+              animation: LottieAnimation.emptyProfiles,
+              width: 180,
+              height: 180,
+            ),
 
             const SizedBox(height: 32),
 
@@ -1021,7 +1003,7 @@ class _PremiumEmptyStateState extends State<_PremiumEmptyState>
                   color: Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                   child: InkWell(
-                    onTap: widget.onCreateProfile,
+                    onTap: onCreateProfile,
                     borderRadius: BorderRadius.circular(16),
                     splashColor: Colors.white12,
                     child: Padding(
@@ -1061,73 +1043,7 @@ class _PremiumEmptyStateState extends State<_PremiumEmptyState>
 
 // ── Pulsing animated shield illustration ─────────────────────────────────────
 
-class _PulsingShield extends StatelessWidget {
-  final Animation<double> animation;
-  const _PulsingShield({required this.animation});
 
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (_, __) {
-        final t = Curves.easeInOut.transform(animation.value);
-        return SizedBox(
-          width: 140,
-          height: 140,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Outer ring
-              Container(
-                width: 120 + t * 16,
-                height: 120 + t * 16,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color:
-                        Colors.tealAccent.withValues(alpha: 0.10 + t * 0.08),
-                    width: 1,
-                  ),
-                ),
-              ),
-              // Mid ring
-              Container(
-                width: 94 + t * 10,
-                height: 94 + t * 10,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color:
-                        Colors.tealAccent.withValues(alpha: 0.18 + t * 0.12),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-              // Core circle
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.tealAccent.withValues(alpha: 0.10),
-                  border: Border.all(
-                    color: Colors.tealAccent.withValues(alpha: 0.4),
-                    width: 1.5,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.shield_rounded,
-                  size: 36,
-                  color: Colors.tealAccent,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
 
 // ── Feature tile ─────────────────────────────────────────────────────────────
 
