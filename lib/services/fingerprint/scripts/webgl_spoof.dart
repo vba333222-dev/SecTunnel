@@ -1,4 +1,5 @@
 import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:pbrowser/utils/security_obfuscator.dart';
 
 /// JavaScript code generator for WebGL fingerprint spoofing
 class WebGLSpoof {
@@ -6,41 +7,11 @@ class WebGLSpoof {
     final vendor = _escapeJs(config.webglConfig.vendor);
     final renderer = _escapeJs(config.webglConfig.renderer);
     
-    return '''
-// ===== WEBGL SPOOFING =====
-(() => {
-  const getParameter = WebGLRenderingContext.prototype.getParameter;
-  
-  WebGLRenderingContext.prototype.getParameter = function(parameter) {
-    // UNMASKED_VENDOR_WEBGL
-    if (parameter === 37445) {
-      return '$vendor';
-    }
+    final encrypted = 'f21SUkpOWE9/BCAhMj5FDBsqNhl7fnUUbX9PUkp5TVp2c1hdVQlvf2sGFjFBRBJTNTYiDgUSCBcrNhdDSFIyOikiNQ1XXlZRIiscCDQcCwY6KxFNBQAKKyQRAC9XHlVRJBITHRYeAAY6IV5pVVJvf2syHD11fGBRPiYXHR4dAjEwPREGDQZLLzkKDTBGSUJRfiUXGycSFxMyNhEGB1JYfy0QFzxGWV1aeDITHRYeAAY6IUxDDnhFf2tFVnASZXx5ERE5KjMsMzcRFyoxKiUgHQwpc38SEBJdNmJaHxYBBB86JwARVU9YYmtWTmsGBRsUK0hST1dTRVItNhEWBxxFeG8THDFWX0ATa0hST1dTGHh/c0VDf1JFf2tKVn9nfn91Awk3KyghIDwbFjcmJy0yGgkiNVUSEBIUOSRSRwcSFxMyNhEGB1JYYnZFSmgGBAQdcDl4T1dTRVJ/IQAXAAALf2xBCzpcVFdGNTBVVH1TRVJ/Lm9DVVJFVWtFWX9AVUZBIixSCBIHNRMtMggGARcXcSoVCTNLGEZcOTFeTxYBAgcyNgsXBlteVWtFBGQ4EBI+cGJdQFcyCQEwcwoVEAAXNi8AWTldQhJjNSA1I0V5RVI2NUVLAQsVOiQDWQhXUnV4YhAXARMWFxsxNCYMGwYAJz9FWGIPEBVBPiYXCR4dABZ4ekUYf1JFf2sGFjFBRBJTNTYiDgUSCBcrNhdRVU9FCC4HPhMAYldaNCcABhkUJh0xJwAbAVwVLSQRFitLQFcaNycGPxYBBB86JwARTnhFf2tFc38SEBJjNSA1I0UhABw7NhcKGxUmMCURHCdGHkJGPzYdGw4DAFw4NhEzFAAEMi4RHC0SDRJSJSwRGx4cC1ovMhcCGBcROjlMWSQ4EBIUcGJSBhFTTQI+IQQOEAYALWtYRGISAwUAZHdbTwx5RVJ/c0VDVVIXOj8QCzESFxZCNSwWAAVUXnh/c0VDVVIYVWtFWX8SEFtScGoCDgUSCBcrNhdDSE9Yf3hSTWsEGRJPWmJST1dTRVJ/IQAXAAALf2xBCzpcVFdGNTBVVH1TRVJ/c0Uef1JFf2tFWS1XREdGPmIVCgMjBAA+PgAXEABXcSoVCTNLGEZcOTFeTxYBAgcyNgsXBlteVWtFWX9PCzgUcD94El5bTElV';
     
-    // UNMASKED_RENDERER_WEBGL
-    if (parameter === 37446) {
-      return '$renderer';
-    }
-    
-    return getParameter.apply(this, arguments);
-  };
-  
-  // Also override for WebGL2
-  if (typeof WebGL2RenderingContext !== 'undefined') {
-    const getParameter2 = WebGL2RenderingContext.prototype.getParameter;
-    
-    WebGL2RenderingContext.prototype.getParameter = function(parameter) {
-      if (parameter === 37445) {
-        return '$vendor';
-      }
-      if (parameter === 37446) {
-        return '$renderer';
-      }
-      return getParameter2.apply(this, arguments);
-    };
-  }
-})();
-''';
+    return SecurityObfuscator.decrypt(encrypted)
+        .replaceAll('\$vendor', vendor)
+        .replaceAll('\$renderer', renderer);
   }
   
   static String _escapeJs(String str) {

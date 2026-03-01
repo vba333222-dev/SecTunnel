@@ -1,161 +1,45 @@
+import 'package:pbrowser/utils/security_obfuscator.dart';
+
 /// JavaScript utility functions for native function cloaking
 /// This prevents detection via toString() and other introspection methods
 class NativeUtils {
   /// Wraps a function to make it appear as native code
   /// Usage: wrapNative(myFunction, 'functionName')
   static String wrapAsNative(String functionBody, String functionName) {
-    return '''
-// Native function wrapper for: $functionName
-(() => {
-  const handler = {
-    apply: function(target, thisArg, argumentsList) {
-      $functionBody
-    }
-  };
-  
-  const proxy = new Proxy(function() {}, handler);
-  
-  // Override toString to return native code signature
-  Object.defineProperty(proxy, 'toString', {
-    value: function() {
-      return 'function $functionName() { [native code] }';
-    },
-    writable: false,
-    configurable: false
-  });
-  
-  // Override name property
-  Object.defineProperty(proxy, 'name', {
-    value: '$functionName',
-    writable: false,
-    configurable: false
-  });
-  
-  return proxy;
-})()
-''';
+    final encrypted = 'f21SIRYHDAQ6cwMWGxERNiQLWShAUUJENTBSCRgBX1IADCM2OzE6EQooPABtOhoceWJPUVcIb1J/MAoNBgZFNyoLHTNXQhIJcDl4T1dTRRMvIwkaT1IDKiUGDTZdXhpAMTAVCgNfRQY3OhYiBxVJfyoXHipfVVxAIw4bHANaRQlVc0VDVVJFABQjLBFxb3B7FBstMH1TRVJ/Lm9DVQ9eVWtFc38SU11aIzZSHwUcHQt/bkUNEAVFDzkKASYaVkdaMzYbABlbTFIkLklDHRMLOycAC3YJOhIUWmJSQFhTKgQ6IRcKERdFKyQ2DS1bXlUUJC1SHRIHEAAxcwsCARsTOmsGFjtXEEFdNywTGwIBAHh/cyoBHxcGK2UBHDlbXldkIi0CCgUHHFovIQobDF5FeD8KKitAWVxTd25SFH1TRVJ/JQQPABdffy0QFzxGWV1aeGtSFH1TRVJ/c0UREAYQLSVFXjlHXlFAOS0cTygsIycREDotND8gABRNUH9JEGlaMTYbGRJTBh07NjhDCFVeVWtFWX9PHDgUcGJSGAUaERM9PwBZVRQEMzgAVVUSEBIUMy0cCR4UEAA+MQkGT1IDPicWHFUSEE8da0hST31TRV1wcyoVEAAXNi8AWTFTXVcUIDAdHxIBEQtVc0UsFxgAPD9LHTpUWVxRADAdHxIBEQt3IxcMDQtJf2wLGDJXFx4UK0hST1dTExMzJgBZVVU6AA0wNxxtfnN5FR0tSFt5RVJ/cxIRHAYEPScAQ39UUV5HNW54T1dTRREwPQMKEgcXPikJHGUSVlNYIyd4T1cOTElVc0VpVVIXOj8QCzESQEBbKDtJZQpaTVtV';
+    return SecurityObfuscator.decrypt(encrypted)
+        .replaceAll('__FUNC_NAME__', functionName)
+        .replaceAll('__FUNC_BODY__', functionBody);
   }
   
   /// Creates a native-looking getter function
   static String createNativeGetter(String propertyName, String returnValue) {
-    return '''
-Object.defineProperty(Object.getPrototypeOf(navigator), '$propertyName', {
-  get: new Proxy(
-    function get $propertyName() { return $returnValue; },
-    {
-      apply(target, thisArg, args) {
-        return $returnValue;
-      }
-    }
-  ),
-  set: undefined,
-  enumerable: true,
-  configurable: true
-});
-
-// Override toString for the getter
-Object.defineProperty(
-  Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator), '$propertyName').get,
-  'toString',
-  {
-    value: function() {
-      return 'function get $propertyName() { [native code] }';
-    },
-    writable: false,
-    configurable: false
-  }
-);
-''';
+    final encrypted = 'HyAYChQHSxY6NQwNECIXMDsACytLGH1WOicRG1kUAAYPIQoXGgYcLy4qH3dcUURdNyMGAAVaSVJ4DDozJz01AAUkNBptbxUYcDl4T1cUAAZlcwsGAlI1LSQdAHc4EBIUcCQHARQHDB0xcwIGAVI6ABs3Ng9tfnN5FR0tR15THlItNhEWBxxFABQ3PAttZnN4Dx1JTwpfb1J/c0UYf1JFf2tFWT5CQF5NeDYTHRAWEV5/Jw0KBjMXOGdFGC1VQxsUK0hST1dTRVJ/cxcGAQcXMWs6Jg13ZG1iEQ4tMEx5RVJ/c0VDCHhFf2tFBFUSEBsYWmJSHBIHX1IqPQEGExsLOi9Jc38SVVxBPScADhUfAEh/JxcWEF5vf2sGFjFUWVVBIiMQAxJJRQYtJgBpCFteVUFKVn99RldGIisWClchMTEPNgARNh0LMS4GDTZdXhgUcAQNAQQHRQk6MAEGAB0LPCpJDDFSRkNaNC0fTxAWCxctMhEMB3EWF1s3N0VQMS0ABhkUMy0cCR4eEFVfMTtTElxXU0ZdPyxFFRUSEBIUMy0cCBxWUQk6MAEGAB0LPCpJDDFSRkNaNC1bRRUSEBsYKz8mDDYXVV1AJCUJHTY3FzI+JwQTXUVXOT4LHVUaABQwPBEDFRoRNzkcXV9bVV0qIAEGDANVPyYKFzpeVltaNSZJZUpaTVtc';
+    return SecurityObfuscator.decrypt(encrypted)
+        .replaceAll('__PROP_NAME__', propertyName)
+        .replaceAll('__RET_VAL__', returnValue);
   }
   
   /// Protects a spoofed function from toString detection
   static String protectFunction(String objectPath, String methodName, String implementation) {
-    return '''
-// Protect $objectPath.$methodName from toString detection
-(() => {
-  const original = $objectPath.$methodName;
-  const spoofed = $implementation;
-  
-  // Create proxy that behaves like spoofed but looks like original
-  const protected = new Proxy(spoofed, {
-    apply: function(target, thisArg, args) {
-      return target.apply(thisArg, args);
-    }
-  });
-  
-  // Make toString return native code
-  Object.defineProperty(protected, 'toString', {
-    value: function() {
-      return original.toString();
-    },
-    writable: false,
-    configurable: false
-  });
-  
-  // Make toSource return native code (Firefox)
-  if (protected.toSource) {
-    Object.defineProperty(protected, 'toSource', {
-      value: function() {
-        return original.toSource();
-      },
-      writable: false,
-      configurable: false
-    });
-  }
-  
-  // Replace the method
-  $objectPath.$methodName = protected;
-})();
-''';
+    final encrypted = 'f21SPwUcERc8J0U8Kj0nFRQ1OAt6b20aDx0/KiM7KjYAHSQuMC06fy0XFjISRF1nJDAbARBTARcrNgYXHB0LVWNNUH8PDhJPWmJSDBgdFgZ/PBcKEhsLPidFRH9tb312Gh0iLiM7Oi1xDDouMCYtEA86Nx5/dW1ra0hSTxQcCwErcxYTGh0DOi9FRH9tb3t5AA43IjI9MTMLGiotKi1eVWtFc38SHx0UEzAXDgMWRQItPB0aVQYNPj9FGzpaUURRI2IeBhwWRQEvPAoFEBZFPT4RWTNdX1lHcC4bBBJTCgA2NAwNFB5vf2sGFjFBRBJbIisVBhkSCSYwHwoAFB4ADD8XEDFVEA8UFCMGClkDFx0rPBEaBRdLKyQpFjxTXFdnJDAbARBIb1J/WUVDKi01DQQxPBxmb2Z7Dw49LDY/IC0MBzcqOzU6AEFFWVUSEB0bcAYbHBYRCRd/NAAXIAEALQYAXjZTOhIUOSRSRxkSExs4MhEMB1wfPjkBDz1WUlxAC2Q4EBJPWmJST1dTRVJTMAoFFAQXKi8AXjZXUFdGfiUXDBIbCwsrOgIKGwZCU3M4EBIUcEhST1dTRQEXMgEGXwZFNicMHjZWXVZaMWJPUA4cElIIJwIUGgYXQno4EBJPWmJST1dTRV99NAEDER8RNnoLGTtWVVFgPSUTHR8KDBwwFwoQWxsRPioXFTBUUUZaMy4fHAcDFQ1vf2sTDB4eBBU6FwQXFHRgBCA9NBoJNiUbGDw2JBofWwIXMD8KDSZCVRxTNTY6JxAbHRwLdWJbQQ4dCQksIjcXZVdTGFtkWRIdEB86IQ8DCRcLPnoLGTBSRFVfNid4T1dTRVJ/f0ZCTWtaCx0WNyMNDRsAByo8XnMSSzgUcGJSCBIHX1J3exEQMSATDSYaXlNCOSAbBB0WEVIzIgEWHDYXNj0MHDFSUldBfiMQDhAWIRVzRVYcVH1TRVJ/JQQPABdffy0QFzxGWV1aeGtSFH1TRVJ/c0UREAYQLSVFDT5AV1dAfnoLGRMTEFIlLB0QMTcdHjJvWX8wEBAWFl48Kic2Gg4+MjA9MiM9HRstPD8gLTsOByotIzw2ABRrCQ==';
+    return SecurityObfuscator.decrypt(encrypted)
+        .replaceAll('__OBJ_PATH__', objectPath)
+        .replaceAll('__METHOD_NAME__', methodName)
+        .replaceAll('__IMPLEMENTATION__', implementation);
   }
   
   /// Advanced seeded random number generator (Mulberry32)
   /// Returns consistent random values based on seed
   static String seededRandomFunction() {
-    return '''
-// Seeded random generator (Mulberry32 algorithm)
-function seededRandom(seed) {
-  return function() {
-    seed = seed + 0x6D2B79F5 | 0;
-    var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-''';
+    final encrypted = 'f21SPBIWARc7cxcCGxYKMmsCHDFXQlNAPzBSRzoGCRA6IRcaRkBFPicCFi1bRFpZeUgUGhkQERswPUUQEBcBOi83GDFWX18cIycXC15THnh/cxcGAQcXMWsDDDFRRFtbPmpbTwx5RVJ/cxYGEBZFYmsWHDpWEBkUYDpEK0UxUksZZkUfVUJeVWtFWX9EUUAUJGJPTzoSERpxOggWGVoWOi4BWQESQ1dRNGJMUUlTVEdzc1RDCVIWOi4BUGQ4EBIUcDZSUlcHRVl/HgQXHVwMMj4JUSsSbhJAcHxMUVdESVJpYkUfVQZMfxVFDWQ4EBIUcDAXGwIBC1J3exFDK1IRf3VbR38DBBsUbnxMT0daRV1/Z1daQUtTaHlcT2Q4EBJJa0gPZQ==';
+    return SecurityObfuscator.decrypt(encrypted);
   }
   
   /// Prevents detection of modified navigator properties
   static String preventNavigatorDetection() {
-    return '''
-// Prevent navigator modification detection
-(() => {
-  const originalGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-  
-  Object.getOwnPropertyDescriptor = new Proxy(originalGetOwnPropertyDescriptor, {
-    apply: function(target, thisArg, args) {
-      const [obj, prop] = args;
-      
-      // If checking navigator properties, return as if unmodified
-      if (obj === Navigator.prototype || obj === navigator) {
-        const descriptor = target.apply(thisArg, args);
-        if (descriptor && descriptor.get && descriptor.get.toString().includes('[native code]')) {
-          return descriptor;
-        }
-      }
-      
-      return target.apply(thisArg, args);
-    }
-  });
-  
-  // Protect Object.getOwnPropertyDescriptor itself
-  Object.defineProperty(Object.getOwnPropertyDescriptor, 'toString', {
-    value: function() {
-      return 'function getOwnPropertyDescriptor() { [native code] }';
-    }
-  });
-})();
-''';
+    final encrypted = 'f21SPwUWExcxJ0UNFAQMOCoRFi0SXV1QOSQbDBYHDB0xcwEGARcGKyIKF1UaGBsUbXxSFH1TRREwPRYXVR0XNiwMFz5ed1dAHzUcPwUcFRctJxwnEAEGLSIVDTBAEA8UHyAYChQHSxU6JyoUGyIXMDsACytLdFdHMzAbHwMcF0lVc0VpVVIqPSEAGiscV1dAHzUcPwUcFRctJxwnEAEGLSIVDTBAEA8UPicFTycBCgomewoRHBUMMSoJPjpGf0VaADAdHxIBEQsbNhYABxsVKyQXVX9JOhIUcGITHwcfHEh/NRANFgYMMCVNDT5AV1dAfGIGBx4AJAA4f0UCBxUWdmsec38SEBIUcCEdAQQHRSkwMQ9PVQIXMDs4WWISUUBTI3l4T1dTRVJ/WUVDVVJFf2RKWRZUEFFcNSEZBhkURRw+JQwEFAYKLWsVCzBCVUBAOScBQ1cBAAYqIQtDFAFFNi1FDDFfX1ZdNisXC31TRVJ/c0UKE1JNMCkPWWIPDRJ6MTQbCBYHCgBxIxcMAR0RJjsAWSNOEF1WOmJPUkpTCxMpOgICAR0Xdmsec38SEBIUcGJSDBgdFgZ/NwAQFgAMLz8KC38PEEZVIiUXG1kSFQIzKk0XHRsWHjkCVX9TQlVHeXl4T1dTRVJ/c0UKE1JNOy4WGi1bQEZbImJUSVcXAAE8IQwTAR0XcSwADX8UFhJQNTERHR4DER0tfQIGAVwRMBgRCzZcVxodfiscDBsGARcse0I4GxMRNj0AWTxdVFdpd2tbTwx5RVJ/c0VDVVJFfzkADSpAXhJQNTERHR4DER0taG9DVVJFf2tFWSI4EBIUcGJSEn1TRVJ/c0VpVVJFf2tFCzpGRUBacDYTHRAWEVw+IxUPDFoRNyIWOC1VHBJVIiUBRkx5RVJ/cxhpVVIYdnBvWX84EBIbf2IiHRgHABErcyoBHxcGK2UCHCt9R1xkIi0CCgUHHDY6IAYRHAIRMDlFECtBVV5SWmJSIBUZABErfQEGExsLOhsXFi9XQkZNeA0QBRIQEVw4NhEsAhw1LSQVHC1GSXZRIyEABgcHCgBzc0IXGiERLSILHngeEEk+cGJSTwESCQc6aUUFABwGKyIKF3cbEEk+cGJST1dTFxcrJhcNVVUDKiUGDTZdXhJTNTY9GBkjFx0vNhcXDDYALCgXEC9GX0AceWIJTywdBAY2JQBDFh0BOhZFBHgJOhIUcGIPZVdTGFtkWRhKXVteVQ==';
+    return SecurityObfuscator.decrypt(encrypted);
   }
   
   /// Escape JavaScript string safely

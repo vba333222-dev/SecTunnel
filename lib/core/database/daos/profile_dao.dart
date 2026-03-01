@@ -8,7 +8,7 @@ part 'profile_dao.g.dart';
 
 @DriftAccessor(tables: [BrowserProfiles])
 class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
-  ProfileDao(AppDatabase db) : super(db);
+  ProfileDao(super.db);
   
   /// Get all profiles ordered by last used (most recent first)
   Stream<List<model.BrowserProfile>> watchAllProfiles() {
@@ -51,6 +51,7 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
         proxyPassword: Value(profile.proxyConfig.password),
         fingerprintJson: profile.fingerprintConfig.toJsonString(),
         userDataFolder: profile.userDataFolder,
+        keepAliveEnabled: Value(profile.keepAliveEnabled),
         createdAt: profile.createdAt,
         lastUsedAt: profile.lastUsedAt,
       ),
@@ -70,6 +71,7 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
         proxyPassword: Value(profile.proxyConfig.password),
         fingerprintJson: Value(profile.fingerprintConfig.toJsonString()),
         userDataFolder: Value(profile.userDataFolder),
+        keepAliveEnabled: Value(profile.keepAliveEnabled),
         lastUsedAt: Value(profile.lastUsedAt),
       ),
     );
@@ -102,6 +104,7 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
       ),
       fingerprintConfig: FingerprintConfig.fromJsonString(row.fingerprintJson),
       userDataFolder: row.userDataFolder,
+      keepAliveEnabled: row.keepAliveEnabled,
       createdAt: row.createdAt,
       lastUsedAt: row.lastUsedAt,
     );

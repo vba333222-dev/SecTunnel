@@ -61,6 +61,16 @@ class $BrowserProfilesTable extends BrowserProfiles
   late final GeneratedColumn<String> userDataFolder = GeneratedColumn<String>(
       'user_data_folder', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _keepAliveEnabledMeta =
+      const VerificationMeta('keepAliveEnabled');
+  @override
+  late final GeneratedColumn<bool> keepAliveEnabled = GeneratedColumn<bool>(
+      'keep_alive_enabled', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("keep_alive_enabled" IN (0, 1))'),
+      defaultValue: const Constant(false));
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -84,6 +94,7 @@ class $BrowserProfilesTable extends BrowserProfiles
         proxyPassword,
         fingerprintJson,
         userDataFolder,
+        keepAliveEnabled,
         createdAt,
         lastUsedAt
       ];
@@ -150,6 +161,12 @@ class $BrowserProfilesTable extends BrowserProfiles
     } else if (isInserting) {
       context.missing(_userDataFolderMeta);
     }
+    if (data.containsKey('keep_alive_enabled')) {
+      context.handle(
+          _keepAliveEnabledMeta,
+          keepAliveEnabled.isAcceptableOrUnknown(
+              data['keep_alive_enabled']!, _keepAliveEnabledMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -191,6 +208,8 @@ class $BrowserProfilesTable extends BrowserProfiles
           DriftSqlType.string, data['${effectivePrefix}fingerprint_json'])!,
       userDataFolder: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}user_data_folder'])!,
+      keepAliveEnabled: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool, data['${effectivePrefix}keep_alive_enabled'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
       lastUsedAt: attachedDatabase.typeMapping
@@ -214,6 +233,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
   final String? proxyPassword;
   final String fingerprintJson;
   final String userDataFolder;
+  final bool keepAliveEnabled;
   final DateTime createdAt;
   final DateTime lastUsedAt;
   const BrowserProfile(
@@ -226,6 +246,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       this.proxyPassword,
       required this.fingerprintJson,
       required this.userDataFolder,
+      required this.keepAliveEnabled,
       required this.createdAt,
       required this.lastUsedAt});
   @override
@@ -248,6 +269,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
     }
     map['fingerprint_json'] = Variable<String>(fingerprintJson);
     map['user_data_folder'] = Variable<String>(userDataFolder);
+    map['keep_alive_enabled'] = Variable<bool>(keepAliveEnabled);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['last_used_at'] = Variable<DateTime>(lastUsedAt);
     return map;
@@ -272,6 +294,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           : Value(proxyPassword),
       fingerprintJson: Value(fingerprintJson),
       userDataFolder: Value(userDataFolder),
+      keepAliveEnabled: Value(keepAliveEnabled),
       createdAt: Value(createdAt),
       lastUsedAt: Value(lastUsedAt),
     );
@@ -290,6 +313,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       proxyPassword: serializer.fromJson<String?>(json['proxyPassword']),
       fingerprintJson: serializer.fromJson<String>(json['fingerprintJson']),
       userDataFolder: serializer.fromJson<String>(json['userDataFolder']),
+      keepAliveEnabled: serializer.fromJson<bool>(json['keepAliveEnabled']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       lastUsedAt: serializer.fromJson<DateTime>(json['lastUsedAt']),
     );
@@ -307,6 +331,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       'proxyPassword': serializer.toJson<String?>(proxyPassword),
       'fingerprintJson': serializer.toJson<String>(fingerprintJson),
       'userDataFolder': serializer.toJson<String>(userDataFolder),
+      'keepAliveEnabled': serializer.toJson<bool>(keepAliveEnabled),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'lastUsedAt': serializer.toJson<DateTime>(lastUsedAt),
     };
@@ -322,6 +347,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           Value<String?> proxyPassword = const Value.absent(),
           String? fingerprintJson,
           String? userDataFolder,
+          bool? keepAliveEnabled,
           DateTime? createdAt,
           DateTime? lastUsedAt}) =>
       BrowserProfile(
@@ -336,6 +362,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
             proxyPassword.present ? proxyPassword.value : this.proxyPassword,
         fingerprintJson: fingerprintJson ?? this.fingerprintJson,
         userDataFolder: userDataFolder ?? this.userDataFolder,
+        keepAliveEnabled: keepAliveEnabled ?? this.keepAliveEnabled,
         createdAt: createdAt ?? this.createdAt,
         lastUsedAt: lastUsedAt ?? this.lastUsedAt,
       );
@@ -358,6 +385,9 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       userDataFolder: data.userDataFolder.present
           ? data.userDataFolder.value
           : this.userDataFolder,
+      keepAliveEnabled: data.keepAliveEnabled.present
+          ? data.keepAliveEnabled.value
+          : this.keepAliveEnabled,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       lastUsedAt:
           data.lastUsedAt.present ? data.lastUsedAt.value : this.lastUsedAt,
@@ -376,6 +406,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           ..write('proxyPassword: $proxyPassword, ')
           ..write('fingerprintJson: $fingerprintJson, ')
           ..write('userDataFolder: $userDataFolder, ')
+          ..write('keepAliveEnabled: $keepAliveEnabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('lastUsedAt: $lastUsedAt')
           ..write(')'))
@@ -393,6 +424,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       proxyPassword,
       fingerprintJson,
       userDataFolder,
+      keepAliveEnabled,
       createdAt,
       lastUsedAt);
   @override
@@ -408,6 +440,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           other.proxyPassword == this.proxyPassword &&
           other.fingerprintJson == this.fingerprintJson &&
           other.userDataFolder == this.userDataFolder &&
+          other.keepAliveEnabled == this.keepAliveEnabled &&
           other.createdAt == this.createdAt &&
           other.lastUsedAt == this.lastUsedAt);
 }
@@ -422,6 +455,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
   final Value<String?> proxyPassword;
   final Value<String> fingerprintJson;
   final Value<String> userDataFolder;
+  final Value<bool> keepAliveEnabled;
   final Value<DateTime> createdAt;
   final Value<DateTime> lastUsedAt;
   final Value<int> rowid;
@@ -435,6 +469,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     this.proxyPassword = const Value.absent(),
     this.fingerprintJson = const Value.absent(),
     this.userDataFolder = const Value.absent(),
+    this.keepAliveEnabled = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.lastUsedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -449,6 +484,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     this.proxyPassword = const Value.absent(),
     required String fingerprintJson,
     required String userDataFolder,
+    this.keepAliveEnabled = const Value.absent(),
     required DateTime createdAt,
     required DateTime lastUsedAt,
     this.rowid = const Value.absent(),
@@ -469,6 +505,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     Expression<String>? proxyPassword,
     Expression<String>? fingerprintJson,
     Expression<String>? userDataFolder,
+    Expression<bool>? keepAliveEnabled,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? lastUsedAt,
     Expression<int>? rowid,
@@ -483,6 +520,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       if (proxyPassword != null) 'proxy_password': proxyPassword,
       if (fingerprintJson != null) 'fingerprint_json': fingerprintJson,
       if (userDataFolder != null) 'user_data_folder': userDataFolder,
+      if (keepAliveEnabled != null) 'keep_alive_enabled': keepAliveEnabled,
       if (createdAt != null) 'created_at': createdAt,
       if (lastUsedAt != null) 'last_used_at': lastUsedAt,
       if (rowid != null) 'rowid': rowid,
@@ -499,6 +537,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       Value<String?>? proxyPassword,
       Value<String>? fingerprintJson,
       Value<String>? userDataFolder,
+      Value<bool>? keepAliveEnabled,
       Value<DateTime>? createdAt,
       Value<DateTime>? lastUsedAt,
       Value<int>? rowid}) {
@@ -512,6 +551,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       proxyPassword: proxyPassword ?? this.proxyPassword,
       fingerprintJson: fingerprintJson ?? this.fingerprintJson,
       userDataFolder: userDataFolder ?? this.userDataFolder,
+      keepAliveEnabled: keepAliveEnabled ?? this.keepAliveEnabled,
       createdAt: createdAt ?? this.createdAt,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
       rowid: rowid ?? this.rowid,
@@ -548,6 +588,9 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     if (userDataFolder.present) {
       map['user_data_folder'] = Variable<String>(userDataFolder.value);
     }
+    if (keepAliveEnabled.present) {
+      map['keep_alive_enabled'] = Variable<bool>(keepAliveEnabled.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -572,8 +615,478 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
           ..write('proxyPassword: $proxyPassword, ')
           ..write('fingerprintJson: $fingerprintJson, ')
           ..write('userDataFolder: $userDataFolder, ')
+          ..write('keepAliveEnabled: $keepAliveEnabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('lastUsedAt: $lastUsedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $UserScriptsTable extends UserScripts
+    with TableInfo<$UserScriptsTable, UserScriptEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UserScriptsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _profileIdMeta =
+      const VerificationMeta('profileId');
+  @override
+  late final GeneratedColumn<String> profileId = GeneratedColumn<String>(
+      'profile_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _urlPatternMeta =
+      const VerificationMeta('urlPattern');
+  @override
+  late final GeneratedColumn<String> urlPattern = GeneratedColumn<String>(
+      'url_pattern', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _jsPayloadMeta =
+      const VerificationMeta('jsPayload');
+  @override
+  late final GeneratedColumn<String> jsPayload = GeneratedColumn<String>(
+      'js_payload', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _isActiveMeta =
+      const VerificationMeta('isActive');
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+      'is_active', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_active" IN (0, 1))'),
+      defaultValue: const Constant(true));
+  static const VerificationMeta _runAtMeta = const VerificationMeta('runAt');
+  @override
+  late final GeneratedColumn<String> runAt = GeneratedColumn<String>(
+      'run_at', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('document_idle'));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        profileId,
+        name,
+        urlPattern,
+        jsPayload,
+        isActive,
+        runAt,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'user_scripts';
+  @override
+  VerificationContext validateIntegrity(Insertable<UserScriptEntity> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('profile_id')) {
+      context.handle(_profileIdMeta,
+          profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta));
+    } else if (isInserting) {
+      context.missing(_profileIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('url_pattern')) {
+      context.handle(
+          _urlPatternMeta,
+          urlPattern.isAcceptableOrUnknown(
+              data['url_pattern']!, _urlPatternMeta));
+    } else if (isInserting) {
+      context.missing(_urlPatternMeta);
+    }
+    if (data.containsKey('js_payload')) {
+      context.handle(_jsPayloadMeta,
+          jsPayload.isAcceptableOrUnknown(data['js_payload']!, _jsPayloadMeta));
+    } else if (isInserting) {
+      context.missing(_jsPayloadMeta);
+    }
+    if (data.containsKey('is_active')) {
+      context.handle(_isActiveMeta,
+          isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta));
+    }
+    if (data.containsKey('run_at')) {
+      context.handle(
+          _runAtMeta, runAt.isAcceptableOrUnknown(data['run_at']!, _runAtMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  UserScriptEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UserScriptEntity(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      profileId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}profile_id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      urlPattern: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}url_pattern'])!,
+      jsPayload: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}js_payload'])!,
+      isActive: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_active'])!,
+      runAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}run_at'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $UserScriptsTable createAlias(String alias) {
+    return $UserScriptsTable(attachedDatabase, alias);
+  }
+}
+
+class UserScriptEntity extends DataClass
+    implements Insertable<UserScriptEntity> {
+  final String id;
+  final String profileId;
+  final String name;
+  final String urlPattern;
+  final String jsPayload;
+  final bool isActive;
+  final String runAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const UserScriptEntity(
+      {required this.id,
+      required this.profileId,
+      required this.name,
+      required this.urlPattern,
+      required this.jsPayload,
+      required this.isActive,
+      required this.runAt,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['profile_id'] = Variable<String>(profileId);
+    map['name'] = Variable<String>(name);
+    map['url_pattern'] = Variable<String>(urlPattern);
+    map['js_payload'] = Variable<String>(jsPayload);
+    map['is_active'] = Variable<bool>(isActive);
+    map['run_at'] = Variable<String>(runAt);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  UserScriptsCompanion toCompanion(bool nullToAbsent) {
+    return UserScriptsCompanion(
+      id: Value(id),
+      profileId: Value(profileId),
+      name: Value(name),
+      urlPattern: Value(urlPattern),
+      jsPayload: Value(jsPayload),
+      isActive: Value(isActive),
+      runAt: Value(runAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory UserScriptEntity.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UserScriptEntity(
+      id: serializer.fromJson<String>(json['id']),
+      profileId: serializer.fromJson<String>(json['profileId']),
+      name: serializer.fromJson<String>(json['name']),
+      urlPattern: serializer.fromJson<String>(json['urlPattern']),
+      jsPayload: serializer.fromJson<String>(json['jsPayload']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
+      runAt: serializer.fromJson<String>(json['runAt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'profileId': serializer.toJson<String>(profileId),
+      'name': serializer.toJson<String>(name),
+      'urlPattern': serializer.toJson<String>(urlPattern),
+      'jsPayload': serializer.toJson<String>(jsPayload),
+      'isActive': serializer.toJson<bool>(isActive),
+      'runAt': serializer.toJson<String>(runAt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  UserScriptEntity copyWith(
+          {String? id,
+          String? profileId,
+          String? name,
+          String? urlPattern,
+          String? jsPayload,
+          bool? isActive,
+          String? runAt,
+          DateTime? createdAt,
+          DateTime? updatedAt}) =>
+      UserScriptEntity(
+        id: id ?? this.id,
+        profileId: profileId ?? this.profileId,
+        name: name ?? this.name,
+        urlPattern: urlPattern ?? this.urlPattern,
+        jsPayload: jsPayload ?? this.jsPayload,
+        isActive: isActive ?? this.isActive,
+        runAt: runAt ?? this.runAt,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  UserScriptEntity copyWithCompanion(UserScriptsCompanion data) {
+    return UserScriptEntity(
+      id: data.id.present ? data.id.value : this.id,
+      profileId: data.profileId.present ? data.profileId.value : this.profileId,
+      name: data.name.present ? data.name.value : this.name,
+      urlPattern:
+          data.urlPattern.present ? data.urlPattern.value : this.urlPattern,
+      jsPayload: data.jsPayload.present ? data.jsPayload.value : this.jsPayload,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      runAt: data.runAt.present ? data.runAt.value : this.runAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserScriptEntity(')
+          ..write('id: $id, ')
+          ..write('profileId: $profileId, ')
+          ..write('name: $name, ')
+          ..write('urlPattern: $urlPattern, ')
+          ..write('jsPayload: $jsPayload, ')
+          ..write('isActive: $isActive, ')
+          ..write('runAt: $runAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, profileId, name, urlPattern, jsPayload,
+      isActive, runAt, createdAt, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UserScriptEntity &&
+          other.id == this.id &&
+          other.profileId == this.profileId &&
+          other.name == this.name &&
+          other.urlPattern == this.urlPattern &&
+          other.jsPayload == this.jsPayload &&
+          other.isActive == this.isActive &&
+          other.runAt == this.runAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class UserScriptsCompanion extends UpdateCompanion<UserScriptEntity> {
+  final Value<String> id;
+  final Value<String> profileId;
+  final Value<String> name;
+  final Value<String> urlPattern;
+  final Value<String> jsPayload;
+  final Value<bool> isActive;
+  final Value<String> runAt;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const UserScriptsCompanion({
+    this.id = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.urlPattern = const Value.absent(),
+    this.jsPayload = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.runAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  UserScriptsCompanion.insert({
+    required String id,
+    required String profileId,
+    required String name,
+    required String urlPattern,
+    required String jsPayload,
+    this.isActive = const Value.absent(),
+    this.runAt = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        profileId = Value(profileId),
+        name = Value(name),
+        urlPattern = Value(urlPattern),
+        jsPayload = Value(jsPayload),
+        createdAt = Value(createdAt),
+        updatedAt = Value(updatedAt);
+  static Insertable<UserScriptEntity> custom({
+    Expression<String>? id,
+    Expression<String>? profileId,
+    Expression<String>? name,
+    Expression<String>? urlPattern,
+    Expression<String>? jsPayload,
+    Expression<bool>? isActive,
+    Expression<String>? runAt,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (profileId != null) 'profile_id': profileId,
+      if (name != null) 'name': name,
+      if (urlPattern != null) 'url_pattern': urlPattern,
+      if (jsPayload != null) 'js_payload': jsPayload,
+      if (isActive != null) 'is_active': isActive,
+      if (runAt != null) 'run_at': runAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  UserScriptsCompanion copyWith(
+      {Value<String>? id,
+      Value<String>? profileId,
+      Value<String>? name,
+      Value<String>? urlPattern,
+      Value<String>? jsPayload,
+      Value<bool>? isActive,
+      Value<String>? runAt,
+      Value<DateTime>? createdAt,
+      Value<DateTime>? updatedAt,
+      Value<int>? rowid}) {
+    return UserScriptsCompanion(
+      id: id ?? this.id,
+      profileId: profileId ?? this.profileId,
+      name: name ?? this.name,
+      urlPattern: urlPattern ?? this.urlPattern,
+      jsPayload: jsPayload ?? this.jsPayload,
+      isActive: isActive ?? this.isActive,
+      runAt: runAt ?? this.runAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (profileId.present) {
+      map['profile_id'] = Variable<String>(profileId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (urlPattern.present) {
+      map['url_pattern'] = Variable<String>(urlPattern.value);
+    }
+    if (jsPayload.present) {
+      map['js_payload'] = Variable<String>(jsPayload.value);
+    }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
+    if (runAt.present) {
+      map['run_at'] = Variable<String>(runAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserScriptsCompanion(')
+          ..write('id: $id, ')
+          ..write('profileId: $profileId, ')
+          ..write('name: $name, ')
+          ..write('urlPattern: $urlPattern, ')
+          ..write('jsPayload: $jsPayload, ')
+          ..write('isActive: $isActive, ')
+          ..write('runAt: $runAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -585,11 +1098,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $BrowserProfilesTable browserProfiles =
       $BrowserProfilesTable(this);
+  late final $UserScriptsTable userScripts = $UserScriptsTable(this);
+  late final UserScriptDao userScriptDao = UserScriptDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [browserProfiles];
+  List<DatabaseSchemaEntity> get allSchemaEntities =>
+      [browserProfiles, userScripts];
 }
 
 typedef $$BrowserProfilesTableCreateCompanionBuilder = BrowserProfilesCompanion
@@ -603,6 +1119,7 @@ typedef $$BrowserProfilesTableCreateCompanionBuilder = BrowserProfilesCompanion
   Value<String?> proxyPassword,
   required String fingerprintJson,
   required String userDataFolder,
+  Value<bool> keepAliveEnabled,
   required DateTime createdAt,
   required DateTime lastUsedAt,
   Value<int> rowid,
@@ -618,6 +1135,7 @@ typedef $$BrowserProfilesTableUpdateCompanionBuilder = BrowserProfilesCompanion
   Value<String?> proxyPassword,
   Value<String> fingerprintJson,
   Value<String> userDataFolder,
+  Value<bool> keepAliveEnabled,
   Value<DateTime> createdAt,
   Value<DateTime> lastUsedAt,
   Value<int> rowid,
@@ -659,6 +1177,10 @@ class $$BrowserProfilesTableFilterComposer
 
   ColumnFilters<String> get userDataFolder => $composableBuilder(
       column: $table.userDataFolder,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get keepAliveEnabled => $composableBuilder(
+      column: $table.keepAliveEnabled,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
@@ -708,6 +1230,10 @@ class $$BrowserProfilesTableOrderingComposer
       column: $table.userDataFolder,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get keepAliveEnabled => $composableBuilder(
+      column: $table.keepAliveEnabled,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -750,6 +1276,9 @@ class $$BrowserProfilesTableAnnotationComposer
 
   GeneratedColumn<String> get userDataFolder => $composableBuilder(
       column: $table.userDataFolder, builder: (column) => column);
+
+  GeneratedColumn<bool> get keepAliveEnabled => $composableBuilder(
+      column: $table.keepAliveEnabled, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -794,6 +1323,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             Value<String?> proxyPassword = const Value.absent(),
             Value<String> fingerprintJson = const Value.absent(),
             Value<String> userDataFolder = const Value.absent(),
+            Value<bool> keepAliveEnabled = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> lastUsedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -808,6 +1338,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             proxyPassword: proxyPassword,
             fingerprintJson: fingerprintJson,
             userDataFolder: userDataFolder,
+            keepAliveEnabled: keepAliveEnabled,
             createdAt: createdAt,
             lastUsedAt: lastUsedAt,
             rowid: rowid,
@@ -822,6 +1353,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             Value<String?> proxyPassword = const Value.absent(),
             required String fingerprintJson,
             required String userDataFolder,
+            Value<bool> keepAliveEnabled = const Value.absent(),
             required DateTime createdAt,
             required DateTime lastUsedAt,
             Value<int> rowid = const Value.absent(),
@@ -836,6 +1368,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             proxyPassword: proxyPassword,
             fingerprintJson: fingerprintJson,
             userDataFolder: userDataFolder,
+            keepAliveEnabled: keepAliveEnabled,
             createdAt: createdAt,
             lastUsedAt: lastUsedAt,
             rowid: rowid,
@@ -862,10 +1395,245 @@ typedef $$BrowserProfilesTableProcessedTableManager = ProcessedTableManager<
     ),
     BrowserProfile,
     PrefetchHooks Function()>;
+typedef $$UserScriptsTableCreateCompanionBuilder = UserScriptsCompanion
+    Function({
+  required String id,
+  required String profileId,
+  required String name,
+  required String urlPattern,
+  required String jsPayload,
+  Value<bool> isActive,
+  Value<String> runAt,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+  Value<int> rowid,
+});
+typedef $$UserScriptsTableUpdateCompanionBuilder = UserScriptsCompanion
+    Function({
+  Value<String> id,
+  Value<String> profileId,
+  Value<String> name,
+  Value<String> urlPattern,
+  Value<String> jsPayload,
+  Value<bool> isActive,
+  Value<String> runAt,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+  Value<int> rowid,
+});
+
+class $$UserScriptsTableFilterComposer
+    extends Composer<_$AppDatabase, $UserScriptsTable> {
+  $$UserScriptsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get profileId => $composableBuilder(
+      column: $table.profileId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get urlPattern => $composableBuilder(
+      column: $table.urlPattern, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get jsPayload => $composableBuilder(
+      column: $table.jsPayload, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+      column: $table.isActive, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get runAt => $composableBuilder(
+      column: $table.runAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$UserScriptsTableOrderingComposer
+    extends Composer<_$AppDatabase, $UserScriptsTable> {
+  $$UserScriptsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get profileId => $composableBuilder(
+      column: $table.profileId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get urlPattern => $composableBuilder(
+      column: $table.urlPattern, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get jsPayload => $composableBuilder(
+      column: $table.jsPayload, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+      column: $table.isActive, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get runAt => $composableBuilder(
+      column: $table.runAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$UserScriptsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $UserScriptsTable> {
+  $$UserScriptsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get profileId =>
+      $composableBuilder(column: $table.profileId, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get urlPattern => $composableBuilder(
+      column: $table.urlPattern, builder: (column) => column);
+
+  GeneratedColumn<String> get jsPayload =>
+      $composableBuilder(column: $table.jsPayload, builder: (column) => column);
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<String> get runAt =>
+      $composableBuilder(column: $table.runAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$UserScriptsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $UserScriptsTable,
+    UserScriptEntity,
+    $$UserScriptsTableFilterComposer,
+    $$UserScriptsTableOrderingComposer,
+    $$UserScriptsTableAnnotationComposer,
+    $$UserScriptsTableCreateCompanionBuilder,
+    $$UserScriptsTableUpdateCompanionBuilder,
+    (
+      UserScriptEntity,
+      BaseReferences<_$AppDatabase, $UserScriptsTable, UserScriptEntity>
+    ),
+    UserScriptEntity,
+    PrefetchHooks Function()> {
+  $$UserScriptsTableTableManager(_$AppDatabase db, $UserScriptsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UserScriptsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UserScriptsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UserScriptsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<String> profileId = const Value.absent(),
+            Value<String> name = const Value.absent(),
+            Value<String> urlPattern = const Value.absent(),
+            Value<String> jsPayload = const Value.absent(),
+            Value<bool> isActive = const Value.absent(),
+            Value<String> runAt = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              UserScriptsCompanion(
+            id: id,
+            profileId: profileId,
+            name: name,
+            urlPattern: urlPattern,
+            jsPayload: jsPayload,
+            isActive: isActive,
+            runAt: runAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required String profileId,
+            required String name,
+            required String urlPattern,
+            required String jsPayload,
+            Value<bool> isActive = const Value.absent(),
+            Value<String> runAt = const Value.absent(),
+            required DateTime createdAt,
+            required DateTime updatedAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              UserScriptsCompanion.insert(
+            id: id,
+            profileId: profileId,
+            name: name,
+            urlPattern: urlPattern,
+            jsPayload: jsPayload,
+            isActive: isActive,
+            runAt: runAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$UserScriptsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $UserScriptsTable,
+    UserScriptEntity,
+    $$UserScriptsTableFilterComposer,
+    $$UserScriptsTableOrderingComposer,
+    $$UserScriptsTableAnnotationComposer,
+    $$UserScriptsTableCreateCompanionBuilder,
+    $$UserScriptsTableUpdateCompanionBuilder,
+    (
+      UserScriptEntity,
+      BaseReferences<_$AppDatabase, $UserScriptsTable, UserScriptEntity>
+    ),
+    UserScriptEntity,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
   $$BrowserProfilesTableTableManager get browserProfiles =>
       $$BrowserProfilesTableTableManager(_db, _db.browserProfiles);
+  $$UserScriptsTableTableManager get userScripts =>
+      $$UserScriptsTableTableManager(_db, _db.userScripts);
 }

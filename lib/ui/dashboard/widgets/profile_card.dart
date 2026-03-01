@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
+import 'package:pbrowser/services/browser/cookie_manager_service.dart';
+import 'package:pbrowser/services/background/headless_keep_alive_service.dart';
 import 'package:intl/intl.dart';
 
 class ProfileCard extends StatelessWidget {
@@ -22,7 +25,7 @@ class ProfileCard extends StatelessWidget {
       color: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.white.withOpacity(0.1)),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: InkWell(
         onTap: onRun,
@@ -49,16 +52,61 @@ class ProfileCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (profile.keepAliveEnabled)
+                    const Tooltip(
+                      message: 'Keep-Alive Enabled',
+                      child: Icon(Icons.flash_on, color: Colors.yellow, size: 16),
+                    ),
+                  const SizedBox(width: 4),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: Colors.white54),
-                    onSelected: (value) {
+                    onSelected: (value) async {
                       if (value == 'edit') {
                         onEdit();
                       } else if (value == 'delete') {
                         onDelete();
+                      } else if (value == 'export') {
+                        _handleExportSession(context);
+                      } else if (value == 'start_bg') {
+                        final success = await HeadlessKeepAliveService.startHeadlessSession(profile.id, profile.name);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(success ? 'Started Background Farm' : 'Failed to start')),
+                          );
+                        }
+                      } else if (value == 'stop_bg') {
+                        await HeadlessKeepAliveService.stopHeadlessSession();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Stopped Background Farm')),
+                          );
+                        }
                       }
                     },
                     itemBuilder: (context) => [
+                      if (profile.keepAliveEnabled) ...[
+                        const PopupMenuItem(
+                          value: 'start_bg',
+                          child: Row(
+                            children: [
+                              Icon(Icons.play_circle_fill, size: 20, color: Colors.green),
+                              SizedBox(width: 8),
+                              Text('Start Farm (Bg)'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'stop_bg',
+                          child: Row(
+                            children: [
+                              Icon(Icons.stop_circle, size: 20, color: Colors.orange),
+                              SizedBox(width: 8),
+                              Text('Stop Farm'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                      ],
                       const PopupMenuItem(
                         value: 'edit',
                         child: Row(
@@ -66,6 +114,16 @@ class ProfileCard extends StatelessWidget {
                             Icon(Icons.edit, size: 20),
                             SizedBox(width: 8),
                             Text('Edit'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'export',
+                        child: Row(
+                          children: [
+                            Icon(Icons.cookie, size: 20, color: Colors.blue),
+                            SizedBox(width: 8),
+                            Text('Export Session'),
                           ],
                         ),
                       ),
@@ -164,7 +222,7 @@ class ProfileCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(icon, color: color, size: 20),
@@ -231,6 +289,53 @@ class ProfileCard extends StatelessWidget {
       return '${diff.inDays}d ago';
     } else {
       return DateFormat('MMM d').format(profile.lastUsedAt);
+    }
+  }
+
+  Future<void> _handleExportSession(BuildContext context) async {
+    try {
+      final jsonCookies = await CookieManagerService.exportCookies(profile.id);
+      
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF2A2A2A),
+            title: const Text('Exported Cookies', style: TextStyle(color: Colors.white)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  jsonCookies,
+                  style: const TextStyle(color: Colors.white70, fontFamily: 'monospace', fontSize: 12),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: jsonCookies));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Copied to clipboard!')),
+                  );
+                  Navigator.pop(context);
+                },
+                child: const Text('Copy to Clipboard', style: TextStyle(color: Colors.blue)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close', style: TextStyle(color: Colors.white54)),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export cookies: $e')),
+        );
+      }
     }
   }
 }

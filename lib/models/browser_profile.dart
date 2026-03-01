@@ -7,6 +7,7 @@ class BrowserProfile {
   final ProxyConfig proxyConfig;
   final FingerprintConfig fingerprintConfig;
   final String userDataFolder;
+  final bool keepAliveEnabled;
   final DateTime createdAt;
   final DateTime lastUsedAt;
   
@@ -16,6 +17,7 @@ class BrowserProfile {
     required this.proxyConfig,
     required this.fingerprintConfig,
     required this.userDataFolder,
+    this.keepAliveEnabled = false,
     required this.createdAt,
     required this.lastUsedAt,
   });
@@ -26,6 +28,7 @@ class BrowserProfile {
     ProxyConfig? proxyConfig,
     FingerprintConfig? fingerprintConfig,
     String? userDataFolder,
+    bool? keepAliveEnabled,
     DateTime? createdAt,
     DateTime? lastUsedAt,
   }) {
@@ -35,6 +38,7 @@ class BrowserProfile {
       proxyConfig: proxyConfig ?? this.proxyConfig,
       fingerprintConfig: fingerprintConfig ?? this.fingerprintConfig,
       userDataFolder: userDataFolder ?? this.userDataFolder,
+      keepAliveEnabled: keepAliveEnabled ?? this.keepAliveEnabled,
       createdAt: createdAt ?? this.createdAt,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
     );

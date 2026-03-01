@@ -4,6 +4,8 @@ import 'package:pbrowser/repositories/profile_repository.dart';
 import 'package:pbrowser/ui/profile/profile_form_screen.dart';
 import 'package:pbrowser/ui/browser/browser_screen.dart';
 import 'package:pbrowser/ui/dashboard/widgets/profile_card.dart';
+import 'package:flutter/services.dart';
+import 'package:pbrowser/services/analytics/privacy_crash_reporter.dart';
 
 class DashboardScreen extends StatelessWidget {
   final ProfileRepository repository;
@@ -49,6 +51,11 @@ class DashboardScreen extends StatelessWidget {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.bug_report_outlined),
+            tooltip: 'Export Debug Logs',
+            onPressed: () => _exportLogs(context),
+          ),
           IconButton(
             icon: const Icon(Icons.add_circle_outline, size: 28),
             tooltip: 'Create New Profile',
@@ -103,7 +110,7 @@ class DashboardScreen extends StatelessWidget {
           Icon(
             Icons.folder_open,
             size: 100,
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
           ),
           const SizedBox(height: 24),
           const Text(
@@ -199,6 +206,63 @@ class DashboardScreen extends StatelessWidget {
     
     if (confirmed == true) {
       await repository.deleteProfile(profile.id);
+    }
+  }
+  
+  Future<void> _exportLogs(BuildContext context) async {
+    try {
+      final logs = await PrivacyCrashReporter.exportLogs();
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Anonymous Crash Logs'),
+            content: SingleChildScrollView(
+              child: SelectableText(
+                logs,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: logs));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Logs copied to clipboard (Scrubbed)')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.copy, size: 16),
+                label: const Text('Copy All'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  await PrivacyCrashReporter.clearLogs();
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Logs cleared')),
+                    );
+                  }
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Clear'),
+              )
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Failed to read logs: $e')),
+        );
+      }
     }
   }
 }

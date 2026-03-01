@@ -3,6 +3,10 @@ import 'package:pbrowser/models/browser_profile.dart';
 import 'package:pbrowser/models/proxy_config.dart';
 import 'package:pbrowser/models/fingerprint_config.dart';
 import 'package:pbrowser/repositories/profile_repository.dart';
+import 'package:pbrowser/services/browser/cookie_manager_service.dart';
+import 'package:pbrowser/services/browser/userscript_service.dart';
+import 'package:pbrowser/ui/profile/user_scripts_screen.dart';
+import 'package:provider/provider.dart';
 
 class ProfileFormScreen extends StatefulWidget {
   final ProfileRepository repository;
@@ -25,9 +29,12 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
   final _proxyPortController = TextEditingController();
   final _proxyUsernameController = TextEditingController();
   final _proxyPasswordController = TextEditingController();
+  final _cookiesController = TextEditingController();
   
   ProxyType _selectedProxyType = ProxyType.none;
   late FingerprintConfig _fingerprintConfig;
+  late String _profileId;
+  bool _keepAliveEnabled = false;
   bool _isLoading = false;
   
   @override
@@ -36,6 +43,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
     
     if (widget.existingProfile != null) {
       // Edit mode
+      _profileId = widget.existingProfile!.id;
       _nameController.text = widget.existingProfile!.name;
       _selectedProxyType = widget.existingProfile!.proxyConfig.type;
       _proxyHostController.text = widget.existingProfile!.proxyConfig.host ?? '';
@@ -43,8 +51,10 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
       _proxyUsernameController.text = widget.existingProfile!.proxyConfig.username ?? '';
       _proxyPasswordController.text = widget.existingProfile!.proxyConfig.password ?? '';
       _fingerprintConfig = widget.existingProfile!.fingerprintConfig;
+      _keepAliveEnabled = widget.existingProfile!.keepAliveEnabled;
     } else {
-      // Create mode - random fingerprint
+      // Create mode
+      _profileId = widget.repository.generateProfileId();
       _fingerprintConfig = FingerprintConfig.random();
     }
   }
@@ -56,6 +66,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
     _proxyPortController.dispose();
     _proxyUsernameController.dispose();
     _proxyPasswordController.dispose();
+    _cookiesController.dispose();
     super.dispose();
   }
 
@@ -108,7 +119,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
             
             _buildSection('Proxy Configuration', [
               DropdownButtonFormField<ProxyType>(
-                value: _selectedProxyType,
+                initialValue: _selectedProxyType,
                 decoration: _inputDecoration('Proxy Type', Icons.vpn_lock),
                 dropdownColor: const Color(0xFF2A2A2A),
                 style: const TextStyle(color: Colors.white),
@@ -172,13 +183,32 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
             
             const SizedBox(height: 32),
             
+            _buildSection('Session Import', [
+              TextFormField(
+                controller: _cookiesController,
+                decoration: _inputDecoration('Paste Cookies (JSON or Netscape)', Icons.cookie_outlined),
+                style: const TextStyle(color: Colors.white),
+                maxLines: 5,
+                minLines: 2,
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 8.0),
+                child: Text(
+                  'Paste EditThisCookie JSON or Netscape format to automatically inject the session when the profile launches.',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ),
+            ]),
+            
+            const SizedBox(height: 32),
+            
             _buildSection('Fingerprint Configuration', [
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,6 +252,69 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
                 ),
               ),
             ]),
+
+            const SizedBox(height: 32),
+
+            _buildSection('Background Keep-Alive', [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                child: SwitchListTile(
+                  title: const Text('Enable Keep-Alive', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: const Text(
+                    'Runs a Headless WebView in an Android Foreground Service so your session stays active (WebSocket/Mining) when app is minimized.',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                  value: _keepAliveEnabled,
+                  onChanged: (val) {
+                    setState(() => _keepAliveEnabled = val);
+                  },
+                  activeThumbColor: Colors.green,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ]),
+
+            const SizedBox(height: 32),
+
+            _buildSection('Automation', [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final userScriptService = Provider.of<UserScriptService>(context, listen: false);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => UserScriptsScreen(
+                          service: userScriptService,
+                          profileId: _profileId,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.code),
+                  label: const Text('Manage UserScripts (Mini-Tampermonkey)'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 8.0),
+                child: Text(
+                  'Inject custom JavaScript automatically when visiting matching URLs.',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ]),
           ],
         ),
       ),
@@ -257,7 +350,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
             child: Text(
               '$label:',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 13,
               ),
             ),
@@ -281,17 +374,17 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
   InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
       prefixIcon: Icon(icon, color: Colors.white70),
       filled: true,
-      fillColor: Colors.white.withOpacity(0.05),
+      fillColor: Colors.white.withValues(alpha: 0.05),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -322,24 +415,29 @@ class _ProfileFormScreenState extends State<ProfileFormScreen> {
       );
       
       // Create or update profile
-      final profileId = widget.existingProfile?.id ?? widget.repository.generateProfileId();
-      final userDataPath = await widget.repository.generateUserDataPath(profileId);
+      final userDataPath = await widget.repository.generateUserDataPath(_profileId);
       final now = DateTime.now();
       
       final profile = BrowserProfile(
-        id: profileId,
+        id: _profileId,
         name: _nameController.text.trim(),
         proxyConfig: proxyConfig,
         fingerprintConfig: _fingerprintConfig,
         userDataFolder: userDataPath,
+        keepAliveEnabled: _keepAliveEnabled,
         createdAt: widget.existingProfile?.createdAt ?? now,
-        lastUsedAt: now,
+        lastUsedAt: widget.existingProfile?.lastUsedAt ?? now,
       );
       
       if (widget.existingProfile != null) {
         await widget.repository.updateProfile(profile);
       } else {
         await widget.repository.createProfile(profile);
+      }
+      
+      // Handle pending cookies
+      if (_cookiesController.text.trim().isNotEmpty) {
+        await CookieManagerService.savePendingCookies(userDataPath, _cookiesController.text.trim());
       }
       
       if (mounted) {

@@ -1,0 +1,36 @@
+Analyzing pb...                                                 
+
+   info • Parameter 'db' could be a super parameter • lib/core/database/daos/profile_dao.dart:11:3 • use_super_parameters
+   info • Parameter 'e' could be a super parameter • lib/core/database/database.dart:33:3 • use_super_parameters
+   info • The import of 'package:flutter/services.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' • lib/main.dart:3:8 • unnecessary_import
+warning • Unused import: 'package:drift/drift.dart' • lib/main.dart:5:8 • unused_import
+   info • Don't invoke 'print' in production code • lib/main.dart:35:3 • avoid_print
+   info • 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre • lib/main.dart:62:13 • deprecated_member_use
+   info • Don't invoke 'print' in production code • lib/services/proxy/socks5_handler.dart:48:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/proxy/socks5_handler.dart:77:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/proxy/socks5_handler.dart:86:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/proxy/socks5_handler.dart:97:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/proxy/socks5_handler.dart:103:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/proxy/socks5_handler.dart:110:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/proxy/socks5_handler.dart:145:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/proxy/socks5_handler.dart:181:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/proxy/socks5_handler.dart:188:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/proxy/socks5_handler.dart:234:7 • avoid_print
+warning • The value of the field '_progress' isn't used • lib/ui/browser/browser_screen.dart:32:10 • unused_field
+   info • Don't invoke 'print' in production code • lib/ui/browser/browser_screen.dart:62:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/ui/browser/browser_screen.dart:76:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/ui/browser/browser_screen.dart:110:15 • avoid_print
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/browser/browser_screen.dart:189:40 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/browser/browser_screen.dart:209:45 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/dashboard/dashboard_screen.dart:106:33 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/dashboard/widgets/profile_card.dart:25:46 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/dashboard/widgets/profile_card.dart:167:22 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre • lib/ui/profile/profile_form_screen.dart:111:17 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/profile/profile_form_screen.dart:179:39 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/profile/profile_form_screen.dart:181:58 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/profile/profile_form_screen.dart:260:37 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/profile/profile_form_screen.dart:284:49 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/profile/profile_form_screen.dart:287:31 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/profile/profile_form_screen.dart:290:52 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/ui/profile/profile_form_screen.dart:294:52 • deprecated_member_use
+

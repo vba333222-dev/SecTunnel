@@ -1,89 +1,20 @@
 import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:pbrowser/utils/security_obfuscator.dart';
 
 /// JavaScript code generator for navigator spoofing
 class NavigatorSpoof {
   static String generate(FingerprintConfig config) {
-    return '''
-// ===== NAVIGATOR SPOOFING =====
-(() => {
-  const originalDefineProperty = Object.defineProperty;
-  
-  // Override navigator.userAgent
-  originalDefineProperty(navigator, 'userAgent', {
-    get: () => '${_escapeJs(config.userAgent)}',
-    configurable: true,
-    enumerable: true
-  });
-  
-  // Override navigator.platform
-  originalDefineProperty(navigator, 'platform', {
-    get: () => '${_escapeJs(config.platform)}',
-    configurable: true,
-    enumerable: true
-  });
-  
-  // Override navigator.language
-  originalDefineProperty(navigator, 'language', {
-    get: () => '${_escapeJs(config.language)}',
-    configurable: true,
-    enumerable: true
-  });
-  
-  // Override navigator.languages
-  originalDefineProperty(navigator, 'languages', {
-    get: () => ['${_escapeJs(config.language)}'],
-    configurable: true,
-    enumerable: true
-  });
-  
-  // Override navigator.hardwareConcurrency
-  originalDefineProperty(navigator, 'hardwareConcurrency', {
-    get: () => ${config.hardwareConcurrency},
-    configurable: true,
-    enumerable: true
-  });
-  
-  // Override navigator.deviceMemory
-  if ('deviceMemory' in navigator) {
-    originalDefineProperty(navigator, 'deviceMemory', {
-      get: () => ${config.deviceMemory},
-      configurable: true,
-      enumerable: true
-    });
-  }
-  
-  // Override screen properties
-  originalDefineProperty(screen, 'width', {
-    get: () => ${config.screenResolution.width},
-    configurable: true
-  });
-  
-  originalDefineProperty(screen, 'height', {
-    get: () => ${config.screenResolution.height},
-    configurable: true
-  });
-  
-  originalDefineProperty(screen, 'availWidth', {
-    get: () => ${config.screenResolution.width},
-    configurable: true
-  });
-  
-  originalDefineProperty(screen, 'availHeight', {
-    get: () => ${config.screenResolution.height - 40}, // Taskbar offset
-    configurable: true
-  });
-  
-  originalDefineProperty(screen, 'colorDepth', {
-    get: () => ${config.screenResolution.colorDepth},
-    configurable: true
-  });
-  
-  originalDefineProperty(screen, 'pixelDepth', {
-    get: () => ${config.screenResolution.colorDepth},
-    configurable: true
-  });
-})();
-''';
+    final encrypted = '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';
+    return SecurityObfuscator.decrypt(encrypted)
+        .replaceAll('__USER_AGENT__', _escapeJs(config.userAgent))
+        .replaceAll('__PLATFORM__', _escapeJs(config.platform))
+        .replaceAll('__LANGUAGE__', _escapeJs(config.language))
+        .replaceAll('__HARDWARE_CONCURRENCY__', config.hardwareConcurrency.toString())
+        .replaceAll('__DEVICE_MEMORY__', config.deviceMemory.toString())
+        .replaceAll('__SCREEN_WIDTH__', config.screenResolution.width.toString())
+        .replaceAll('__SCREEN_HEIGHT__', config.screenResolution.height.toString())
+        .replaceAll('__AVAIL_HEIGHT__', (config.screenResolution.height - 40).toString())
+        .replaceAll('__COLOR_DEPTH__', config.screenResolution.colorDepth.toString());
   }
   
   static String _escapeJs(String str) {

@@ -1,8 +1,13 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
+import 'package:pbrowser/models/user_script.dart';
 import 'package:pbrowser/services/fingerprint/fingerprint_injector.dart';
+import 'package:pbrowser/services/browser/cookie_manager_service.dart';
+import 'package:pbrowser/services/browser/userscript_service.dart';
+import 'package:provider/provider.dart';
 
 // WebView imports
 import 'package:webview_flutter/webview_flutter.dart';
@@ -23,13 +28,16 @@ class BrowserScreen extends StatefulWidget {
 
 class _BrowserScreenState extends State<BrowserScreen> {
   // Controllers - Android only
-  late final WebViewController _mobileController;
+  WebViewController? _mobileController;
   final TextEditingController _urlController = TextEditingController();
   
   // State
   bool _isLoading = true;
   bool _isWebViewLoading = false;
   double _progress = 0.0;
+  bool _isControllerInitialized = false;
+  
+  List<UserScript> _activeScripts = [];
   
   static const String _initialUrl = 'https://whoer.net/ip';
   static final platform = const MethodChannel('com.example.pbrowser/proxy');
@@ -38,12 +46,26 @@ class _BrowserScreenState extends State<BrowserScreen> {
   void initState() {
     super.initState();
     // Android/iOS only
-    _initMobileWebView();
+    _initMobileWebViewAsync();
   }
 
   @override
   void dispose() {
     _urlController.dispose();
+    _activeScripts.clear();
+    
+    // Explicitly destroy WebView context to prevent OOM memory leaks
+    if (_mobileController != null) {
+      try {
+        _mobileController!.loadRequest(Uri.parse('about:blank'));
+        _mobileController!.clearCache();
+        _mobileController!.setNavigationDelegate(NavigationDelegate());
+      } catch (e) {
+        debugPrint('[Browser] Error during WebView dispose cleanup: $e');
+      }
+      _mobileController = null;
+    }
+    
     super.dispose();
   }
 
@@ -51,6 +73,18 @@ class _BrowserScreenState extends State<BrowserScreen> {
   // ANDROID/IOS WEBVIEW INITIALIZATION WITH SESSION ISOLATION
   // ========================================================================
   
+  Future<void> _setProfileDirectory() async {
+    if (Platform.isAndroid && widget.profile.id.isNotEmpty) {
+      try {
+        await platform.invokeMethod('setProfileDirectory', {
+          'profileId': widget.profile.id,
+        });
+      } on PlatformException catch (e) {
+        debugPrint('[Browser] Failed to set profile directory: ${e.message}');
+      }
+    }
+  }
+
   Future<void> _setAndroidProxy() async {
     try {
       if (Platform.isAndroid && widget.profile.proxyConfig.isConfigured) {
@@ -60,12 +94,19 @@ class _BrowserScreenState extends State<BrowserScreen> {
         });
       }
     } catch (e) {
-      print('[Browser] Android proxy error: $e');
+      debugPrint('[Browser] Android proxy error: $e');
     }
   }
 
-  void _initMobileWebView() {
-    _setAndroidProxy();
+  Future<void> _initMobileWebViewAsync() async {
+    await _setProfileDirectory();
+    await _setAndroidProxy();
+    
+    // Load active UserScripts for this profile
+    if (mounted) {
+      final userScriptService = Provider.of<UserScriptService>(context, listen: false);
+      _activeScripts = await userScriptService.getActiveScripts(widget.profile.id);
+    }
 
     final PlatformWebViewControllerCreationParams params = 
         WebViewPlatform.instance is WebKitWebViewPlatform 
@@ -93,7 +134,22 @@ class _BrowserScreenState extends State<BrowserScreen> {
               final script = injector.generateInjectionScript();
               await controller.runJavaScript(script);
             } catch (e) {
-              print('[Browser] Mobile fingerprint injection error: $e');
+              debugPrint('[Browser] Mobile fingerprint injection error: $e');
+            }
+
+            // Run Document Start UserScripts
+            for (final script in _activeScripts) {
+              if (script.runAt == 'document_start') {
+                try {
+                  final regex = RegExp(script.urlPattern, caseSensitive: false);
+                  if (regex.hasMatch(url)) {
+                    await controller.runJavaScript(script.jsPayload);
+                    debugPrint('[Browser] Injected document_start script: ${script.name}');
+                  }
+                } catch (e) {
+                  debugPrint('[Browser] Regex/Script error for ${script.name}: $e');
+                }
+              }
             }
           },
           onProgress: (p) {
@@ -101,13 +157,28 @@ class _BrowserScreenState extends State<BrowserScreen> {
               setState(() => _progress = p / 100);
             }
           },
-          onPageFinished: (url) {
+          onPageFinished: (url) async {
             if (mounted) {
               setState(() {
                 _isLoading = false;
                 _isWebViewLoading = false;
                 _urlController.text = url;
               });
+            }
+
+            // Run Document Idle UserScripts
+            for (final script in _activeScripts) {
+              if (script.runAt == 'document_idle') {
+                try {
+                  final regex = RegExp(script.urlPattern, caseSensitive: false);
+                  if (regex.hasMatch(url)) {
+                    await controller.runJavaScript(script.jsPayload);
+                    debugPrint('[Browser] Injected document_idle script: ${script.name}');
+                  }
+                } catch (e) {
+                  debugPrint('[Browser] Regex/Script error for ${script.name}: $e');
+                }
+              }
             }
           },
           onHttpAuthRequest: (request) {
@@ -129,13 +200,47 @@ class _BrowserScreenState extends State<BrowserScreen> {
       final androidController = controller.platform as AndroidWebViewController;
       androidController.setMediaPlaybackRequiresUserGesture(false);
       
-      // Clear cache to ensure session isolation
-      // Note: For full isolation on Android, consider using WebView profile API (Android 13+)
+      // We still clear cache as fallback, but primary isolation is via data directory suffix
       androidController.clearCache();
     }
     
     _mobileController = controller;
-    _mobileController.loadRequest(Uri.parse(_initialUrl));
+    
+    // Inject pending cookies before first request
+    try {
+      final pendingCookiesPath = CookieManagerService.getPendingCookiesPath(widget.profile.userDataFolder);
+      final file = File(pendingCookiesPath);
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        final jsonList = jsonDecode(content) as List;
+        
+        final cookieManager = WebViewCookieManager();
+        
+        for (final item in jsonList) {
+          if (item is Map<String, dynamic>) {
+            final cookie = CookieItem.fromJson(item);
+            await cookieManager.setCookie(WebViewCookie(
+              name: cookie.name,
+              value: cookie.value,
+              domain: cookie.domain,
+              path: cookie.path,
+            ));
+          }
+        }
+        
+        await file.delete();
+        debugPrint('[Browser] Successfully injected pending cookies');
+      }
+    } catch (e) {
+      debugPrint('[Browser] Error injecting pending cookies: $e');
+    }
+    
+    if (mounted) {
+      setState(() {
+        _isControllerInitialized = true;
+      });
+      _mobileController?.loadRequest(Uri.parse(_initialUrl));
+    }
   }
 
   // ========================================================================
@@ -148,7 +253,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
     if (!url.startsWith('http')) url = 'https://$url';
     
     // Android/iOS only
-    _mobileController.loadRequest(Uri.parse(url));
+    _mobileController?.loadRequest(Uri.parse(url));
     FocusManager.instance.primaryFocus?.unfocus();
   }
 
@@ -167,7 +272,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.blueGrey.withOpacity(0.3),
+                color: Colors.blueGrey.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
@@ -187,7 +292,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                     hintText: "Enter URL",
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.1),
+                    fillColor: Colors.white.withValues(alpha: 0.1),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
                       borderSide: BorderSide.none,
@@ -205,7 +310,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              _mobileController.reload();
+              _mobileController?.reload();
             },
           ),
         ],
@@ -213,15 +318,17 @@ class _BrowserScreenState extends State<BrowserScreen> {
       body: Stack(
         children: [
           // WebView - Android/iOS only
-          WebViewWidget(controller: _mobileController),
+          if (_isControllerInitialized && _mobileController != null)
+            WebViewWidget(controller: _mobileController!),
           
           // Progress bar
           if (_isWebViewLoading)
-            const Positioned(
+            Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: LinearProgressIndicator(
+                value: _progress,
                 minHeight: 2,
                 color: Colors.blueAccent,
               ),

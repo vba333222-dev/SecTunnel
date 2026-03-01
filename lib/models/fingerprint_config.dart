@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
 
-part 'fingerprint_config.g.dart';
-
 /// Geolocation configuration
 class GeolocationConfig {
   final double latitude;

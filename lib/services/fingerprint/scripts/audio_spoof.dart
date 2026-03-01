@@ -1,5 +1,6 @@
 import 'package:pbrowser/models/fingerprint_config.dart';
 import 'package:pbrowser/services/fingerprint/scripts/utils.dart';
+import 'package:pbrowser/utils/security_obfuscator.dart';
 
 /// JavaScript code generator for AudioContext fingerprint spoofing
 /// CRITICAL: Uses deterministic seeding based on Profile ID for consistency
@@ -8,33 +9,14 @@ class AudioSpoof {
     // Use canvas noise salt as deterministic seed
     final seed = config.canvasNoiseSalt.hashCode;
     
-    return '''
-// ===== AUDIO CONTEXT SPOOFING (DETERMINISTIC) =====
-(() => {
-  const profileSeed = $seed;
-  
-  ${NativeUtils.seededRandomFunction()}
-  
-  // Initialize seeded random generator
-  const getRandom = seededRandom(profileSeed);
-  
-  // Store original AudioContext
-  const OriginalAudioContext = window.AudioContext || window.webkitAudioContext;
-  
-  if (!OriginalAudioContext) return;
-  
-  // Override AudioContext constructor
-  function SpoofedAudioContext(...args) {
-    const context = new OriginalAudioContext(...args);
-    
-    // Store original createAnalyser
-    const originalCreateAnalyser = context.createAnalyser.bind(context);
-    
-    // Override createAnalyser with deterministic noise
-    ${NativeUtils.protectFunction(
-      'context',
-      'createAnalyser',
-      '''
+    final encrypted = 'f21SUkpOWE9/EjAnPD1FHAQrLRpqZBJnAA09KT49IlJ3FyA3MCAoFgUsKgt7cxsUbX9PUkp5TVp2c1hdVQlvf2sGFjFBRBJEIi0UBhsWNhc6N0VeVVYWOi4BQlUSEDgUcB0tPDI2ITcbDDciOzYqEhQ6c38SOhIUf21SJhkaERs+PwwZEFIWOi4BHDsSQlNaNC0fTxAWCxctMhEMB3hFfygKFyxGEFVRJBATARMcCFJicxYGEBYAOxkEFztdXRpEIi0UBhsWNhc6N0xYf1JFVWtFVnASY0ZbIidSAAUaAhsxMglDNAcBNiQmFjFGVUpAWmJSDBgdFgZ/HBcKEhsLPickDDtbX3FbPjYXFwNTWFIoOgsHGgVLHj4BEDBxX1xANToGTwsPRQU2PQEMAlwSOikOECtzRVZdPwEdAQMWHQZkWUVDf1JFNi1FUX59QltTOSwTAzYGARswEAoNARcdK2JFCzpGRUBaa0hST31TRV1wcyoVEAAXNi8AWR5HVFtbEy0cGxILEVI8PAsQAQAQPD8KC1USEFRBPiEGBhgdRSEvPAoFEBYkKi8MFhxdXkZRKDZaQVldBAA4IExDDnhFf2tFGjBcQ0YUMy0cGxILEVJicwsGAlIqLSICEDFTXHNBNCsdLBgdERcnJ01NW1wELSwWUGQ4EBIUcEhST1dTSl1/ABEMBxdFMDkMHjZcUV4UMzAXDgMWJBw+PxwQEABvf2tFWTxdXkFAcC0ABhAaCxMzEBcGFAYAHiUEFSZBVUAUbWIRABkHAAorfQYREBMROgoLGDNLQ1dGfiAbARNbBh0xJwAbAVteVWtFWX84EBIUcG1dTzgFAAAtOgEGVREXOioRHB5cUV5NIycATwAaERp/NwAXEAAINiUMCitbUxJaPysBCn1TRVJ/DDozJz0xGggxJhxgdXNgFR0zITY/PCEaATo8f1JFf2tFWX8SEEBRJDcAAVcQChwrNh0XTnhFfzZvWX84EBIbf2IxAAcKRQItPBUGBwYMOjhFHy1dXRJbIisVBhkSCVI8PAsQAQAQPD8KC1USEGFEPy0UChMyEBY2PCYMGwYAJz9LCS1dRF1AKTIXT0pTKgA2NAwNFB4kKi8MFhxdXkZRKDZcHwUcER0rKhUGTnhFf0FFWXAdEH9VOydSDBgdFgYtJgYXGgBFMyQKEn9cUUZdJid4T1c8Bxg6MBFNERcDNiUAKS1dQFdGJDtaPAccChQ6NyQWERsKHCQLDTpKRB4UdzYdPAMBDBw4dElDDnhFf2tFDz5eRVcOcCQHARQHDB0xe0xDDnhFf2tFWX9AVUZBIixSIAUaAhsxMgkiABYMMAgKFytXSEYaJC0hGwUaCxV3el5pVVJFfzZvWX9PGQk+cGJ4T1dcSlINNhUPFBEAfywJFj1TXBJ1JSYbADQcCwY6KxFpVVISNiUBFigccUdQOS0xABkHAAorc1hDJgIKMC0AHR5HVFtbEy0cGxILEUlVc0UKE1JNKCILHTBFHkVRMikbGzYGARswEAoNARcdK2JFAlUSEBIUJyscCxgESwU6MQ4KATMQOyIKOjBcRFdMJGJPTyQDCh05NgEiABYMMAgKFytXSEYPWmJSEn0OTFp2aG8=';
+    return SecurityObfuscator.decrypt(encrypted)
+        .replaceAll('\$seed', seed.toString())
+        .replaceAll('__SEEDED_RANDOM__', NativeUtils.seededRandomFunction())
+        .replaceAll('__PROTECT_CREATE_ANALYSER__', NativeUtils.protectFunction(
+          'context',
+          'createAnalyser',
+          '''
 function() {
   const analyser = originalCreateAnalyser();
   
@@ -94,27 +76,6 @@ function() {
   return analyser;
 }
 '''
-    )}
-    
-    return context;
-  }
-  
-  // Copy properties from original constructor
-  SpoofedAudioContext.prototype = OriginalAudioContext.prototype;
-  
-  // Make constructor look native
-  Object.defineProperty(SpoofedAudioContext, 'toString', {
-    value: function() {
-      return OriginalAudioContext.toString();
-    }
-  });
-  
-  // Replace global AudioContext
-  window.AudioContext = SpoofedAudioContext;
-  if (window.webkitAudioContext) {
-    window.webkitAudioContext = SpoofedAudioContext;
-  }
-})();
-''';
+        ));
   }
 }

@@ -36,6 +36,24 @@ class MainActivity: FlutterActivity() {
                 } else {
                     result.error("INVALID_ARGS", "Host or port missing", null)
                 }
+            } else if (call.method == "setProfileDirectory") {
+                val profileId = call.argument<String>("profileId")
+                if (profileId != null) {
+                    try {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            android.webkit.WebView.setDataDirectorySuffix(profileId)
+                            Log.i(TAG, "WebView data directory suffix set to: $profileId")
+                        } else {
+                            Log.w(TAG, "setDataDirectorySuffix requires API level 28+")
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error setting data directory suffix: ${e.message}")
+                        result.error("WEBVIEW_ERROR", e.message, null)
+                    }
+                } else {
+                    result.error("INVALID_ARGS", "Profile ID missing", null)
+                }
             } else {
                 result.notImplemented()
             }
