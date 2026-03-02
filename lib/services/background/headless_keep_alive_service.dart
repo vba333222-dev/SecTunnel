@@ -111,6 +111,21 @@ class HeadlessKeepAliveService {
   }
 
   static Future<bool> startHeadlessSession(String profileId, String profileName) async {
+    // Check and request Notification Permission for Android 13+
+    final NotificationPermission notificationPermissionStatus =
+        await FlutterForegroundTask.checkNotificationPermission();
+    if (notificationPermissionStatus != NotificationPermission.granted) {
+      await FlutterForegroundTask.requestNotificationPermission();
+    }
+
+    // Check and request Battery Optimization Exception
+    // Crucial for long-running headless WebViews on Android
+    final bool isIgnoring = await FlutterForegroundTask.isIgnoringBatteryOptimizations;
+    if (!isIgnoring) {
+      debugPrint('[KeepAlive] Requesting ignore battery optimization...');
+      await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+    }
+
     if (await FlutterForegroundTask.isRunningService) {
       return true;
     }
