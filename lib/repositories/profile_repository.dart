@@ -43,6 +43,36 @@ class ProfileRepository {
     }
   }
   
+  /// Duplicates a profile with a new ID and isolated data folder.
+  Future<void> duplicateProfile(BrowserProfile original) async {
+    final newId = generateProfileId();
+    final newFolder = await generateUserDataPath(newId);
+    
+    final clone = original.copyWith(
+      id: newId,
+      name: '${original.name} (Copy)',
+      userDataFolder: newFolder,
+      createdAt: DateTime.now(),
+      lastUsedAt: DateTime.now(),
+    );
+    
+    await createProfile(clone);
+  }
+
+  /// Completely clears the profile's local storage/cookies/session data
+  /// while preserving the database record and configuration.
+  Future<void> clearProfileSession(String id) async {
+    final profile = await _profileDao.getProfileById(id);
+    if (profile != null) {
+      final folder = Directory(profile.userDataFolder);
+      if (await folder.exists()) {
+        await folder.delete(recursive: true);
+        // Recreate empty folder immediately to prevent launch errors
+        await folder.create(recursive: true);
+      }
+    }
+  }
+  
   Future<void> markAsUsed(String id) => _profileDao.updateLastUsed(id);
   
   /// Generate user data folder path for a profile

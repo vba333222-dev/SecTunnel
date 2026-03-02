@@ -18,7 +18,11 @@ import 'package:pbrowser/services/background/headless_keep_alive_service.dart';
 import 'package:pbrowser/services/analytics/privacy_crash_reporter.dart';
 
 // UI
-import 'package:pbrowser/ui/dashboard/dashboard_screen.dart';
+import 'package:pbrowser/ui/splash/splash_screen.dart';
+import 'package:pbrowser/ui/shared/global_task_overlay.dart';
+
+// Services
+import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -95,6 +99,9 @@ class PBrowserApp extends StatelessWidget {
       providers: [
         Provider<ProfileRepository>.value(value: profileRepository),
         Provider<UserScriptService>.value(value: userScriptService),
+        ChangeNotifierProvider<ModemRotatorService>(
+          create: (_) => ModemRotatorService(),
+        ),
       ],
       child: MaterialApp(
         title: 'PBrowser',
@@ -112,7 +119,12 @@ class PBrowserApp extends StatelessWidget {
             elevation: 0,
           ),
         ),
-        home: DashboardScreen(repository: profileRepository),
+        builder: (context, child) {
+          return GlobalTaskOverlay(
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
+        home: const SplashScreen(),
       ),
     );
   }

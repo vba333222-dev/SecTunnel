@@ -14,6 +14,7 @@ class BrowserProfiles extends Table {
   IntColumn get proxyPort => integer().nullable()();
   TextColumn get proxyUsername => text().nullable()();
   TextColumn get proxyPassword => text().nullable()();
+  TextColumn get proxyRotationUrl => text().nullable()();
   
   // Fingerprint configuration (stored as JSON)
   TextColumn get fingerprintJson => text()();
@@ -27,6 +28,9 @@ class BrowserProfiles extends Table {
   // Metadata
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get lastUsedAt => dateTime()();
+
+  // Tags (stored as JSON array string, e.g. '["Airdrop","BCA"]')
+  TextColumn get tagsJson => text().nullable()();
   
   @override
   Set<Column> get primaryKey => {id};
@@ -80,9 +84,11 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'CREATE INDEX idx_userscripts_profile ON user_scripts(profile_id)'
         );
+        await m.addColumn(browserProfiles, browserProfiles.proxyRotationUrl);
       }
       if (from < 3) {
         await m.addColumn(browserProfiles, browserProfiles.keepAliveEnabled);
+        await m.addColumn(browserProfiles, browserProfiles.tagsJson);
       }
     },
   );

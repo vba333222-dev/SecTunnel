@@ -1,7 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 
 /// SOCKS5 Protocol Handler
 /// Implements SOCKS5 proxy protocol for connecting to SOCKS5 proxies
@@ -46,8 +46,7 @@ class SOCKS5Handler {
       _relayData(clientSocket, upstreamSocket);
       
     } catch (e) {
-      debugPrint('[SOCKS5] Error: $e'); // Replaced multiple prints
-
+      debugPrint('[SOCKS5] Error: $e');
       _closeConnections(clientSocket, upstreamSocket);
     }
   }

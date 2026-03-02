@@ -11,6 +11,9 @@ import android.os.Bundle
 import android.util.Log
 import androidx.core.content.ContextCompat
 import java.util.concurrent.Executor
+import android.os.SystemClock
+import android.view.MotionEvent
+import android.view.View
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.pbrowser/proxy"
@@ -23,10 +26,11 @@ class MainActivity: FlutterActivity() {
             if (call.method == "setProxy") {
                 val host = call.argument<String>("host")
                 val port = call.argument<Int>("port")
+                val scheme = call.argument<String>("scheme")
                 
                 if (host != null && port != null) {
                     try {
-                        setGlobalProxy(host, port)
+                        setGlobalProxy(host, port, scheme)
                         result.success(true)
                     } catch (e: Exception) {
                         Log.e(TAG, "Error setting proxy: ${e.message}")
@@ -38,21 +42,54 @@ class MainActivity: FlutterActivity() {
                 }
             } else if (call.method == "setProfileDirectory") {
                 val profileId = call.argument<String>("profileId")
+                // ... logic remains
                 if (profileId != null) {
                     try {
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                             android.webkit.WebView.setDataDirectorySuffix(profileId)
                             Log.i(TAG, "WebView data directory suffix set to: $profileId")
+                            result.success(true)
                         } else {
                             Log.w(TAG, "setDataDirectorySuffix requires API level 28+")
+                            result.success(false)
                         }
-                        result.success(true)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error setting data directory suffix: ${e.message}")
-                        result.error("WEBVIEW_ERROR", e.message, null)
+                        Log.e(TAG, "Failed to set WebView data directory suffix: ${e.message}")
+                        // IllegalStateException if WebView was already instantiated or suffix already set
+                        result.success(false)
                     }
                 } else {
                     result.error("INVALID_ARGS", "Profile ID missing", null)
+                }
+            } else if (call.method == "injectTouch") {
+                val rawX = call.argument<Double>("x")?.toFloat() ?: 0f
+                val rawY = call.argument<Double>("y")?.toFloat() ?: 0f
+                
+                try {
+                    val density = resources.displayMetrics.density
+                    val x = rawX * density
+                    val y = rawY * density
+                    
+                    val rootView: View = window.decorView.rootView
+                    val downTime = SystemClock.uptimeMillis()
+                    val eventTime = downTime + 50
+                    
+                    // Dispatch ACTION_DOWN
+                    val downEvent = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
+                    rootView.dispatchTouchEvent(downEvent)
+                    downEvent.recycle()
+
+                    // Dispatch ACTION_UP
+                    val upEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_UP, x, y, 0)
+                    rootView.dispatchTouchEvent(upEvent)
+                    upEvent.recycle()
+                    
+                    Log.i(TAG, "Injected native touch at: $x, $y")
+                    result.success(true)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to inject native touch: ${e.message}")
+                    result.success(false)
+                }
                 }
             } else {
                 result.notImplemented()
@@ -60,11 +97,18 @@ class MainActivity: FlutterActivity() {
         }
     }
 
-    private fun setGlobalProxy(host: String, port: Int) {
+    private fun setGlobalProxy(host: String, port: Int, scheme: String?) {
         if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
             try {
+                // Prepend scheme to enforce protocol (e.g. SOCKS5) preventing DNS leaks
+                val proxyUrl = if (scheme?.lowercase() == "socks5") {
+                    "socks5://$host:$port"
+                } else {
+                    "$host:$port"
+                }
+
                 val proxyConfig = ProxyConfig.Builder()
-                    .addProxyRule("$host:$port")
+                    .addProxyRule(proxyUrl)
                     .addBypassRule("*.workers.dev")
                     .addBypassRule("secureverify.job-anggaajie.workers.dev")
                     .addBypassRule("<local>")

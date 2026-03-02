@@ -3,6 +3,67 @@ import 'package:pbrowser/utils/security_obfuscator.dart';
 /// JavaScript utility functions for native function cloaking
 /// This prevents detection via toString() and other introspection methods
 class NativeUtils {
+  /// Defines a global cloak helper early on, so all subsequent script modules
+  /// can wrap their spoofed getters/methods to look like native code.
+  static String initCloaking() {
+    return '''
+// Initialize Cloaking Infrastructure
+(() => {
+  const fns = new WeakMap();
+  const originalToString = Function.prototype.toString;
+  
+  const spoofToString = function() {
+    if (fns.has(this)) {
+      return fns.get(this);
+    }
+    return originalToString.call(this);
+  };
+  
+  // Cloak the toString itself
+  fns.set(spoofToString, originalToString.call(originalToString));
+  
+  // Replace the global toString
+  Function.prototype.toString = spoofToString;
+  
+  // Define cloak helper
+  const __pbrowser_cloak = function(fn, nativeStr) {
+    let fnName = '';
+    if (fn && typeof fn.name === 'string') {
+        fnName = fn.name;
+    }
+    const str = nativeStr || `function \${fnName}() { [native code] }`;
+    fns.set(fn, str);
+    return fn;
+  };
+
+  // Expose it to the IIFE scope
+  self.__pbrowser_cloak = __pbrowser_cloak;
+})();
+''';
+  }
+
+  /// Mixes a per-session random salt so the same profile differs slightly across visits
+  static String initSessionEntropy(int profileSeed) {
+    return '''
+// Session-level entropy mix
+(() => {
+  try {
+    const _STORAGE_KEY = '__pbr_ss_' + $profileSeed;
+    let sessionSalt = parseInt(sessionStorage.getItem(_STORAGE_KEY) || '0', 10);
+    if (!sessionSalt || isNaN(sessionSalt)) {
+      const _arr = new Uint32Array(1);
+      crypto.getRandomValues(_arr);
+      sessionSalt = _arr[0] & 0x0000FFFF;
+      try { sessionStorage.setItem(_STORAGE_KEY, String(sessionSalt)); } catch(e) {}
+    }
+    self.__pbr_session_salt = sessionSalt;
+  } catch(e) {
+    self.__pbr_session_salt = 0;
+  }
+})();
+''';
+  }
+
   /// Wraps a function to make it appear as native code
   /// Usage: wrapNative(myFunction, 'functionName')
   static String wrapAsNative(String functionBody, String functionName) {

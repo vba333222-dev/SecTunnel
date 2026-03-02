@@ -13,8 +13,10 @@ dependencies:
   
   # UI
   cupertino_icons: ^1.0.6
+  shimmer: ^3.0.0
   
   # WebView
+  flutter_inappwebview: ^6.1.5
   webview_flutter: ^4.13.0
   webview_flutter_android: ^4.10.11
   webview_flutter_wkwebview: ^3.23.0
@@ -38,6 +40,8 @@ dependencies:
   flutter_foreground_task: ^9.2.0
   sqlcipher_flutter_libs: ^0.7.0+eol
   flutter_secure_storage: ^10.0.0
+  animations: ^2.1.1
+  lottie: ^3.3.2
 
 dev_dependencies:
   flutter_test:
@@ -55,6 +59,7 @@ flutter:
   
   assets:
     - assets/images/
+    - assets/lottie/
 
 flutter_launcher_icons:
   android: "launcher_icon"

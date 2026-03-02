@@ -5,6 +5,33 @@ import 'package:pbrowser/services/fingerprint/scripts/webgl_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/webrtc_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/audio_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/timezone_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/battery_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/font_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/webview_scrubber.dart';
+import 'package:pbrowser/services/fingerprint/scripts/domrect_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/hardware_sensor_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/media_devices_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/worker_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/window_metrics_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/matchmedia_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/hardware_api_polyfill.dart';
+import 'package:pbrowser/services/fingerprint/scripts/timing_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/uach_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/speech_synthesis_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/network_info_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/font_metrics_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/media_codec_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/storage_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/screen_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/error_stack_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/geolocation_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/keyboard_api_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/service_worker_guard.dart';
+import 'package:pbrowser/services/fingerprint/scripts/iframe_sandbox_guard.dart';
+import 'package:pbrowser/services/fingerprint/scripts/scrollbar_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/css_metrics_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/navigator_keys_spoof.dart';
+import 'package:pbrowser/services/fingerprint/scripts/intl_api_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/utils.dart';
 
 /// Orchestrates all fingerprint spoofing scripts
@@ -20,15 +47,82 @@ class FingerprintInjector {
   /// Generate complete injection script with native cloaking
   String generateInjectionScript() {
     return '''
-(function() {
+// === CORE ANTI-DETECT WRAPPER ===
+// Everything is wrapped in a secure IIFE to prevent global namespace pollution
+(function(window) {
   'use strict';
   
-  // Prevent re-injection
-  if (window.__pbrowser_injected) return;
-  window.__pbrowser_injected = true;
+  // Prevent re-injection using a non-enumerable symbol or hidden property
+  if (window.__pbrowser_injected_secure) return;
+  Object.defineProperty(window, '__pbrowser_injected_secure', {
+      value: true, enumerable: false, configurable: false, writable: false
+  });
+  
+  // Initialize internal cloaking BEFORE any spoofing runs
+  ${NativeUtils.initCloaking()}
+
+  // L-1: Session-level entropy — same profile fingerprint differs slightly each session
+  ${NativeUtils.initSessionEntropy(config.canvasNoiseSalt.hashCode.abs())}
+
+  // L-3 guard: if cloak failed for any reason, abort rather than crash all modules
+  if (typeof self.__pbrowser_cloak !== 'function') return;
+  
+  // Wipe out Android/Flutter WebView leaks immediately
+  ${WebviewScrubber.generate(config)}
   
   // Install all spoofing modules with native cloaking
   ${NavigatorSpoof.generate(config)}
+
+  // Align navigator.userAgentData (UA-CH API) with spoofed userAgent
+  ${UACHSpoof.generate(config)}
+
+  // Add navigator.keyboard Desktop stub (absent on Android WebView)
+  ${KeyboardApiSpoof.generate(config)}
+
+  // Spoof Web Speech API voice list to match OS TTS engine
+  ${SpeechSynthesisSpoof.generate(config)}
+
+  // Strip mobile-only NetworkInformation properties (.type/.saveData)
+  ${NetworkInfoSpoof.generate(config)}
+
+  // Mask Android Roboto kerning via deterministc font metric deltas
+  ${FontMetricsSpoof.generate(config)}
+
+  // Enforce Desktop codec capability table (canPlayType / isTypeSupported)
+  ${MediaCodecSpoof.generate(config)}
+
+  // Inject File Picker API stubs and spoof storage quota
+  ${StorageSpoof.generate(config)}
+
+  // Normalize screen color/pixel depth and dimensions (M-1 fix)
+  ${ScreenSpoof.generate(config)}
+
+  // Normalize Error.prototype.stack format to Chrome Desktop (H-2 fix)
+  ${ErrorStackSpoof.generate(config)}
+  
+  // Conditionally strip mobile-only APIs for Desktop profiles
+  ${HardwareSensorSpoof.generate(config)}
+
+  // Spoof Geolocation API to return timezone-consistent coordinates
+  ${GeolocationSpoof.generate(config)}
+  
+  // Spoof media device enumeration with deterministic desktop hardware IDs
+  ${MediaDevicesSpoof.generate(config)}
+  
+  // Shield Worker/SharedWorker sandboxes from leaking real navigator values
+  ${WorkerSpoof.generate(config)}
+
+  // Fix window frame metrics: outerWidth > innerWidth (desktop browser chrome)
+  ${WindowMetricsSpoof.generate(config)}
+
+  // Spoof CSS pointer/hover media queries to match Desktop input model
+  ${MatchMediaSpoof.generate(config)}
+
+  // Inject Desktop hardware API stubs (USB, Bluetooth, HID, Serial, Keyboard)
+  ${HardwareApiPolyfill.generate(config)}
+
+  // Fuzz timing APIs to defeat Proxy-overhead timing comparison attacks
+  ${TimingSpoof.generate(config)}
   
   ${CanvasSpoof.generate(config)}
   
@@ -38,29 +132,88 @@ class FingerprintInjector {
   
   ${AudioSpoof.generate(config)}
   
+  ${IntlApiSpoof.generate(config)}
+  
   ${TimezoneSpoof.generate(config)}
   
+  ${BatterySpoof.generate(config)}
+  
+  ${FontSpoof.generate(config)}
+
+  ${DOMRectSpoof.generate(config)}
+
+  ${ScrollbarSpoof.generate(config)}
+  
+  // Cloak Android WebView specific CSS capabilities (-webkit-tap-highlight-color)
+  ${CSSMetricsSpoof.generate(config)}
+
+  // scrollX / scrollY non-zero: fresh WebView always starts at 0,0 — a detection signal
+  // Spoof to a plausible small scroll offset that looks like the user has scrolled a bit
+  (() => {
+    try {
+      const _seed   = ${config.canvasNoiseSalt.hashCode.abs()};
+      const _scrollX = 0;             // Usually 0 horizontally on Desktop
+      const _scrollY = 4 + (_seed % 15); // 4–18 px — natural page entry scroll
+      const _defWinProp = (prop, val) => {
+        try {
+          Object.defineProperty(window, prop, {
+            get: function() { return val; }, configurable: true, enumerable: true
+          });
+        } catch(e) {}
+      };
+      _defWinProp('scrollX', _scrollX);
+      _defWinProp('scrollY', _scrollY);
+      _defWinProp('pageXOffset', _scrollX);
+      _defWinProp('pageYOffset', _scrollY);
+    } catch(e) {}
+  })();
+  
+  // --- Iframe Context Shield (contentWindow & contentDocument Eager Injection) ---
+  // Prevents trackers from creating an about:blank iframe and reading its raw .navigator
+  ${IframeSandboxGuard.generate(config)}
+  
+  // Protect Service Worker scope from real navigator leaks (H-1 fix)
+  ${ServiceWorkerGuard.generate(config)}
+
+  // Lock the property iteration order for pure Desktop imitation
+  ${NavigatorKeysSpoof.generate(config)}
+
   // Final protection layer
   ${NativeUtils.preventNavigatorDetection()}
-  
-  console.log('[PBrowser] 🛡️ Fingerprint protection active (hardened)');
-})();
+
+})(window);
 ''';
   }
   
   /// Generate minimal metadata override (faster for non-critical pages)
   String generateLightweightScript() {
     return '''
-(function() {
+// === LIGHTWEIGHT ANTI-DETECT WRAPPER ===
+(function(window) {
   'use strict';
   
-  if (window.__pbrowser_injected) return;
-  window.__pbrowser_injected = true;
+  if (window.__pbrowser_injected_secure) return;
+  Object.defineProperty(window, '__pbrowser_injected_secure', {
+      value: true, enumerable: false, configurable: false, writable: false
+  });
   
+  ${NativeUtils.initCloaking()}
+  if (typeof self.__pbrowser_cloak !== 'function') return;
+
+  // Core identity spoof
   ${NavigatorSpoof.generate(config)}
-  
+  // UA-CH alignment
+  ${UACHSpoof.generate(config)}
+  // WebRTC leak prevention (critical even on light pages)
   ${WebRTCSpoof.generate(config)}
-})();
+  // Timing API precision reduction
+  ${TimingSpoof.generate(config)}
+  // Storage quota (some light pages probe this)
+  ${StorageSpoof.generate(config)}
+  // Permissions API hardening
+  // (prevents TypeError on desktop-only permission queries)
+  // Already included in NavigatorSpoof
+})(window);
 ''';
   }
 }

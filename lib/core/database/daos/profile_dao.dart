@@ -49,11 +49,13 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
         proxyPort: Value(profile.proxyConfig.port),
         proxyUsername: Value(profile.proxyConfig.username),
         proxyPassword: Value(profile.proxyConfig.password),
+        proxyRotationUrl: Value(profile.proxyConfig.rotationUrl),
         fingerprintJson: profile.fingerprintConfig.toJsonString(),
         userDataFolder: profile.userDataFolder,
         keepAliveEnabled: Value(profile.keepAliveEnabled),
         createdAt: profile.createdAt,
         lastUsedAt: profile.lastUsedAt,
+        tagsJson: Value(profile.tags.isEmpty ? null : profile.tagsString),
       ),
     );
   }
@@ -69,10 +71,12 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
         proxyPort: Value(profile.proxyConfig.port),
         proxyUsername: Value(profile.proxyConfig.username),
         proxyPassword: Value(profile.proxyConfig.password),
+        proxyRotationUrl: Value(profile.proxyConfig.rotationUrl),
         fingerprintJson: Value(profile.fingerprintConfig.toJsonString()),
         userDataFolder: Value(profile.userDataFolder),
         keepAliveEnabled: Value(profile.keepAliveEnabled),
         lastUsedAt: Value(profile.lastUsedAt),
+        tagsJson: Value(profile.tags.isEmpty ? null : profile.tagsString),
       ),
     );
   }
@@ -101,12 +105,14 @@ class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
         port: row.proxyPort,
         username: row.proxyUsername,
         password: row.proxyPassword,
+        rotationUrl: row.proxyRotationUrl,
       ),
       fingerprintConfig: FingerprintConfig.fromJsonString(row.fingerprintJson),
       userDataFolder: row.userDataFolder,
       keepAliveEnabled: row.keepAliveEnabled,
       createdAt: row.createdAt,
       lastUsedAt: row.lastUsedAt,
+      tags: model.BrowserProfile.parseTags(row.tagsJson),
     );
   }
 }
