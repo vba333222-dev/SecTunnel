@@ -8,7 +8,9 @@ import 'package:pbrowser/services/proxy/mobile_proxy_service.dart';
 import 'package:pbrowser/ui/profile/profile_form_screen.dart';
 import 'package:pbrowser/ui/browser/browser_screen.dart';
 import 'package:pbrowser/ui/dashboard/widgets/profile_card.dart';
-import 'package:pbrowser/ui/shared/skeleton_card.dart';
+import 'package:pbrowser/ui/shared/command_palette_widget.dart';
+import 'package:pbrowser/ui/profile/user_scripts_screen.dart';
+import 'package:pbrowser/services/browser/userscript_service.dart';
 import 'package:animations/animations.dart';
 import 'package:provider/provider.dart';
 import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
@@ -28,10 +30,10 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
-  // ── Search ────────────────────────────────────────────
+  // ── Search & Command Palette ────────────────────────
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
-  bool _showSearch = false;
   String? _selectedTag;
 
   // ── Selection ─────────────────────────────────────────
@@ -39,7 +41,16 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool get _isSelecting => _selectedIds.isNotEmpty;
 
   @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(() {
+      setState(() {}); // Re-render when focus changes for overlay
+    });
+  }
+
+  @override
   void dispose() {
+    _searchFocusNode.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -53,13 +64,23 @@ class _DashboardScreenState extends State<DashboardScreen>
       filtered = filtered.where((p) => p.tags.contains(_selectedTag)).toList(growable: false);
     }
 
-    // Search query filter
+    // Search query filter (applies across all tabs)
     final q = _searchQuery.trim().toLowerCase();
     if (q.isNotEmpty) {
       filtered = filtered.where((p) => p.name.toLowerCase().contains(q)).toList(growable: false);
     }
     
     return filtered;
+  }
+
+  // Helper to extract unique tabs from all profiles
+  List<String> _extractTabs(List<BrowserProfile> profiles) {
+    final tags = <String>{};
+    for (var p in profiles) {
+      tags.addAll(p.tags);
+    }
+    final sortedTags = tags.toList()..sort();
+    return ['All', ...sortedTags];
   }
 
   // ── Selection helpers ─────────────────────────────────
@@ -436,300 +457,311 @@ class _DashboardScreenState extends State<DashboardScreen>
         stream: widget.repository.watchAllProfiles(),
         builder: (context, snapshot) {
           final allProfiles = snapshot.data ?? [];
-          final filtered = _applyFilter(allProfiles);
           final isLoading = !snapshot.hasData;
 
-          return CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // ── AppBar (normal ↔ Contextual Action Bar) ─
-              SliverAppBar(
-                pinned: true,
-                floating: true,
-                backgroundColor: const Color(0xFF141420),
-                surfaceTintColor: Colors.transparent,
-                expandedHeight: (_showSearch && !_isSelecting) ? 110 : 64,
-                // AnimatedSwitcher slides between Normal ↔ CAB
-                title: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 280),
-                  transitionBuilder: (child, anim) => SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, -0.5),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(
-                        parent: anim, curve: Curves.easeOutCubic)),
-                    child: FadeTransition(opacity: anim, child: child),
+          // Build our dynamic tabs based on all available profiles
+          final tabs = _extractTabs(allProfiles);
+
+          // If no data, show loading state immediately
+          if (isLoading) {
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.tealAccent),
+            );
+          }
+
+          return DefaultTabController(
+            length: tabs.length,
+            child: NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                return [
+                  // ── AppBar (normal ↔ Contextual Action Bar) ─
+                  SliverAppBar(
+                    pinned: true,
+                    floating: true,
+                    backgroundColor: const Color(0xFF141420),
+                    surfaceTintColor: Colors.transparent,
+                    expandedHeight: 70,
+                    // AnimatedSwitcher slides between Normal ↔ CAB
+                    title: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 280),
+                      transitionBuilder: (child, anim) => SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, -0.5),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                            parent: anim, curve: Curves.easeOutCubic)),
+                        child: FadeTransition(opacity: anim, child: child),
+                      ),
+                      child: _isSelecting
+                          ? _ContextualActionBar(
+                              key: const ValueKey('cab'),
+                              selectedCount: _selectedIds.length,
+                              totalCount: allProfiles.length, // total changes based on tab context usually, but global is fine here
+                              allSelected:
+                                  _selectedIds.length == allProfiles.length,
+                              hasRotatable: allProfiles.any((p) =>
+                                  _selectedIds.contains(p.id) &&
+                                  (p.proxyConfig.rotationUrl?.isNotEmpty ??
+                                      false)),
+                              onClose: _clearSelection,
+                              onSelectAll: () => _selectedIds.length ==
+                                      allProfiles.length
+                                  ? _clearSelection()
+                                  : _selectAll(allProfiles),
+                              onDelete: () => _bulkDelete(allProfiles),
+                              onRotateIp: () => _bulkRotateIp(allProfiles),
+                              onLaunch: () => _bulkLaunch(allProfiles),
+                            )
+                          : CommandPaletteBar(
+                              key: const ValueKey('normal'),
+                              controller: _searchController,
+                              focusNode: _searchFocusNode,
+                              onClear: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                                _searchFocusNode.unfocus();
+                              },
+                              onChanged: (v) => setState(() => _searchQuery = v),
+                              onSubmitted: (v) => _handleCommandSubmitted(v, _applyFilter(allProfiles), allProfiles),
+                              profileCount: isLoading ? null : allProfiles.length,
+                            ),
+                    ),
+                    // Hide default leading in selection mode
+                    leading: _isSelecting ? const SizedBox.shrink() : null,
+                    automaticallyImplyLeading: false,
                   ),
-                  child: _isSelecting
-                      ? _ContextualActionBar(
-                          key: const ValueKey('cab'),
-                          selectedCount: _selectedIds.length,
-                          totalCount: filtered.length,
-                          allSelected:
-                              _selectedIds.length == filtered.length,
-                          hasRotatable: filtered.any((p) =>
-                              _selectedIds.contains(p.id) &&
-                              (p.proxyConfig.rotationUrl?.isNotEmpty ??
-                                  false)),
-                          onClose: _clearSelection,
-                          onSelectAll: () => _selectedIds.length ==
-                                  filtered.length
-                              ? _clearSelection()
-                              : _selectAll(filtered),
-                          onDelete: () => _bulkDelete(allProfiles),
-                          onRotateIp: () => _bulkRotateIp(allProfiles),
-                          onLaunch: () => _bulkLaunch(allProfiles),
-                        )
-                      : _NormalBar(
-                          key: const ValueKey('normal'),
-                          profileCount:
-                              isLoading ? null : allProfiles.length,
-                          showSearch: _showSearch,
-                          searchController: _searchController,
-                          onSearchChanged: (v) =>
-                              setState(() => _searchQuery = v),
-                          onSearchClose: () => setState(() {
-                            _showSearch = false;
-                            _searchQuery = '';
-                            _searchController.clear();
-                          }),
-                          onSearchOpen: () =>
-                              setState(() => _showSearch = true),
-                          onExportLogs: () => _exportLogs(context),
+
+                  // ── Tab Bar ──────────────────────────────
+                  if (!_isSelecting && (!(_searchFocusNode.hasFocus || _searchQuery.isNotEmpty)))
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _SliverTabBarDelegate(
+                        TabBar(
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          dividerColor: Colors.transparent,
+                          indicatorColor: Colors.tealAccent,
+                          indicatorWeight: 3,
+                          indicatorSize: TabBarIndicatorSize.label,
+                          labelColor: Colors.tealAccent,
+                          unselectedLabelColor: Colors.white54,
+                          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                          splashFactory: NoSplash.splashFactory,
+                          overlayColor: WidgetStateProperty.all(Colors.transparent),
+                          // Optional padding around the entire TabBar
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          tabs: tabs.map((tab) => Tab(text: tab)).toList(),
+                          onTap: (index) {
+                            // Clear selection when changing tabs to prevent mass-actions on invisible profiles
+                            if (_isSelecting) _clearSelection();
+                          },
                         ),
-                ),
-                // Hide default leading in selection mode
-                leading: _isSelecting ? const SizedBox.shrink() : null,
-                automaticallyImplyLeading: false,
-              ),
+                      ),
+                    ),
+                ];
+              },
+              
+              // ── Body / Tab Views ──────────────────────────────
+              body: (_searchFocusNode.hasFocus || _searchQuery.isNotEmpty) && !_isSelecting
+                ? CommandPaletteOverlay(
+                    query: _searchQuery,
+                    profileResults: _applyFilter(allProfiles),
+                    onCommandSelected: (type) => _handleCommandAction(type, allProfiles),
+                    onProfileLaunch: (profile) {
+                      _searchFocusNode.unfocus();
+                      _launchBrowser(profile);
+                    },
+                  )
+                : allProfiles.isEmpty
+                  ? _PremiumEmptyState(onCreateProfile: _createNewProfile)
+                  : TabBarView(
+                      children: tabs.map((tab) {
+                        // Filter profiles for this specific tab
+                        List<BrowserProfile> tabProfiles = allProfiles;
+                        if (tab != 'All') {
+                          tabProfiles = tabProfiles.where((p) => p.tags.contains(tab)).toList(growable: false);
+                        }
+                        
+                        // Apply active search query filter over the top of the tab filter
+                        final filteredForTab = _applyFilter(tabProfiles);
 
-              // ── Horizontal Tag Filter Bar ──────────────
-              if (allProfiles.isNotEmpty && !_isSelecting)
-                SliverToBoxAdapter(
-                  child: _TagFilterBar(
-                    profiles: allProfiles,
-                    selectedTag: _selectedTag,
-                    onTagSelected: (tag) => setState(() {
-                      _selectedTag = tag;
-                      _clearSelection();
-                    }),
-                  ),
-                ),
+                        if (filteredForTab.isEmpty) {
+                           return _EmptyState(
+                             icon: Icons.folder_open_rounded,
+                             title: 'Empty Workspace',
+                             subtitle: tab == 'All' ? 'No profiles found.' : 'No profiles found in "$tab".',
+                             onAction: _createNewProfile,
+                             actionLabel: 'Create Profile',
+                           );
+                        }
 
-              // ── Content ────────────────────────────────
-              if (isLoading)
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  sliver: SliverLayoutBuilder(
-                    builder: (context, constraints) {
-                      final isNarrow = constraints.crossAxisExtent < 600;
-                      if (isNarrow) {
-                        return SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (_, __) => const Padding(
-                              padding: EdgeInsets.only(bottom: 12),
-                              child: SizedBox(
-                                height: 190,
-                                child: SkeletonCard(),
+                        // Use a dedicated ScrollView for each tab
+                        return CustomScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          slivers: [
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                              sliver: SliverLayoutBuilder(
+                                builder: (context, constraints) {
+                                  final isNarrow = constraints.crossAxisExtent < 600;
+                                  if (isNarrow) {
+                                    return SliverList(
+                                      delegate: SliverChildBuilderDelegate(
+                                        (context, index) {
+                                          final profile = filteredForTab[index];
+                                          return Padding(
+                                            padding: const EdgeInsets.only(bottom: 12),
+                                            child: SizedBox(
+                                              height: 190,
+                                              child: _buildCard(profile),
+                                            ),
+                                          );
+                                        },
+                                        childCount: filteredForTab.length,
+                                      ),
+                                    );
+                                  } else {
+                                    return SliverGrid(
+                                      gridDelegate:
+                                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                                        maxCrossAxisExtent: 400,
+                                        mainAxisExtent: 190,
+                                        crossAxisSpacing: 12,
+                                        mainAxisSpacing: 12,
+                                      ),
+                                      delegate: SliverChildBuilderDelegate(
+                                        (context, index) =>
+                                            _buildCard(filteredForTab[index]),
+                                        childCount: filteredForTab.length,
+                                        addRepaintBoundaries: false,
+                                      ),
+                                    );
+                                  }
+                                },
                               ),
                             ),
-                            childCount: 6,
-                          ),
+                          ],
                         );
-                      } else {
-                        return SliverGrid(
-                          gridDelegate:
-                              const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 400, // Wider for tablets
-                            mainAxisExtent: 190,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (_, __) => const SkeletonCard(),
-                            childCount: 6,
-                            addRepaintBoundaries: false,
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                )
-              else if (allProfiles.isEmpty)
-                SliverFillRemaining(
-                  child: _PremiumEmptyState(onCreateProfile: _createNewProfile),
-                )
-              else if (filtered.isEmpty)
-                SliverFillRemaining(
-                  child: _EmptyState(
-                    icon: Icons.search_off_rounded,
-                    title: 'No Results',
-                    subtitle:
-                        'No profiles match "${_searchController.text.trim()}"',
-                    onAction: () => setState(() {
-                      _searchQuery = '';
-                      _searchController.clear();
-                    }),
-                    actionLabel: 'Clear Search',
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  sliver: SliverLayoutBuilder(
-                    builder: (context, constraints) {
-                      final isNarrow = constraints.crossAxisExtent < 600;
-                      
-                      Widget buildCard(BrowserProfile profile) {
-                        final isSelected = _selectedIds.contains(profile.id);
-                        final rotator = context.watch<ModemRotatorService>();
-                        final isThisRotating = rotator.isRotating && rotator.targetProfileId == profile.id;
-                        
-                        return ProfileCard(
-                          key: ValueKey(profile.id),
-                          profile: profile,
-                          isSelectMode: _isSelecting,
-                          isSelected: isSelected,
-                          isRotatingIp: isThisRotating,
-                          onLongPress: () => _enterSelectMode(profile.id),
-                          onSelect: () => _toggleSelect(profile.id),
-                          onRun: () => _launchBrowser(profile),
-                          onEdit: () => _editProfile(profile),
-                          onDelete: () => _deleteProfile(profile),
-                          onDuplicate: () => _duplicateProfile(profile),
-                          onClearSession: () => _clearSession(profile),
-                          onRotateIp: () {
-                            if (profile.proxyConfig.rotationUrl?.isNotEmpty == true) {
-                              context.read<ModemRotatorService>().rotateIp(
-                                profile.proxyConfig.rotationUrl!,
-                                profile.id,
-                                profile.name,
-                              );
-                            }
-                          },
-                        );
-                      }
-
-                      if (isNarrow) {
-                        return SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            addRepaintBoundaries: true,
-                            addAutomaticKeepAlives: false,
-                            childCount: filtered.length,
-                            (context, index) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: SizedBox(
-                                  height: 190,
-                                  child: buildCard(filtered[index]),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      } else {
-                        return SliverGrid(
-                          gridDelegate:
-                              const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 400, // Wider for tablets
-                            mainAxisExtent: 190,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            addRepaintBoundaries: true,
-                            addAutomaticKeepAlives: false,
-                            childCount: filtered.length,
-                            (context, index) => buildCard(filtered[index]),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                ),
-            ],
+                      }).toList(),
+                    ),
+            ),
           );
         },
       ),
     );
   }
+
+  // ── Profile Card Builder ──────────────────────────────
+  Widget _buildCard(BrowserProfile profile) {
+    final isSelected = _selectedIds.contains(profile.id);
+    final rotator = context.watch<ModemRotatorService>();
+    final isThisRotating = rotator.isRotating && rotator.targetProfileId == profile.id;
+    
+    return ProfileCard(
+      key: ValueKey(profile.id),
+      profile: profile,
+      isSelectMode: _isSelecting,
+      isSelected: isSelected,
+      isRotatingIp: isThisRotating,
+      onLongPress: () => _enterSelectMode(profile.id),
+      onSelect: () => _toggleSelect(profile.id),
+      onRun: () => _launchBrowser(profile),
+      onEdit: () => _editProfile(profile),
+      onDelete: () => _deleteProfile(profile),
+      onDuplicate: () => _duplicateProfile(profile),
+      onClearSession: () => _clearSession(profile),
+      onRotateIp: () {
+        if (profile.proxyConfig.rotationUrl?.isNotEmpty == true) {
+          context.read<ModemRotatorService>().rotateIp(
+            profile.proxyConfig.rotationUrl!,
+            profile.id,
+            profile.name,
+          );
+        }
+      },
+    );
+  }
+
+  // ── Command Handlers ────────────────────────────────
+  void _handleCommandAction(CommandType type, List<BrowserProfile> allProfiles) {
+    _searchFocusNode.unfocus();
+    _searchController.clear();
+    setState(() => _searchQuery = '');
+
+    switch (type) {
+      case CommandType.rotateIp:
+        final rotatable = allProfiles.where((p) => (p.proxyConfig.rotationUrl ?? '').isNotEmpty).toList();
+        if (rotatable.isNotEmpty) {
+          _bulkRotateIp(rotatable);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No profiles with rotatable IPs')));
+        }
+        break;
+      case CommandType.exportLogs:
+        _exportLogs(context);
+        break;
+      case CommandType.openScripts:
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => UserScriptsScreen(
+            service: context.read<UserScriptService>(),
+            profileId: 'global',
+          ),
+        ));
+        break;
+      case CommandType.clearCookies:
+        break;
+    }
+  }
+
+  void _handleCommandSubmitted(String value, List<BrowserProfile> filtered, List<BrowserProfile> allProfiles) {
+    final query = value.trim();
+    if (query.isEmpty) {
+      _searchFocusNode.unfocus();
+      return;
+    }
+
+    if (query.startsWith('>')) {
+      final cmdQuery = query.toLowerCase();
+      final matched = kGlobalCommands.where((cmd) => 
+         cmd.sequence.toLowerCase().contains(cmdQuery) ||
+         cmd.title.toLowerCase().contains(cmdQuery.replaceFirst('>', '').trim())
+      ).toList();
+      
+      if (matched.isNotEmpty) {
+        _handleCommandAction(matched.first.type, allProfiles);
+      }
+    } else {
+      if (filtered.isNotEmpty) {
+        _searchFocusNode.unfocus();
+        _launchBrowser(filtered.first);
+      }
+    }
+  }
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  NORMAL APP BAR CONTENT
-// ═════════════════════════════════════════════════════════════════════════════
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar _tabBar;
 
-class _NormalBar extends StatelessWidget {
-  final int? profileCount;
-  final bool showSearch;
-  final TextEditingController searchController;
-  final ValueChanged<String> onSearchChanged;
-  final VoidCallback onSearchClose;
-  final VoidCallback onSearchOpen;
-
-  final VoidCallback onExportLogs;
-
-  const _NormalBar({
-    super.key,
-    required this.profileCount,
-    required this.showSearch,
-    required this.searchController,
-    required this.onSearchChanged,
-    required this.onSearchClose,
-    required this.onSearchOpen,
-    required this.onExportLogs,
-  });
+  _SliverTabBarDelegate(this._tabBar);
 
   @override
-  Widget build(BuildContext context) {
-    if (showSearch) {
-      return _SearchBar(
-        controller: searchController,
-        onChanged: onSearchChanged,
-        onClose: onSearchClose,
-      );
-    }
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: const BoxDecoration(
-            color: Colors.tealAccent,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 10),
-        const Text(
-          'PBrowser',
-          style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: Colors.white),
-        ),
-        const SizedBox(width: 8),
-        if (profileCount != null)
-          Text(
-            '$profileCount profiles',
-            style: TextStyle(
-                fontSize: 12,
-                color: Colors.white.withValues(alpha: 0.4),
-                fontWeight: FontWeight.w400),
-          ),
-        const Spacer(),
-        IconButton(
-          icon: const Icon(Icons.bug_report_outlined, color: Colors.white70),
-          tooltip: 'Export Debug Logs',
-          onPressed: onExportLogs,
-        ),
-        IconButton(
-          icon: const Icon(Icons.search_rounded, color: Colors.white70),
-          tooltip: 'Search profiles',
-          onPressed: onSearchOpen,
-        ),
-        const SizedBox(width: 4),
-      ],
+  double get minExtent => _tabBar.preferredSize.height;
+  @override
+  double get maxExtent => _tabBar.preferredSize.height;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: const Color(0xFF141420), // Match the AppBar background color perfectly
+      child: _tabBar,
     );
+  }
+
+  @override
+  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
+    return false;
   }
 }
 
@@ -834,56 +866,6 @@ class _ContextualActionBar extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  SEARCH BAR
-// ═════════════════════════════════════════════════════════════════════════════
-
-class _SearchBar extends StatelessWidget {
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final VoidCallback onClose;
-
-  const _SearchBar({
-    required this.controller,
-    required this.onChanged,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 42,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      child: TextField(
-        controller: controller,
-        autofocus: true,
-        onChanged: onChanged,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
-        cursorColor: Colors.tealAccent,
-        decoration: InputDecoration(
-          hintText: 'Search profiles…',
-          hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.35), fontSize: 14),
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          prefixIcon: const Icon(Icons.search_rounded,
-              size: 18, color: Colors.tealAccent),
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.close_rounded,
-                size: 18, color: Colors.white54),
-            onPressed: onClose,
-          ),
-        ),
-      ),
     );
   }
 }
@@ -1147,100 +1129,6 @@ class _FeatureTile extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-//  TAG FILTER BAR (Horizontal FilterChips)
-// ─────────────────────────────────────────────
-
-class _TagFilterBar extends StatelessWidget {
-  final List<BrowserProfile> profiles;
-  final String? selectedTag;
-  final ValueChanged<String?> onTagSelected;
-
-  const _TagFilterBar({
-    required this.profiles,
-    required this.selectedTag,
-    required this.onTagSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Extract unique sorted tags
-    final tagsSet = <String>{};
-    for (final p in profiles) {
-      tagsSet.addAll(p.tags);
-    }
-    final allTags = tagsSet.toList()..sort();
-
-    if (allTags.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      height: 48,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: allTags.length + 1, // +1 for "All"
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            // "All" chip
-            final isSelected = selectedTag == null;
-            return FilterChip(
-              label: const Text('All'),
-              selected: isSelected,
-              showCheckmark: false,
-              onSelected: (_) => onTagSelected(null),
-              backgroundColor: Colors.white.withValues(alpha: 0.05),
-              selectedColor: Colors.tealAccent.withValues(alpha: 0.15),
-              side: BorderSide(
-                color: isSelected ? Colors.tealAccent.shade400 : Colors.transparent,
-              ),
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.tealAccent.shade100 : Colors.white70,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 12,
-              ),
-            );
-          }
-
-          final tag = allTags[index - 1];
-          final isSelected = selectedTag == tag;
-
-          final colors = [
-            Colors.tealAccent,
-            Colors.purpleAccent,
-            Colors.amberAccent,
-            Colors.blueAccent,
-            Colors.greenAccent,
-            Colors.orangeAccent,
-            Colors.pinkAccent,
-            Colors.cyanAccent,
-          ];
-          final color = colors[tag.hashCode.abs() % colors.length];
-
-          return FilterChip(
-            label: Text(tag),
-            selected: isSelected,
-            showCheckmark: false,
-            onSelected: (_) => onTagSelected(isSelected ? null : tag),
-            backgroundColor: color.withValues(alpha: 0.08),
-            selectedColor: color.withValues(alpha: 0.2),
-            side: BorderSide(
-              color: isSelected ? color.shade400 : color.withValues(alpha: 0.3),
-            ),
-            labelStyle: TextStyle(
-              color: isSelected ? Colors.white : color.withValues(alpha: 0.9),
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              fontSize: 12,
-            ),
-          );
-        },
       ),
     );
   }

@@ -54,8 +54,6 @@ class _BrowserScreenState extends State<BrowserScreen> {
   bool _isIpFetching = false;
   bool _isRotating = false;
   bool _hudExpanded = false;
-  /// true = collapsed to a 48px semi-transparent bubble (50% opacity).
-  bool _hudMinimized = false;
   /// Driven by onScrollChanged — false hides the HUD entirely.
   bool _hudVisible = true;
   /// Last known scroll-Y; used to detect scroll direction.
@@ -402,68 +400,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
         Offset(screenSize.width - 76, screenSize.height - 160);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: Row(
-          children: [
-            // Profile indicator
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blueGrey.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                widget.profile.name,
-                style: const TextStyle(fontSize: 12, color: Colors.white70),
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // URL bar
-            Expanded(
-              child: SizedBox(
-                height: 40,
-                child: TextField(
-                  controller: _urlController,
-                  enabled: _isProxyHealthy,
-                  decoration: InputDecoration(
-                    hintText: 'Enter URL',
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.1),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                    prefixIcon: const Icon(Icons.shield_outlined,
-                        size: 16, color: Colors.green),
-                  ),
-                  style: const TextStyle(fontSize: 14),
-                  onSubmitted: (_) => _loadUrl(),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              if (_isControllerInitialized && _isProxyHealthy) {
-                _mobileController?.reload();
-              } else if (!_isProxyHealthy) {
-                setState(() {
-                  _isLoading = true;
-                  _isProxyHealthy = true;
-                });
-                _initializeApp();
-              }
-            },
-          ),
-        ],
-      ),
+      backgroundColor: Colors.black, // Immersive edge-to-edge
       body: Stack(
         children: [
           // ── WebView ─────────────────────────────────────
@@ -661,64 +598,79 @@ class _BrowserScreenState extends State<BrowserScreen> {
               ),
             ),
 
-          // ── FLOATING HUD ──────────────────────────────────
+          // ── EDGE SWIPE TO GO BACK ────────────────────────
+          if (_isControllerInitialized && _isProxyHealthy)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 24, // 24px invisible hit area on the left edge
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragEnd: (details) {
+                  // If swiped right with sufficient velocity
+                  if (details.primaryVelocity != null && details.primaryVelocity! > 300) {
+                    _mobileController?.goBack();
+                  }
+                },
+                child: const SizedBox(width: 24),
+              ),
+            ),
+
+          // ── DYNAMIC ISLAND HUD ────────────────────────────
           if (_hasProxy)
-            // AnimatedOpacity drives both auto-hide (opacity 0) and
-            // minimized-bubble (opacity 0.5). AbsorbPointer prevents
-            // accidental taps when HUD is invisible.
-            AnimatedOpacity(
-              opacity: !_hudVisible
-                  ? 0.0
-                  : (_hudMinimized ? 0.50 : 1.0),
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeInOut,
-              child: AbsorbPointer(
-                absorbing: !_hudVisible,
-                child: _FloatingHud(
-                      offset: _hudOffset!,
-                      expanded: _hudExpanded,
-                      minimized: _hudMinimized,
-                      proxyConfig: widget.profile.proxyConfig,
-                      isOnline: _isProxyHealthy && !_isRotating,
-                      publicIp: _currentPublicIp,
-                      isIpFetching: _isIpFetching,
-                      isRotating: _isRotating,
-                      hasRotationUrl: (widget.profile.proxyConfig.rotationUrl ??
-                              '')
-                          .isNotEmpty,
-                      onDragUpdate: (delta) {
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 350),
+              curve: Curves.fastOutSlowIn,
+              top: _hudVisible ? MediaQuery.of(context).padding.top + 8 : -140,
+              left: 16,
+              right: 16,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 250),
+                opacity: _hudVisible ? 1.0 : 0.0,
+                child: AbsorbPointer(
+                  absorbing: !_hudVisible,
+                  child: _DynamicIslandHud(
+                    profileName: widget.profile.name,
+                    urlController: _urlController,
+                    isProxyHealthy: _isProxyHealthy,
+                    isLoading: _isLoading || _isWebViewLoading, // Merge loading states
+                    expanded: _hudExpanded,
+                    proxyConfig: widget.profile.proxyConfig,
+                    isOnline: _isProxyHealthy && !_isRotating,
+                    publicIp: _currentPublicIp,
+                    isIpFetching: _isIpFetching,
+                    isRotating: _isRotating,
+                    hasRotationUrl: (widget.profile.proxyConfig.rotationUrl ?? '').isNotEmpty,
+                    onLoadUrl: _loadUrl,
+                    onReload: () {
+                      if (_isControllerInitialized && _isProxyHealthy) {
+                        _mobileController?.reload();
+                      } else if (!_isProxyHealthy) {
                         setState(() {
-                          final newOffset = _hudOffset! + delta;
-                          final size = MediaQuery.of(context).size;
-                          _hudOffset = Offset(
-                            newOffset.dx.clamp(0, size.width - 64),
-                            newOffset.dy.clamp(0, size.height - 64),
-                          );
+                          _isLoading = true;
+                          _isProxyHealthy = true;
                         });
-                      },
-                      onToggleExpand: () =>
-                          setState(() => _hudExpanded = !_hudExpanded),
-                      onToggleMinimize: () => setState(() {
-                        _hudMinimized = !_hudMinimized;
-                        // Minimize collapses the panel too
-                        if (_hudMinimized) _hudExpanded = false;
-                      }),
-                      onRotateIp: _rotateIpNow,
-                      onRefreshIp: _fetchPublicIp,
-                      onCopyIp: () {
-                        if (_currentPublicIp != null) {
-                          Clipboard.setData(
-                              ClipboardData(text: _currentPublicIp!));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('IP copied to clipboard'),
-                              duration: Duration(seconds: 1),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
-                    ),
+                        _initializeApp();
+                      }
+                    },
+                    onToggleExpand: () => setState(() => _hudExpanded = !_hudExpanded),
+                    onRotateIp: _rotateIpNow,
+                    onRefreshIp: _fetchPublicIp,
+                    onCopyIp: () {
+                      if (_currentPublicIp != null) {
+                        Clipboard.setData(ClipboardData(text: _currentPublicIp!));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('IP copied to clipboard'),
+                            duration: Duration(seconds: 1),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
               ),
             ),
         ],
@@ -728,41 +680,43 @@ class _BrowserScreenState extends State<BrowserScreen> {
 }
 
 // =============================================================================
-//  FLOATING HUD WIDGET
+//  DYNAMIC ISLAND HUD WIDGET
 // =============================================================================
 
-class _FloatingHud extends StatelessWidget {
-  final Offset offset;
+class _DynamicIslandHud extends StatelessWidget {
+  final String profileName;
+  final TextEditingController urlController;
+  final bool isProxyHealthy;
+  final bool isLoading;
   final bool expanded;
-  /// When true the HUD collapses to a 48px bubble; parent sets opacity to 0.50.
-  final bool minimized;
   final ProxyConfig proxyConfig;
   final bool isOnline;
   final String? publicIp;
   final bool isIpFetching;
   final bool isRotating;
   final bool hasRotationUrl;
-  final void Function(Offset delta) onDragUpdate;
+  final VoidCallback onLoadUrl;
+  final VoidCallback onReload;
   final VoidCallback onToggleExpand;
-  /// Long-press FAB → minimize bubble. Tap bubble → restore.
-  final VoidCallback onToggleMinimize;
   final VoidCallback onRotateIp;
   final VoidCallback onRefreshIp;
   final VoidCallback onCopyIp;
 
-  const _FloatingHud({
-    required this.offset,
+  const _DynamicIslandHud({
+    required this.profileName,
+    required this.urlController,
+    required this.isProxyHealthy,
+    required this.isLoading,
     required this.expanded,
-    required this.minimized,
     required this.proxyConfig,
     required this.isOnline,
     required this.publicIp,
     required this.isIpFetching,
     required this.isRotating,
     required this.hasRotationUrl,
-    required this.onDragUpdate,
+    required this.onLoadUrl,
+    required this.onReload,
     required this.onToggleExpand,
-    required this.onToggleMinimize,
     required this.onRotateIp,
     required this.onRefreshIp,
     required this.onCopyIp,
@@ -782,129 +736,149 @@ class _FloatingHud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // minimized → 48px bubble, no coloured glow (opacity set by parent)
-    final double radius = expanded ? 18 : 26;
-
-    return Positioned(
-      left: offset.dx,
-      top: offset.dy,
-      child: GestureDetector(
-        onPanUpdate: (d) => onDragUpdate(d.delta),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
-          curve: Curves.easeInOutCubic,
-          width: minimized ? 48 : (expanded ? 220 : 52),
-          height: minimized ? 48 : (expanded ? null : 52),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Main Island Bar
+        Container(
+          height: 48,
           decoration: BoxDecoration(
-            color: minimized
-                ? Colors.black.withValues(alpha: 0.60)
-                : const Color(0xE8141620),
-            borderRadius: BorderRadius.circular(
-                minimized ? 24 : radius),
+            color: const Color(0xE81A1C29), // Sleek, slightly translucent dark
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: minimized
-                  ? Colors.white.withValues(alpha: 0.2)
-                  : _statusColor.withValues(alpha: 0.45),
-              width: 1.5,
+              color: Colors.white.withValues(alpha: 0.1),
+              width: 1,
             ),
-            boxShadow: minimized
-                ? null // no glow in minimized mode — reduces visual noise
-                : [
-                    BoxShadow(
-                      color: _statusColor.withValues(alpha: 0.25),
-                      blurRadius: 16,
-                      spreadRadius: 1,
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      blurRadius: 8,
-                    ),
-                  ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              )
+            ],
           ),
-          clipBehavior: Clip.antiAlias,
-          child: Material(
-            color: Colors.transparent,
-            child: minimized
-                ? _minimizedBubble()
-                : (expanded ? _expandedContent() : _collapsedFab()),
-          ),
-        ),
-      ),
-    );
-  }
-
-
-  // ── Minimized: 48px semi-transparent bubble ───────────────────────────
-
-  Widget _minimizedBubble() {
-    return Tooltip(
-      message: 'Tap to restore HUD',
-      child: InkWell(
-        onTap: onToggleMinimize,
-        borderRadius: BorderRadius.circular(24),
-        child: Center(
-          child: Icon(
-            Icons.radar_rounded,
-            size: 22,
-            color: _statusColor.withValues(alpha: 0.85),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Collapsed: FAB-like ────────────────────────────────────────────────
-
-  Widget _collapsedFab() {
-    return SizedBox(
-      width: 52,
-      height: 52,
-      child: InkWell(
-        onTap: onToggleExpand,
-        // Long-press → minimize to bubble
-        onLongPress: onToggleMinimize,
-        borderRadius: BorderRadius.circular(26),
-        child: Tooltip(
-          message: 'Long-press to minimize',
-          child: Center(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Pulse ring
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 800),
-                  width: isOnline ? 36 : 32,
-                  height: isOnline ? 36 : 32,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _statusColor.withValues(alpha: 0.15),
-                  ),
+          child: Row(
+            children: [
+              // Tap area to expand proxy info
+              InkWell(
+                onTap: onToggleExpand,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  bottomLeft: Radius.circular(24),
                 ),
-                // Core dot
-                Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _statusColor,
-                    boxShadow: [
-                      BoxShadow(
-                        color: _statusColor.withValues(alpha: 0.7),
-                        blurRadius: 8,
-                        spreadRadius: 2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Row(
+                    children: [
+                      // Status Dot
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _statusColor,
+                          boxShadow: [
+                            BoxShadow(
+                              color: _statusColor.withValues(alpha: 0.5),
+                              blurRadius: 4,
+                            )
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        profileName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              
+              const SizedBox(width: 4),
+              // URL Input
+              Expanded(
+                child: TextField(
+                  controller: urlController,
+                  enabled: isProxyHealthy,
+                  keyboardType: TextInputType.url,
+                  decoration: InputDecoration(
+                    hintText: 'Search or enter URL',
+                    hintStyle: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      fontSize: 14,
+                    ),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  onSubmitted: (_) => onLoadUrl(),
+                ),
+              ),
+              
+              // Reload/Loading indicator
+              IconButton(
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.tealAccent,
+                        ),
+                      )
+                    : const Icon(Icons.refresh_rounded, size: 20),
+                color: Colors.white70,
+                splashRadius: 20,
+                onPressed: isLoading ? null : onReload,
+              ),
+            ],
           ),
         ),
-      ),
+        
+        // Expanded Panel for Proxy Info
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          transitionBuilder: (child, animation) => SizeTransition(
+            sizeFactor: animation,
+            axisAlignment: -1.0,
+            child: FadeTransition(opacity: animation, child: child),
+          ),
+          child: expanded
+              ? Container(
+                  key: const ValueKey('expanded-panel'),
+                  width: 260, // Fixed width drop down
+                  margin: const EdgeInsets.only(top: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xE8141620),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _statusColor.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      )
+                    ],
+                  ),
+                  child: _expandedContent(),
+                )
+              : const SizedBox.shrink(key: ValueKey('collapsed-panel')),
+        ),
+      ],
     );
   }
-
-  // ── Expanded panel ─────────────────────────────────────────────────────
 
   Widget _expandedContent() {
     return Padding(
@@ -913,10 +887,8 @@ class _FloatingHud extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header row
           Row(
             children: [
-              // Status dot
               Container(
                 width: 8,
                 height: 8,
@@ -941,44 +913,22 @@ class _FloatingHud extends StatelessWidget {
                   letterSpacing: 0.4,
                 ),
               ),
-              const Spacer(),
-              // Collapse button
-              GestureDetector(
-                onTap: onToggleExpand,
-                child: Icon(
-                  Icons.close_rounded,
-                  size: 16,
-                  color: Colors.white.withValues(alpha: 0.5),
-                ),
-              ),
             ],
           ),
-
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Divider(
-                height: 1,
-                color: Colors.white.withValues(alpha: 0.1)),
+            child: Divider(height: 1, color: Colors.white.withValues(alpha: 0.1)),
           ),
-
-          // IP address row
           Row(
             children: [
-              Icon(
-                Icons.router_outlined,
-                size: 14,
-                color: Colors.white.withValues(alpha: 0.55),
-              ),
+              Icon(Icons.router_outlined, size: 14, color: Colors.white.withValues(alpha: 0.55)),
               const SizedBox(width: 6),
               Expanded(
                 child: isIpFetching
                     ? SizedBox(
                         height: 14,
                         width: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
-                          color: _statusColor,
-                        ),
+                        child: CircularProgressIndicator(strokeWidth: 1.5, color: _statusColor),
                       )
                     : Text(
                         publicIp ?? '—',
@@ -991,20 +941,14 @@ class _FloatingHud extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
               ),
-              // Copy button
               if (publicIp != null && !isIpFetching)
                 GestureDetector(
                   onTap: onCopyIp,
                   child: Padding(
                     padding: const EdgeInsets.only(left: 6),
-                    child: Icon(
-                      Icons.copy_rounded,
-                      size: 14,
-                      color: Colors.white.withValues(alpha: 0.45),
-                    ),
+                    child: Icon(Icons.copy_rounded, size: 14, color: Colors.white.withValues(alpha: 0.45)),
                   ),
                 ),
-              // Refresh button
               GestureDetector(
                 onTap: isIpFetching ? null : onRefreshIp,
                 child: Padding(
@@ -1012,18 +956,13 @@ class _FloatingHud extends StatelessWidget {
                   child: Icon(
                     Icons.refresh_rounded,
                     size: 14,
-                    color: isIpFetching
-                        ? Colors.white12
-                        : Colors.white.withValues(alpha: 0.45),
+                    color: isIpFetching ? Colors.white12 : Colors.white.withValues(alpha: 0.45),
                   ),
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 12),
-
-          // ── Rotate IP button ──────────────────────────────
           _RotateButton(
             isRotating: isRotating,
             enabled: hasRotationUrl && !isRotating,
