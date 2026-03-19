@@ -368,6 +368,21 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
     }
   }
 
+  IconData _osIcon(String os) {
+    switch (os) {
+      case 'macOS':
+        return Icons.apple;
+      case 'Android':
+        return Icons.android;
+      case 'iOS':
+        return Icons.phone_iphone;
+      case 'Linux':
+        return Icons.terminal;
+      default:
+        return Icons.computer;
+    }
+  }
+
   // ── Save ──────────────────────────────────
   Future<void> _saveProfile() async {
     // Validate; if invalid, jump to the tab containing the first error
@@ -470,9 +485,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existingProfile != null;
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
+    return Scaffold(
         backgroundColor: const Color(0xFF0A0A0A),
         appBar: AppBar(
           elevation: 0,
@@ -559,23 +572,6 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
                 ),
               ),
           ],
-          bottom: TabBar(
-            controller: _tabController,
-            isScrollable: false,
-            indicatorColor: Colors.tealAccent,
-            indicatorWeight: 2.5,
-            labelColor: Colors.tealAccent,
-            unselectedLabelColor: Colors.white54,
-            labelStyle:
-                const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            unselectedLabelStyle: const TextStyle(fontSize: 12),
-            tabs: const [
-              Tab(icon: Icon(Icons.person_outline, size: 18), text: 'General'),
-              Tab(icon: Icon(Icons.wifi_tethering, size: 18), text: 'Network'),
-              Tab(icon: Icon(Icons.memory, size: 18), text: 'Hardware'),
-              Tab(icon: Icon(Icons.tune, size: 18), text: 'Advanced'),
-            ],
-          ),
         ),
         body: Column(
           children: [
@@ -589,106 +585,159 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
             Expanded(
               child: Form(
                 key: _formKey,
-                child: TabBarView(
-                  controller: _tabController,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
                   children: [
-              // ── Tab 1: General ──────────────────────────
-              _GeneralTab(
-                nameController: _nameController,
-                uaController: _uaController,
-                selectedOs: _selectedOs,
-                selectedBrowser: _selectedBrowser,
-                osList: _osList,
-                browserList: _browserList,
-                uaManualOverride: _uaManualOverride,
-                onOsChanged: (v) => setState(() {
-                  _selectedOs = v;
-                  _uaManualOverride = false;
-                }),
-                onBrowserChanged: (v) => setState(() {
-                  _selectedBrowser = v;
-                  _uaManualOverride = false;
-                }),
-                onUaChanged: (_) => setState(() => _uaManualOverride = true),
-                tags: _tags,
-                tagController: _tagInputController,
-                onTagsChanged: (t) => setState(() => _tags = t),
-                onRandomize: () =>
-                    _applyRandomFingerprint(FingerprintConfig.random()),
-              ),
-
-              // ── Tab 2: Network ──────────────────────────
-              _NetworkTab(
-                selectedProxyType: _selectedProxyType,
-                useSystemProxyPool: _useSystemProxyPool,
-                hostController: _proxyHostController,
-                portController: _proxyPortController,
-                usernameController: _proxyUsernameController,
-                passwordController: _proxyPasswordController,
-                rotationUrlController: _proxyRotationUrlController,
-                webrtcEnabled: _webrtcEnabled,
-                onProxyTypeChanged: (v) =>
-                    setState(() => _selectedProxyType = v),
-                onUseSystemProxyPoolChanged: (v) =>
-                    setState(() => _useSystemProxyPool = v),
-                onWebrtcChanged: (v) => setState(() => _webrtcEnabled = v),
-                onRandomize: () =>
-                    _applyRandomFingerprint(FingerprintConfig.random()),
-              ),
-
-              // ── Tab 3: Hardware ─────────────────────────
-              _HardwareTab(
-                webglOptions: _webglOptions,
-                currentVendor: _webglVendor,
-                currentRenderer: _webglRenderer,
-                canvasSaltController: _canvasSaltController,
-                screenWidth: _screenWidth,
-                screenHeight: _screenHeight,
-                colorDepth: _colorDepth,
-                hardwareConcurrency: _hardwareConcurrency,
-                deviceMemory: _deviceMemory,
-                resolutions: _resolutions,
-                cpuOptions: _cpuOptions,
-                ramOptions: _ramOptions,
-                onWebglChanged: (vendor, renderer) => setState(() {
-                  _webglVendor = vendor;
-                  _webglRenderer = renderer;
-                }),
-                onResolutionChanged: (w, h, d) => setState(() {
-                  _screenWidth = w;
-                  _screenHeight = h;
-                  _colorDepth = d;
-                }),
-                onCpuChanged: (v) => setState(() => _hardwareConcurrency = v),
-                onRamChanged: (v) => setState(() => _deviceMemory = v),
-                onRandomize: () =>
-                    _applyRandomFingerprint(FingerprintConfig.random()),
-              ),
-
-              // ── Tab 4: Advanced ─────────────────────────
-              _AdvancedTab(
-                timezone: _timezone,
-                timezones: _timezones,
-                geoEnabled: _geoEnabled,
-                keepAliveEnabled: _keepAliveEnabled,
-                latController: _latController,
-                lngController: _lngController,
-                accuracyController: _accuracyController,
-                customDnsController: _customDnsController,
-                onTimezoneChanged: (v) => setState(() => _timezone = v),
-                onGeoToggled: (v) => setState(() => _geoEnabled = v),
-                onKeepAliveToggled: (v) => setState(() => _keepAliveEnabled = v),
-                onRandomize: () =>
-                    _applyRandomFingerprint(FingerprintConfig.random()),
-              ),
-              ],
+                    _RandomizeButton(onPressed: () => _applyRandomFingerprint(FingerprintConfig.random())),
+                    const SizedBox(height: 28),
+                    
+                    // ── Basic Section ──────────────────────────
+                    _sectionHeader('Basic Configuration', icon: Icons.person_outline),
+                    TextFormField(
+                      controller: _nameController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: _inputDeco('Profile Name', Icons.label_outline),
+                      validator: (v) =>
+                          (v == null || v.trim().isEmpty) ? 'Profile name is required' : null,
+                    ),
+                    const SizedBox(height: 14),
+                    
+                    _darkDropdown<String>(
+                      value: _selectedOs,
+                      items: _osList
+                          .map((o) => DropdownMenuItem(
+                                value: o,
+                                child: Row(
+                                  children: [
+                                    Icon(_osIcon(o),
+                                        size: 18, color: Colors.tealAccent.shade100),
+                                    const SizedBox(width: 10),
+                                    Text(o),
+                                  ],
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          final f = FingerprintConfig.random();
+                          setState(() {
+                            _useSystemProxyPool = true;
+                            _selectedProxyType = ProxyType.http;
+                            _proxyPortController.text = (8001 + Random().nextInt(4)).toString();
+                            _webrtcEnabled = false;
+                            
+                            _selectedOs = v;
+                            _uaManualOverride = false;
+                            
+                            _webglVendor = f.webglConfig.vendor;
+                            _webglRenderer = f.webglConfig.renderer;
+                            _canvasSaltController.text = f.canvasNoiseSalt;
+                            _screenWidth = f.screenResolution.width;
+                            _screenHeight = f.screenResolution.height;
+                            _colorDepth = f.screenResolution.colorDepth;
+                            _hardwareConcurrency = f.hardwareConcurrency;
+                            _deviceMemory = f.deviceMemory;
+                            _timezone = f.timezone;
+                            
+                            _uaController.text = _buildUserAgent();
+                            _showSparkle = true;
+                          });
+                          _sparkleController.forward(from: 0).then((_) {
+                            if (mounted) setState(() => _showSparkle = false);
+                          });
+                        }
+                      },
+                      decoration: _inputDeco('Operating System', Icons.computer_outlined, tooltip: 'Memilih OS akan otomatis membuat fingerprint baru yang di-blend sempurna dan mengatur port proxy secara acak.'),
+                    ),
+                    
+                    const SizedBox(height: 28),
+                    
+                    // ── Advanced Section ───────────────────────
+                    Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        iconColor: Colors.tealAccent,
+                        collapsedIconColor: Colors.white54,
+                        title: _sectionHeader('Advanced (Expert Mode)', icon: Icons.tune, tooltip: 'Granular engineering controls. Leave closed to rely on smart defaults.'),
+                        children: [
+                          _GeneralTab(
+                            uaController: _uaController,
+                            selectedBrowser: _selectedBrowser,
+                            browserList: _browserList,
+                            uaManualOverride: _uaManualOverride,
+                            onBrowserChanged: (v) => setState(() {
+                              _selectedBrowser = v;
+                              _uaManualOverride = false;
+                            }),
+                            onUaChanged: (_) => setState(() => _uaManualOverride = true),
+                            tags: _tags,
+                            tagController: _tagInputController,
+                            onTagsChanged: (t) => setState(() => _tags = t),
+                          ),
+                          _NetworkTab(
+                            selectedProxyType: _selectedProxyType,
+                            useSystemProxyPool: _useSystemProxyPool,
+                            hostController: _proxyHostController,
+                            portController: _proxyPortController,
+                            usernameController: _proxyUsernameController,
+                            passwordController: _proxyPasswordController,
+                            rotationUrlController: _proxyRotationUrlController,
+                            webrtcEnabled: _webrtcEnabled,
+                            onProxyTypeChanged: (v) =>
+                                setState(() => _selectedProxyType = v),
+                            onUseSystemProxyPoolChanged: (v) =>
+                                setState(() => _useSystemProxyPool = v),
+                            onWebrtcChanged: (v) => setState(() => _webrtcEnabled = v),
+                          ),
+                          _HardwareTab(
+                            webglOptions: _webglOptions,
+                            currentVendor: _webglVendor,
+                            currentRenderer: _webglRenderer,
+                            canvasSaltController: _canvasSaltController,
+                            screenWidth: _screenWidth,
+                            screenHeight: _screenHeight,
+                            colorDepth: _colorDepth,
+                            hardwareConcurrency: _hardwareConcurrency,
+                            deviceMemory: _deviceMemory,
+                            resolutions: _resolutions,
+                            cpuOptions: _cpuOptions,
+                            ramOptions: _ramOptions,
+                            onWebglChanged: (vendor, renderer) => setState(() {
+                              _webglVendor = vendor;
+                              _webglRenderer = renderer;
+                            }),
+                            onResolutionChanged: (w, h, d) => setState(() {
+                              _screenWidth = w;
+                              _screenHeight = h;
+                              _colorDepth = d;
+                            }),
+                            onCpuChanged: (v) => setState(() => _hardwareConcurrency = v),
+                            onRamChanged: (v) => setState(() => _deviceMemory = v),
+                          ),
+                          _AdvancedTab(
+                            timezone: _timezone,
+                            timezones: _timezones,
+                            geoEnabled: _geoEnabled,
+                            keepAliveEnabled: _keepAliveEnabled,
+                            latController: _latController,
+                            lngController: _lngController,
+                            accuracyController: _accuracyController,
+                            customDnsController: _customDnsController,
+                            onTimezoneChanged: (v) => setState(() => _timezone = v),
+                            onGeoToggled: (v) => setState(() => _geoEnabled = v),
+                            onKeepAliveToggled: (v) => setState(() => _keepAliveEnabled = v),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -1076,11 +1125,15 @@ Widget _darkDropdown<T>({
   );
 }
 
-/// Tab-level scrollable wrapper with consistent padding.
+/// Section-level scrollable wrapper with consistent padding.
 Widget _tabScroll({required List<Widget> children}) {
-  return ListView(
-    padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-    children: children,
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: children,
+    ),
   );
 }
 
@@ -1089,78 +1142,33 @@ Widget _tabScroll({required List<Widget> children}) {
 // ─────────────────────────────────────────────
 
 class _GeneralTab extends StatelessWidget {
-  final TextEditingController nameController;
   final TextEditingController uaController;
-  final String selectedOs;
   final String selectedBrowser;
-  final List<String> osList;
   final List<String> browserList;
   final bool uaManualOverride;
-  final ValueChanged<String> onOsChanged;
   final ValueChanged<String> onBrowserChanged;
   final ValueChanged<String> onUaChanged;
   final List<String> tags;
   final TextEditingController tagController;
   final ValueChanged<List<String>> onTagsChanged;
-  final VoidCallback onRandomize;
 
   const _GeneralTab({
-    required this.nameController,
     required this.uaController,
-    required this.selectedOs,
     required this.selectedBrowser,
-    required this.osList,
     required this.browserList,
     required this.uaManualOverride,
-    required this.onOsChanged,
     required this.onBrowserChanged,
     required this.onUaChanged,
     required this.tags,
     required this.tagController,
     required this.onTagsChanged,
-    required this.onRandomize,
   });
 
   @override
   Widget build(BuildContext context) {
     return _tabScroll(children: [
-      _RandomizeButton(onPressed: onRandomize),
-      const SizedBox(height: 28),
-
-      // ── Profile Identity ─────────────────
-      _sectionHeader('Profile Identity', icon: Icons.badge_outlined),
-      TextFormField(
-        controller: nameController,
-        style: const TextStyle(color: Colors.white),
-        decoration: _inputDeco('Profile Name', Icons.label_outline),
-        validator: (v) =>
-            (v == null || v.trim().isEmpty) ? 'Profile name is required' : null,
-      ),
-      const SizedBox(height: 28),
-
-      // ── Browser Identity ─────────────────
-      _sectionHeader('Browser Identity', icon: Icons.language),
-      _darkDropdown<String>(
-        value: selectedOs,
-        items: osList
-            .map((o) => DropdownMenuItem(
-                  value: o,
-                  child: Row(
-                    children: [
-                      Icon(_osIcon(o),
-                          size: 18, color: Colors.tealAccent.shade100),
-                      const SizedBox(width: 10),
-                      Text(o),
-                    ],
-                  ),
-                ))
-            .toList(),
-        onChanged: (v) {
-          if (v != null) onOsChanged(v);
-        },
-        decoration: _inputDeco('Operating System', Icons.computer_outlined),
-      ),
-      const SizedBox(height: 14),
+      // ── Browser Engine & Identifier ────────
+      _sectionHeader('Browser Engine', icon: Icons.public),
       _darkDropdown<String>(
         value: selectedBrowser,
         items: browserList
@@ -1208,21 +1216,6 @@ class _GeneralTab extends StatelessWidget {
         ),
     ]);
   }
-
-  IconData _osIcon(String os) {
-    switch (os) {
-      case 'macOS':
-        return Icons.apple;
-      case 'Android':
-        return Icons.android;
-      case 'iOS':
-        return Icons.phone_iphone;
-      case 'Linux':
-        return Icons.terminal;
-      default:
-        return Icons.computer;
-    }
-  }
 }
 
 // ─────────────────────────────────────────────
@@ -1241,7 +1234,6 @@ class _NetworkTab extends StatelessWidget {
   final ValueChanged<ProxyType> onProxyTypeChanged;
   final ValueChanged<bool> onUseSystemProxyPoolChanged;
   final ValueChanged<bool> onWebrtcChanged;
-  final VoidCallback onRandomize;
 
   const _NetworkTab({
     required this.selectedProxyType,
@@ -1255,15 +1247,13 @@ class _NetworkTab extends StatelessWidget {
     required this.onProxyTypeChanged,
     required this.onUseSystemProxyPoolChanged,
     required this.onWebrtcChanged,
-    required this.onRandomize,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasProxy = selectedProxyType != ProxyType.none;
     return _tabScroll(children: [
-      _RandomizeButton(onPressed: onRandomize),
-      const SizedBox(height: 28),
+      const SizedBox(height: 14),
 
       // ── Proxy Configuration ───────────────
       _sectionHeader('Proxy Configuration', icon: Icons.vpn_lock_outlined, tooltip: 'Proxy: Menyembunyikan IP asli Anda. SOCKS5 sangat disarankan (dengan SOCKS5 Handshake) untuk tingkat anonimitas yang lebih kuat dari HTTP Proxy biasa.'),
@@ -1417,7 +1407,6 @@ class _HardwareTab extends StatelessWidget {
   final void Function(int w, int h, int d) onResolutionChanged;
   final ValueChanged<int> onCpuChanged;
   final ValueChanged<int> onRamChanged;
-  final VoidCallback onRandomize;
 
   const _HardwareTab({
     required this.webglOptions,
@@ -1436,7 +1425,6 @@ class _HardwareTab extends StatelessWidget {
     required this.onResolutionChanged,
     required this.onCpuChanged,
     required this.onRamChanged,
-    required this.onRandomize,
   });
 
   String get _currentWebglKey => '$currentVendor|$currentRenderer';
@@ -1456,9 +1444,6 @@ class _HardwareTab extends StatelessWidget {
         : resolutionItems.first;
 
     return _tabScroll(children: [
-      _RandomizeButton(onPressed: onRandomize),
-      const SizedBox(height: 28),
-
       // ── WebGL ─────────────────────────────
       _sectionHeader('WebGL Fingerprint', icon: Icons.grain, tooltip: 'WebGL Vendor: Menyamarkan jenis kartu grafis hardware (GPU). Pastikan masuk akal! Jangan pilih Apple GPU jika OS profil Anda Windows, karena akan terlihat aneh dan dideteksi sebagai bot.'),
       _darkDropdown<String>(
@@ -1602,7 +1587,6 @@ class _AdvancedTab extends StatelessWidget {
   final ValueChanged<String> onTimezoneChanged;
   final ValueChanged<bool> onGeoToggled;
   final ValueChanged<bool> onKeepAliveToggled;
-  final VoidCallback onRandomize;
 
   const _AdvancedTab({
     required this.timezone,
@@ -1616,15 +1600,11 @@ class _AdvancedTab extends StatelessWidget {
     required this.onTimezoneChanged,
     required this.onGeoToggled,
     required this.onKeepAliveToggled,
-    required this.onRandomize,
   });
 
   @override
   Widget build(BuildContext context) {
     return _tabScroll(children: [
-      _RandomizeButton(onPressed: onRandomize),
-      const SizedBox(height: 28),
-
       // ── Timezone ──────────────────────────
       _sectionHeader('Timezone', icon: Icons.schedule_outlined, tooltip: 'Timezone (Zona Waktu): Jika profil ini akan berjalan menggunakan Proxy Amerika (US), maka pastikan zona waktu ini juga diubah agar berada di area Amerika Serikat (misal America/New_York).'),
       _darkDropdown<String>(

@@ -79,10 +79,15 @@ class ModemRotatorService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _profileLastStatus[profileId] = await MobileProxyService.rotateIp(url);
+      await MobileProxyService.rotateIp(url);
+      _profileLastStatus[profileId] = true;
+    } on ProxyRotationException catch (e) {
+      _profileLastStatus[profileId] = false;
+      _profileErrors[profileId] = e.message;
+      debugPrint('[ModemRotatorService] ProxyRotationException rotating $profileId: ${e.message}');
     } catch (e) {
       _profileLastStatus[profileId] = false;
-      _profileErrors[profileId] = e.toString();
+      _profileErrors[profileId] = 'An unexpected rotation error occurred.';
       debugPrint('[ModemRotatorService] Error rotating $profileId: $e');
     } finally {
       _rotatingProfiles.remove(profileId);

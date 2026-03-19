@@ -50,7 +50,7 @@ class ProxyHealthCheckService {
     if (!isAlive) {
       return const PreFlightResult(
         isHealthy: false, 
-        errorReason: 'Proxy disconnected or rejecting authentication handshake.'
+        errorReason: 'Oops! The proxies seem unreachable right now. Please try rotating the IP again or check the device connection.'
       );
     }
     
@@ -60,26 +60,26 @@ class ProxyHealthCheckService {
       return PreFlightResult(
         isHealthy: false, 
         latency: latency,
-        errorReason: 'Connection latency too high: \${latency}ms (Max 3000ms)'
+        errorReason: 'The proxy connection is too slow to use safely right now. Please try rotating the IP.'
       );
     }
     
     // 3. Strict IP Leak Verification
-    final realIp = await _fetchIp(null); // DIRECT
+    final realIp = await fetchExternalIp(null); // DIRECT
     if (realIp == null || realIp.isEmpty) {
       // If the real internet is disconnected entirely, proxy won't work either.
-      return const PreFlightResult(isHealthy: false, errorReason: 'Machine lacks base internet connection.');
+      return const PreFlightResult(isHealthy: false, errorReason: "Your device doesn't seem to be connected to the internet. Please check your Wi-Fi or Cellular connection.");
     }
     
-    final proxyIp = await _fetchIp(config); // PROXIED
+    final proxyIp = await fetchExternalIp(config); // PROXIED
     if (proxyIp == null || proxyIp.isEmpty) {
-       return const PreFlightResult(isHealthy: false, errorReason: 'Proxy failed to route HTTPS check traffic.');
+       return const PreFlightResult(isHealthy: false, errorReason: "We couldn't securely route your traffic through the proxy layer. Please try rotating the IP.");
     }
     
     if (realIp == proxyIp) {
        return PreFlightResult(
          isHealthy: false, 
-         errorReason: 'SEVERE: Proxied external IP matches precise Machine real IP (\$realIp). Masking failed.'
+         errorReason: 'Security Alert: We detected a potential IP leak. To keep you safe, the browser launch was aborted.'
        );
     }
     
@@ -87,7 +87,7 @@ class ProxyHealthCheckService {
   }
 
   /// Helper to fetch IP from ifconfig.me
-  static Future<String?> _fetchIp(ProxyConfig? config) async {
+  static Future<String?> fetchExternalIp(ProxyConfig? config) async {
     final client = HttpClient();
     client.connectionTimeout = const Duration(seconds: 5);
     

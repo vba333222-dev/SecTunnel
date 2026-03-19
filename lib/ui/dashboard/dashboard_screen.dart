@@ -613,7 +613,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                           return Padding(
                                             padding: const EdgeInsets.only(bottom: 12),
                                             child: SizedBox(
-                                              height: 190,
+                                              height: 150,
                                               child: _buildCard(profile),
                                             ),
                                           );

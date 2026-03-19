@@ -619,9 +619,9 @@ class _BrowserScreenState extends State<BrowserScreen> {
                       height: 80,
                     ),
                     const SizedBox(height: 24),
-                    Text(
-                      'Initializing ${widget.profile.name} (Verifying Proxy)…',
-                      style: const TextStyle(color: Colors.white70),
+                    const Text(
+                      'Running Pre-Flight Security Checks...',
+                      style: TextStyle(color: Colors.white70),
                     ),
                   ],
                 ),
@@ -1065,12 +1065,7 @@ class _RotateButton extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (isRotating)
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 1.5, color: Colors.white70),
-                    )
+                    const _LottieRotateShim()
                   else
                     Icon(
                       Icons.swap_horiz_rounded,
@@ -1160,7 +1155,16 @@ class _ProxyFailureSheet extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+                const Center(
+                  child: ThemedLottie(
+                    animation: LottieAnimation.connectionError,
+                    width: 72,
+                    height: 72,
+                    repeat: false,
+                  ),
+                ),
+                const SizedBox(height: 16),
 
                 // ── Header ───────────────────────────────────
                 Row(
@@ -1355,6 +1359,22 @@ class _ActionTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LottieRotateShim extends StatelessWidget {
+  const _LottieRotateShim();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(right: 8.0, left: 4.0),
+      child: ThemedLottie(
+        animation: LottieAnimation.networkLoading,
+        width: 18,
+        height: 18,
       ),
     );
   }

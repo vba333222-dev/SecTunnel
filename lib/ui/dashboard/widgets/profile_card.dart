@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
 import 'package:pbrowser/models/proxy_config.dart';
 import 'package:pbrowser/services/browser/cookie_manager_service.dart';
-import 'package:pbrowser/services/background/headless_keep_alive_service.dart';import 'package:intl/intl.dart';
+import 'dart:convert';
+import 'package:pbrowser/services/background/headless_keep_alive_service.dart';
+import 'package:intl/intl.dart';
 import 'package:pbrowser/ui/shared/proxy_signal_widget.dart';
 
 // ─────────────────────────────────────────────
@@ -322,111 +324,68 @@ class _CardBodyState extends State<_CardBody> {
                               tag: 'os_badge_${profile.id}',
                               child: OsBadge(platform: fp.platform),
                             ),
-                            const SizedBox(width: 10),
+                            const SizedBox(width: 12),
                             // Profile name
-                  Expanded(
-                    child: Hero(
-                      tag: 'profile_name_${profile.id}',
-                      child: Material(
-                        type: MaterialType.transparency,
-                        child: Text(
-                          profile.name,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (profile.keepAliveEnabled)
-                    const Tooltip(
-                      message: 'Keep-Alive Enabled',
-                      child: Icon(Icons.flash_on, color: Colors.yellow, size: 16),
-                    ),
-                  const SizedBox(width: 4),
-                  // Rotate IP spinner / icon
-                  if (hasRotation)
-                    SizedBox(
-                      width: 30,
-                      height: 30,
-                      child: isRotatingIp
-                          ? const Padding(
-                              padding: EdgeInsets.all(6),
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.tealAccent,
+                            Expanded(
+                              child: Hero(
+                                tag: 'profile_name_${profile.id}',
+                                child: Material(
+                                  type: MaterialType.transparency,
+                                  child: Text(
+                                    profile.name,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                               ),
-                            )
-                          : IconButton(
-                              icon: const Icon(Icons.swap_horiz_rounded,
-                                  size: 18, color: Colors.tealAccent),
+                            ),
+                            if (profile.keepAliveEnabled)
+                              const Padding(
+                                padding: EdgeInsets.only(right: 8),
+                                child: Tooltip(
+                                  message: 'Keep-Alive Enabled',
+                                  child: Icon(Icons.flash_on, color: Colors.yellow, size: 16),
+                                ),
+                              ),
+                            if (hasRotation) ...[
+                              IconButton(
+                                icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Rotate IP',
+                                onPressed: widget.onRotateIp,
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            // Context menu
+                            IconButton(
+                              icon: Icon(Icons.more_vert_rounded, color: Colors.white.withValues(alpha: 0.4), size: 20),
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                _showContextMenu(context);
+                              },
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
-                              tooltip: 'Rotate IP',
-                               onPressed: widget.onRotateIp,
                             ),
-                    ),
-                  // Context menu trigger
-                  IconButton(
-                    icon: Icon(Icons.more_vert_rounded, color: Colors.white.withValues(alpha: 0.4), size: 20),
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      _showContextMenu(context);
-                    },
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
+                          ],
+                        ),
+                        
+                        const Spacer(),
+                        
+                        // Proxy Health Indicator
+                        ProxySignalWidget(config: proxy),
+                        
+                        const Spacer(),
 
-              const SizedBox(height: 10),
-
-              // ── Visual chip row ───────────────────────
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  _BrowserChip(userAgent: fp.userAgent),
-                  _ProxyChip(proxy: proxy),
-                  if (!fp.webrtcEnabled)
-                    const _InfoChip(
-                      label: 'WebRTC OFF',
-                      icon: Icons.shield_outlined,
-                      color: Colors.deepOrangeAccent,
-                    ),
-                  ...profile.tags.map((t) => _TagPill(tag: t)),
-                ],
-              ),
-
-              const Spacer(),
-
-              // ── Footer row ────────────────────────────
-              Row(
-                children: [
-                  const Icon(Icons.access_time_rounded,
-                      size: 13, color: Colors.white24),
-                  const SizedBox(width: 4),
-                  Text(
-                    _lastUsedText(profile.lastUsedAt),
-                    style:
-                        const TextStyle(fontSize: 11, color: Colors.white38),
-                  ),
-                  const Spacer(),
-                  // Dynamic Proxy Ping Indicator
-                  ProxySignalWidget(config: proxy),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              // ── Launch button ─────────────────
-              _LaunchButton(
-                onTap: isSelectMode ? widget.onSelect : widget.onRun,
-              ),
+                        // ── Launch button ─────────────────
+                        _LaunchButton(
+                          onTap: isSelectMode ? widget.onSelect : widget.onRun,
+                        ),
                       ],
                     ),
                   ),
@@ -451,18 +410,12 @@ class _CardBodyState extends State<_CardBody> {
     );
   }
 
-  static String _lastUsedText(DateTime lastUsedAt) {
-    final diff = DateTime.now().difference(lastUsedAt);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return DateFormat('MMM d').format(lastUsedAt);
-  }
+
 
   Future<void> _handleExportSession(BuildContext context) async {
     try {
-      final jsonCookies = await CookieManagerService.exportCookies(widget.profile.id);
+      final cookiesArray = await CookieManagerService.exportCookies(widget.profile.id);
+      final jsonCookies = jsonEncode(cookiesArray.map((c) => c.toJson()).toList());
       
       if (context.mounted) {
         showDialog(
@@ -595,116 +548,6 @@ class OsBadge extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
-//  BROWSER CHIP
-// ─────────────────────────────────────────────
-
-class _BrowserChip extends StatelessWidget {
-  final String userAgent;
-  const _BrowserChip({required this.userAgent});
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = _parse(userAgent);
-    return _InfoChip(label: label, icon: Icons.public_rounded, color: color);
-  }
-
-  static (String, Color) _parse(String ua) {
-    // Edge check must come before Chrome
-    if (ua.contains('Edg/')) {
-      final m = RegExp(r'Edg/(\d+)').firstMatch(ua);
-      return ('Edge ${m?.group(1) ?? ''}', Colors.blueAccent);
-    }
-    if (ua.contains('Firefox/')) {
-      final m = RegExp(r'Firefox/(\d+)').firstMatch(ua);
-      return ('Firefox ${m?.group(1) ?? ''}', Colors.orangeAccent);
-    }
-    if (ua.contains('Chrome/')) {
-      final m = RegExp(r'Chrome/(\d+)').firstMatch(ua);
-      return ('Chrome ${m?.group(1) ?? ''}', Colors.tealAccent);
-    }
-    if (ua.contains('Safari/') && !ua.contains('Chrome')) {
-      return ('Safari', Colors.blueGrey);
-    }
-    return ('Browser', Colors.white54);
-  }
-}
-
-// ─────────────────────────────────────────────
-//  PROXY CHIP
-// ─────────────────────────────────────────────
-
-class _ProxyChip extends StatelessWidget {
-  final ProxyConfig proxy;
-  const _ProxyChip({required this.proxy});
-
-  @override
-  Widget build(BuildContext context) {
-    switch (proxy.type) {
-      case ProxyType.socks5:
-        return const _InfoChip(
-          label: 'SOCKS5',
-          icon: Icons.security_rounded,
-          color: Colors.purpleAccent,
-        );
-      case ProxyType.http:
-        return const _InfoChip(
-          label: 'HTTP',
-          icon: Icons.http_rounded,
-          color: Colors.orangeAccent,
-        );
-      case ProxyType.none:
-        return const _InfoChip(
-          label: 'Direct',
-          icon: Icons.public_off_rounded,
-          color: Colors.white38,
-        );
-    }
-  }
-}
-
-// ─────────────────────────────────────────────
-//  GENERIC INFO CHIP
-// ─────────────────────────────────────────────
-
-class _InfoChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-
-  const _InfoChip({
-    required this.label,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────
 //  LAUNCH BUTTON
@@ -761,48 +604,6 @@ class _LaunchButton extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-//  TAG PILL
-// ─────────────────────────────────────────────
-
-class _TagPill extends StatelessWidget {
-  final String tag;
-  const _TagPill({required this.tag});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = [
-      Colors.tealAccent,
-      Colors.purpleAccent,
-      Colors.amberAccent,
-      Colors.blueAccent,
-      Colors.greenAccent,
-      Colors.orangeAccent,
-      Colors.pinkAccent,
-      Colors.cyanAccent,
-    ];
-    final color = colors[tag.hashCode.abs() % colors.length];
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Text(
-        tag,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: color.withValues(alpha: 0.9),
-          letterSpacing: 0.2,
         ),
       ),
     );
