@@ -1,4 +1,5 @@
 import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:pbrowser/services/fingerprint/scripts/navigator_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/canvas_spoof.dart';
 import 'package:pbrowser/services/fingerprint/scripts/webgl_spoof.dart';
@@ -215,5 +216,28 @@ class FingerprintInjector {
   // Already included in NavigatorSpoof
 })(window);
 ''';
+  }
+
+  /// Wraps the heavy anti-detect fingerprint generator inside a strict
+  /// Document_Start execution boundary to prevent early-boot leakage.
+  List<UserScript> generateUserScripts() {
+    return [
+      UserScript(
+        source: generateInjectionScript(),
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        forMainFrameOnly: false,
+      )
+    ];
+  }
+
+  /// Wraps the lightweight anti-detect generator.
+  List<UserScript> generateLightweightUserScripts() {
+    return [
+      UserScript(
+        source: generateLightweightScript(),
+        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        forMainFrameOnly: false,
+      )
+    ];
   }
 }

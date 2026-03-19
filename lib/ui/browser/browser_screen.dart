@@ -11,10 +11,12 @@ import 'package:pbrowser/models/proxy_config.dart';
 import 'package:pbrowser/services/fingerprint/fingerprint_injector.dart';
 import 'package:pbrowser/services/browser/cookie_manager_service.dart';
 import 'package:pbrowser/services/browser/userscript_service.dart';
+
 import 'package:pbrowser/services/proxy/proxy_health_check.dart';
 import 'package:pbrowser/services/proxy/geo_ip_service.dart';
+import 'package:pbrowser/services/proxy/mobile_proxy_service.dart';
 import 'package:pbrowser/repositories/profile_repository.dart';
-import 'package:http/http.dart' as http;
+
 import 'package:provider/provider.dart';
 
 // WebView imports
@@ -34,6 +36,8 @@ class BrowserScreen extends StatefulWidget {
 }
 
 class _BrowserScreenState extends State<BrowserScreen> {
+  static final Map<int, InAppWebViewController> _activeProxyConnections = {};
+
   // Controllers
   InAppWebViewController? _mobileController;
   final TextEditingController _urlController = TextEditingController();
@@ -87,14 +91,25 @@ class _BrowserScreenState extends State<BrowserScreen> {
     
     final userDataFolder = widget.profile.userDataFolder;
     final profileId = widget.profile.id;
-    // Explictly save session state securely to SQLite in the background
-    if (Platform.isAndroid) {
-      CookieManagerService.exportCookies(profileId).then((cookies) {
-        CookieManagerService.saveSessionToDb(userDataFolder, cookies);
-      }).catchError((e) {
-        debugPrint('[Browser] Background session cookie export failed: $e');
-      });
+    final proxyPort = widget.profile.proxyConfig.port;
+
+    if (proxyPort != null) {
+      _activeProxyConnections.remove(proxyPort);
     }
+
+    try {
+      // Force all RAM cookies to physical isolated directory natively
+      platform.invokeMethod('flushCookies').whenComplete(() {
+        // Explictly save session state securely to SQLite in the background
+        if (Platform.isAndroid) {
+          CookieManagerService.exportCookies(profileId).then((cookies) {
+            CookieManagerService.saveSessionToDb(userDataFolder, cookies);
+          }).catchError((e) {
+            debugPrint('[Browser] Background session cookie export failed: $e');
+          });
+        }
+      });
+    } catch (_) {}
 
     // Explicitly destroy WebView context to prevent OOM memory leaks
     if (_mobileController != null) {
@@ -102,6 +117,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
         _mobileController!.loadUrl(
             urlRequest: URLRequest(url: WebUri('about:blank')));
         InAppWebViewController.clearAllCache();
+        _mobileController!.dispose();
       } catch (e) {
         debugPrint('[Browser] Error during WebView dispose cleanup: $e');
       }
@@ -116,6 +132,17 @@ class _BrowserScreenState extends State<BrowserScreen> {
   // =========================================================================
 
   Future<void> _initializeApp() async {
+    final proxyPort = widget.profile.proxyConfig.port;
+    if (proxyPort != null && _activeProxyConnections.containsKey(proxyPort)) {
+       debugPrint('[Browser] Neutralizing ghost WebView instance occupying Port $proxyPort');
+       try {
+         final ghost = _activeProxyConnections[proxyPort];
+         ghost?.loadUrl(urlRequest: URLRequest(url: WebUri('about:blank')));
+         ghost?.dispose();
+       } catch(_) {}
+       _activeProxyConnections.remove(proxyPort);
+    }
+
     if (mounted) {
       final userScriptService = Provider.of<UserScriptService>(context, listen: false);
       _activeScripts = await userScriptService.getActiveScripts(widget.profile.id);
@@ -192,17 +219,13 @@ class _BrowserScreenState extends State<BrowserScreen> {
       useShouldInterceptAjaxRequest: true,
       mediaPlaybackRequiresUserGesture: false,
       allowsInlineMediaPlayback: true,
+      javaScriptCanOpenWindowsAutomatically: false,
+      incognito: false,
     );
 
     // Prepare UserScripts for Anti-Detect mechanism
     final injector = FingerprintInjector(_activeFingerprint);
-    _userScripts = [
-      UserScript(
-        source: injector.generateInjectionScript(),
-        injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-        forMainFrameOnly: false,
-      )
-    ];
+    _userScripts = injector.generateUserScripts();
 
     // Load cookies from SQLite DB securely
     try {
@@ -313,14 +336,22 @@ class _BrowserScreenState extends State<BrowserScreen> {
         } catch (_) {}
       }
 
-      await http.get(Uri.parse(rotationUrl)).timeout(
-            const Duration(seconds: 10),
-          );
+      await MobileProxyService.rotateIp(rotationUrl);
 
       debugPrint('[HUD] Rotation API called. Waiting for IP assignment…');
 
       // Give the modem ~4 s to assign a new IP before re-checking
       await Future.delayed(const Duration(seconds: 4));
+    } on ProxyRotationException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message, style: const TextStyle(color: Colors.white)),
+            backgroundColor: Colors.redAccent.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       debugPrint('[HUD] Rotation API error: $e');
     } finally {
@@ -449,6 +480,10 @@ class _BrowserScreenState extends State<BrowserScreen> {
                     UnmodifiableListView<UserScript>(_userScripts),
                 onWebViewCreated: (controller) {
                   _mobileController = controller;
+                  final pPort = widget.profile.proxyConfig.port;
+                  if (pPort != null) {
+                    _activeProxyConnections[pPort] = controller;
+                  }
                 },
                 onLoadStart: (controller, url) {
                   if (mounted) {
@@ -499,24 +534,13 @@ class _BrowserScreenState extends State<BrowserScreen> {
                 },
                 onReceivedHttpAuthRequest: (controller, challenge) async {
                   if (widget.profile.proxyConfig.username != null) {
-                    String osType = 'LINUX';
-                    final platformLower =
-                        _activeFingerprint.platform.toLowerCase();
-                    if (platformLower.contains('win')) { osType = 'WINDOWS'; }
-                    if (platformLower.contains('mac') ||
-                        platformLower.contains('iphone') ||
-                        platformLower.contains('ipad')) { osType = 'MAC'; }
-
-                    final contextUsername =
-                        '${widget.profile.proxyConfig.username!}__OS_$osType';
                     return HttpAuthResponse(
                       action: HttpAuthResponseAction.PROCEED,
-                      username: contextUsername,
+                      username: widget.profile.proxyConfig.username!,
                       password: widget.profile.proxyConfig.password!,
                     );
                   }
-                  return HttpAuthResponse(
-                      action: HttpAuthResponseAction.CANCEL);
+                  return HttpAuthResponse(action: HttpAuthResponseAction.CANCEL);
                 },
                 shouldInterceptRequest: (controller, request) async {
                   if (_isRotating) {

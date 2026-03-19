@@ -91,6 +91,15 @@ class MainActivity: FlutterActivity() {
                     result.success(false)
                 }
                 }
+            } else if (call.method == "flushCookies") {
+                try {
+                    android.webkit.CookieManager.getInstance().flush()
+                    Log.i(TAG, "Chromium CookieManager flushed to disk")
+                    result.success(true)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to flush cookies: \${e.message}")
+                    result.success(false)
+                }
             } else {
                 result.notImplemented()
             }

@@ -97,6 +97,16 @@ class ProxyHealthCheckService {
       } else if (config.type == ProxyType.http) {
         client.findProxy = (uri) => 'PROXY \${config.host}:\${config.port}';
       }
+
+      if (config.username != null && config.username!.isNotEmpty && config.password != null) {
+        client.authenticateProxy = (host, port, scheme, realm) async {
+          client.addProxyCredentials(
+            host, port, realm, 
+            HttpClientBasicCredentials(config.username!, config.password!)
+          );
+          return true;
+        };
+      }
     }
     
     try {
