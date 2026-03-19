@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 enum ProxyType {
   none,
@@ -31,29 +32,51 @@ enum ProxyType {
 
 class ProxyConfig {
   final ProxyType type;
-  final String? host;
+  final bool useSystemProxyPool;
+  final String? _host;
   final int? port;
-  final String? username;
-  final String? password;
-  final String? rotationUrl;
+  final String? _username;
+  final String? _password;
+  final String? _rotationUrl;
   
   const ProxyConfig({
     required this.type,
-    this.host,
+    this.useSystemProxyPool = false,
+    String? host,
     this.port,
-    this.username,
-    this.password,
-    this.rotationUrl,
-  });
+    String? username,
+    String? password,
+    String? rotationUrl,
+  })  : _host = host,
+        _username = username,
+        _password = password,
+        _rotationUrl = rotationUrl;
   
   const ProxyConfig.none()
       : type = ProxyType.none,
-        host = null,
+        useSystemProxyPool = false,
+        _host = null,
         port = null,
-        username = null,
-        password = null,
-        rotationUrl = null;
+        _username = null,
+        _password = null,
+        _rotationUrl = null;
   
+  String? get host => useSystemProxyPool ? dotenv.env['PROXY_HOST'] : _host;
+  String? get username => useSystemProxyPool ? dotenv.env['PROXY_USER'] : _username;
+  String? get password => useSystemProxyPool ? dotenv.env['PROXY_PASS'] : _password;
+  
+  String? get rotationUrl {
+    if (useSystemProxyPool) {
+      final baseUrl = dotenv.env['ROTATION_API_BASE_URL'];
+      final key = dotenv.env['ROTATION_API_KEY'];
+      if (baseUrl != null && baseUrl.isNotEmpty) {
+        return '$baseUrl/rotate/$port?key=$key';
+      }
+      return null;
+    }
+    return _rotationUrl;
+  }
+
   bool get isConfigured => type != ProxyType.none && host != null && port != null;
 
   /// `true` when both [username] and [password] are non-null and non-empty.
@@ -77,17 +100,19 @@ class ProxyConfig {
   Map<String, dynamic> toJson() {
     return {
       'type': type.toString(),
-      'host': host,
+      'useSystemProxyPool': useSystemProxyPool,
+      'host': _host,
       'port': port,
-      'username': username,
-      'password': password,
-      'rotationUrl': rotationUrl,
+      'username': _username,
+      'password': _password,
+      'rotationUrl': _rotationUrl,
     };
   }
   
   factory ProxyConfig.fromJson(Map<String, dynamic> json) {
     return ProxyConfig(
       type: ProxyType.fromString(json['type'] as String? ?? 'none'),
+      useSystemProxyPool: json['useSystemProxyPool'] as bool? ?? false,
       host: json['host'] as String?,
       port: json['port'] as int?,
       username: json['username'] as String?,
@@ -104,6 +129,7 @@ class ProxyConfig {
   
   ProxyConfig copyWith({
     ProxyType? type,
+    bool? useSystemProxyPool,
     String? host,
     int? port,
     String? username,
@@ -112,11 +138,12 @@ class ProxyConfig {
   }) {
     return ProxyConfig(
       type: type ?? this.type,
-      host: host ?? this.host,
+      useSystemProxyPool: useSystemProxyPool ?? this.useSystemProxyPool,
+      host: host ?? this._host,
       port: port ?? this.port,
-      username: username ?? this.username,
-      password: password ?? this.password,
-      rotationUrl: rotationUrl ?? this.rotationUrl,
+      username: username ?? _username,
+      password: password ?? _password,
+      rotationUrl: rotationUrl ?? _rotationUrl,
     );
   }
 }

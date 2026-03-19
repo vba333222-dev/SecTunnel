@@ -45,6 +45,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
 
   // ── Network tab ───────────────────────────
   ProxyType _selectedProxyType = ProxyType.none;
+  bool _useSystemProxyPool = false;
   final _proxyHostController = TextEditingController();
   final _proxyPortController = TextEditingController();
   final _proxyUsernameController = TextEditingController();
@@ -154,6 +155,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
 
     // Network
     _selectedProxyType = proxy.type;
+    _useSystemProxyPool = proxy.useSystemProxyPool;
     _proxyHostController.text = proxy.host ?? '';
     _proxyPortController.text = proxy.port?.toString() ?? '';
     _proxyUsernameController.text = proxy.username ?? '';
@@ -385,19 +387,20 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
     try {
       final proxyConfig = ProxyConfig(
         type: _selectedProxyType,
-        host: _selectedProxyType != ProxyType.none
+        useSystemProxyPool: _useSystemProxyPool,
+        host: _selectedProxyType != ProxyType.none && !_useSystemProxyPool
             ? _proxyHostController.text.trim()
             : null,
         port: _selectedProxyType != ProxyType.none
             ? int.tryParse(_proxyPortController.text.trim())
             : null,
-        username: _proxyUsernameController.text.trim().isNotEmpty
+        username: _proxyUsernameController.text.trim().isNotEmpty && !_useSystemProxyPool
             ? _proxyUsernameController.text.trim()
             : null,
-        password: _proxyPasswordController.text.trim().isNotEmpty
+        password: _proxyPasswordController.text.trim().isNotEmpty && !_useSystemProxyPool
             ? _proxyPasswordController.text.trim()
             : null,
-        rotationUrl: _proxyRotationUrlController.text.trim().isNotEmpty
+        rotationUrl: _proxyRotationUrlController.text.trim().isNotEmpty && !_useSystemProxyPool
             ? _proxyRotationUrlController.text.trim()
             : null,
       );
@@ -617,6 +620,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
               // ── Tab 2: Network ──────────────────────────
               _NetworkTab(
                 selectedProxyType: _selectedProxyType,
+                useSystemProxyPool: _useSystemProxyPool,
                 hostController: _proxyHostController,
                 portController: _proxyPortController,
                 usernameController: _proxyUsernameController,
@@ -625,6 +629,8 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
                 webrtcEnabled: _webrtcEnabled,
                 onProxyTypeChanged: (v) =>
                     setState(() => _selectedProxyType = v),
+                onUseSystemProxyPoolChanged: (v) =>
+                    setState(() => _useSystemProxyPool = v),
                 onWebrtcChanged: (v) => setState(() => _webrtcEnabled = v),
                 onRandomize: () =>
                     _applyRandomFingerprint(FingerprintConfig.random()),
@@ -1225,6 +1231,7 @@ class _GeneralTab extends StatelessWidget {
 
 class _NetworkTab extends StatelessWidget {
   final ProxyType selectedProxyType;
+  final bool useSystemProxyPool;
   final TextEditingController hostController;
   final TextEditingController portController;
   final TextEditingController usernameController;
@@ -1232,11 +1239,13 @@ class _NetworkTab extends StatelessWidget {
   final TextEditingController rotationUrlController;
   final bool webrtcEnabled;
   final ValueChanged<ProxyType> onProxyTypeChanged;
+  final ValueChanged<bool> onUseSystemProxyPoolChanged;
   final ValueChanged<bool> onWebrtcChanged;
   final VoidCallback onRandomize;
 
   const _NetworkTab({
     required this.selectedProxyType,
+    required this.useSystemProxyPool,
     required this.hostController,
     required this.portController,
     required this.usernameController,
@@ -1244,6 +1253,7 @@ class _NetworkTab extends StatelessWidget {
     required this.rotationUrlController,
     required this.webrtcEnabled,
     required this.onProxyTypeChanged,
+    required this.onUseSystemProxyPoolChanged,
     required this.onWebrtcChanged,
     required this.onRandomize,
   });
@@ -1282,22 +1292,34 @@ class _NetworkTab extends StatelessWidget {
 
       if (hasProxy) ...[
         const SizedBox(height: 14),
+        _SettingsToggleCard(
+          title: 'Use System Proxy Pool',
+          subtitle: 'Automatically binds credentials and host from .env',
+          value: useSystemProxyPool,
+          onChanged: onUseSystemProxyPoolChanged,
+          activeColor: Colors.tealAccent,
+          icon: Icons.link_rounded,
+        ),
+        const SizedBox(height: 14),
+        
         Row(
           children: [
-            Expanded(
-              flex: 3,
-              child: TextFormField(
-                controller: hostController,
-                style: const TextStyle(color: Colors.white),
-                decoration: _inputDeco('Host / IP', Icons.dns_outlined,
-                    hint: 'e.g. 192.168.1.1',
-                    accent: Colors.orangeAccent),
-                validator: (v) => hasProxy && (v == null || v.trim().isEmpty)
-                    ? 'Required'
-                    : null,
+            if (!useSystemProxyPool) ...[
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: hostController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _inputDeco('Host / IP', Icons.dns_outlined,
+                      hint: 'e.g. 192.168.1.1',
+                      accent: Colors.orangeAccent),
+                  validator: (v) => hasProxy && (v == null || v.trim().isEmpty)
+                      ? 'Required'
+                      : null,
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
+              const SizedBox(width: 10),
+            ],
             Expanded(
               flex: 1,
               child: TextFormField(
@@ -1318,42 +1340,45 @@ class _NetworkTab extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        TextFormField(
-          controller: usernameController,
-          style: const TextStyle(color: Colors.white),
-          decoration: _inputDeco('Username', Icons.person_outline,
-              hint: 'Optional', accent: Colors.orangeAccent),
-        ),
-        const SizedBox(height: 14),
-        TextFormField(
-          controller: passwordController,
-          style: const TextStyle(color: Colors.white),
-          obscureText: true,
-          decoration: _inputDeco('Password', Icons.lock_outline,
-              hint: 'Optional', accent: Colors.orangeAccent),
-        ),
-        const SizedBox(height: 28),
-        _sectionHeader('Modem Rotator', icon: Icons.autorenew, tooltip: 'Modem Rotator: Jika Anda memakai modem router seluler fisik (4G/5G), masukkan URL rotasi API di sini untuk memaksa modem ganti IP baru sebelum membuka browser.'),
-        TextFormField(
-          controller: rotationUrlController,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
-          keyboardType: TextInputType.url,
-          decoration: _inputDeco(
-            'IP Rotation API URL',
-            Icons.link,
-            hint: 'https://api.provider.com/rotate?key=...',
-            accent: Colors.orangeAccent,
+        
+        if (!useSystemProxyPool) ...[
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: usernameController,
+            style: const TextStyle(color: Colors.white),
+            decoration: _inputDeco('Username', Icons.person_outline,
+                hint: 'Optional', accent: Colors.orangeAccent),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 6, left: 4),
-          child: Text(
-            'Leave empty to disable automatic IP rotation',
-            style: TextStyle(
-                fontSize: 11, color: Colors.white.withValues(alpha: 0.35)),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: passwordController,
+            style: const TextStyle(color: Colors.white),
+            obscureText: true,
+            decoration: _inputDeco('Password', Icons.lock_outline,
+                hint: 'Optional', accent: Colors.orangeAccent),
           ),
-        ),
+          const SizedBox(height: 28),
+          _sectionHeader('Modem Rotator', icon: Icons.autorenew, tooltip: 'Modem Rotator: Jika Anda memakai modem router seluler fisik (4G/5G), masukkan URL rotasi API di sini untuk memaksa modem ganti IP baru sebelum membuka browser.'),
+          TextFormField(
+            controller: rotationUrlController,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            keyboardType: TextInputType.url,
+            decoration: _inputDeco(
+              'IP Rotation API URL',
+              Icons.link,
+              hint: 'https://api.provider.com/rotate?key=...',
+              accent: Colors.orangeAccent,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 4),
+            child: Text(
+              'Leave empty to disable automatic IP rotation',
+              style: TextStyle(
+                  fontSize: 11, color: Colors.white.withValues(alpha: 0.35)),
+            ),
+          ),
+        ],
       ],
 
       const SizedBox(height: 28),

@@ -23,12 +23,16 @@ import 'package:pbrowser/ui/shared/global_task_overlay.dart';
 
 // Services
 import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize Privacy-Aware Analytics
   await PrivacyCrashReporter.init();
+  
+  // Load strict backend configurations
+  await dotenv.load(fileName: ".env");
   
   HeadlessKeepAliveService.init();
 
