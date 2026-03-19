@@ -55,6 +55,24 @@ class ProxyConfig {
         rotationUrl = null;
   
   bool get isConfigured => type != ProxyType.none && host != null && port != null;
+
+  /// `true` when both [username] and [password] are non-null and non-empty.
+  bool get hasCredentials =>
+      username != null &&
+      username!.isNotEmpty &&
+      password != null &&
+      password!.isNotEmpty;
+
+  /// Returns the `Proxy-Authorization` header **value** (everything after the
+  /// colon) when credentials are present, e.g.:
+  ///   `"Basic YWRtaW46cm90YXRvcjEyMw=="`
+  ///
+  /// Returns `null` when [hasCredentials] is `false`.
+  String? get basicAuthHeader {
+    if (!hasCredentials) return null;
+    final encoded = base64Encode(utf8.encode('$username:$password'));
+    return 'Basic $encoded';
+  }
   
   Map<String, dynamic> toJson() {
     return {

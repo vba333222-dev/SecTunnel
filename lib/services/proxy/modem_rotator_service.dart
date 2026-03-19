@@ -3,47 +3,97 @@ import 'package:flutter/foundation.dart';
 import 'package:pbrowser/services/proxy/mobile_proxy_service.dart';
 
 /// Global service to track IP Rotation state across the entire application.
+///
+/// Refactored from a single global boolean lock to a per-profile [Set]-based
+/// approach so that Profile A rotating Modem 1 never blocks Profile B from
+/// concurrently rotating Modem 2.
 class ModemRotatorService extends ChangeNotifier {
-  bool _isRotating = false;
-  String? _targetProfileId;
-  String? _targetProfileName;
-  bool _lastStatus = false;
-  String? _errorMessage;
+  // Per-profile concurrency: contains profileIds that are currently rotating.
+  final Set<String> _rotatingProfiles = {};
 
-  bool get isRotating => _isRotating;
-  String? get targetProfileId => _targetProfileId;
-  String? get targetProfileName => _targetProfileName;
-  bool get lastStatus => _lastStatus;
-  String? get errorMessage => _errorMessage;
+  // Per-profile state maps (keyed by profileId).
+  final Map<String, String> _profileNames = {};
+  final Map<String, bool> _profileLastStatus = {};
+  final Map<String, String?> _profileErrors = {};
 
-  /// Trigger rotation globally
-  Future<void> rotateIp(String url, String profileId, String profileName) async {
-    if (_isRotating) {
-      debugPrint('[ModemRotatorService] Already rotating another proxy. Ignoring request.');
+  // ── Backwards-compatible global getters ─────────────────────────────────
+
+  /// `true` if *any* profile is currently rotating.
+  bool get isRotating => _rotatingProfiles.isNotEmpty;
+
+  /// The first profileId currently rotating (or null). Legacy convenience.
+  String? get targetProfileId =>
+      _rotatingProfiles.isEmpty ? null : _rotatingProfiles.first;
+
+  /// Display name for the first rotating profile. Legacy convenience.
+  String? get targetProfileName =>
+      targetProfileId == null ? null : _profileNames[targetProfileId];
+
+  /// Last rotation status. Legacy convenience – uses the first rotating profile.
+  bool get lastStatus {
+    final id = targetProfileId;
+    if (id != null) return _profileLastStatus[id] ?? false;
+    // After all rotations finish, return the most-recent recorded status.
+    return _profileLastStatus.values.lastOrNull ?? false;
+  }
+
+  /// Error message for the first rotating profile. Legacy convenience.
+  String? get errorMessage =>
+      targetProfileId == null ? null : _profileErrors[targetProfileId];
+
+  // ── Per-profile query helpers ────────────────────────────────────────────
+
+  /// Returns `true` if [profileId] is currently in a rotation cycle.
+  bool isRotatingProfile(String profileId) =>
+      _rotatingProfiles.contains(profileId);
+
+  /// Returns the last rotation outcome for [profileId].
+  bool lastStatusForProfile(String profileId) =>
+      _profileLastStatus[profileId] ?? false;
+
+  /// Returns the last error (if any) for [profileId].
+  String? errorForProfile(String profileId) => _profileErrors[profileId];
+
+  // ── Core rotation logic ──────────────────────────────────────────────────
+
+  /// Trigger IP rotation for a specific [profileId].
+  ///
+  /// * If [profileId] is already rotating, the call is silently ignored.
+  /// * A *different* profileId can rotate concurrently without being blocked.
+  Future<void> rotateIp(
+    String url,
+    String profileId,
+    String profileName,
+  ) async {
+    if (_rotatingProfiles.contains(profileId)) {
+      debugPrint(
+        '[ModemRotatorService] Profile $profileId ($profileName) is already '
+        'rotating. Ignoring duplicate request.',
+      );
       return;
     }
 
-    _isRotating = true;
-    _targetProfileId = profileId;
-    _targetProfileName = profileName;
-    _errorMessage = null;
+    _rotatingProfiles.add(profileId);
+    _profileNames[profileId] = profileName;
+    _profileErrors[profileId] = null;
     notifyListeners();
 
     try {
-      _lastStatus = await MobileProxyService.rotateIp(url);
+      _profileLastStatus[profileId] = await MobileProxyService.rotateIp(url);
     } catch (e) {
-      _lastStatus = false;
-      _errorMessage = e.toString();
+      _profileLastStatus[profileId] = false;
+      _profileErrors[profileId] = e.toString();
+      debugPrint('[ModemRotatorService] Error rotating $profileId: $e');
     } finally {
-      _isRotating = false;
+      _rotatingProfiles.remove(profileId);
       notifyListeners();
 
-      // Clear the target profile after a short delay so the UI can show success/failure state briefly
+      // Keep the result state briefly so the UI can display success/failure,
+      // then clean up – but only if the profile has not started rotating again.
       Timer(const Duration(seconds: 3), () {
-        if (!_isRotating) { // Only clear if a new one hasn't started
-          _targetProfileId = null;
-          _targetProfileName = null;
-          _errorMessage = null;
+        if (!_rotatingProfiles.contains(profileId)) {
+          _profileNames.remove(profileId);
+          _profileErrors.remove(profileId);
           notifyListeners();
         }
       });

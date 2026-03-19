@@ -25,6 +25,9 @@ class BrowserProfiles extends Table {
   // Background Keep-Alive
   BoolColumn get keepAliveEnabled => boolean().withDefault(const Constant(false))();
   
+  // One-shot cache clear flag — reset to false after the wipe occurs
+  BoolColumn get clearBrowsingData => boolean().withDefault(const Constant(false))();
+  
   // Metadata
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get lastUsedAt => dateTime()();
@@ -61,7 +64,7 @@ class AppDatabase extends _$AppDatabase {
   UserScriptDao get userScriptDao => UserScriptDao(this);
   
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
   
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -89,6 +92,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 3) {
         await m.addColumn(browserProfiles, browserProfiles.keepAliveEnabled);
         await m.addColumn(browserProfiles, browserProfiles.tagsJson);
+      }
+      if (from < 4) {
+        await m.addColumn(browserProfiles, browserProfiles.clearBrowsingData);
       }
     },
   );

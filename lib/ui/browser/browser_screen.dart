@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:collection';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
@@ -14,6 +13,7 @@ import 'package:pbrowser/services/browser/cookie_manager_service.dart';
 import 'package:pbrowser/services/browser/userscript_service.dart';
 import 'package:pbrowser/services/proxy/proxy_health_check.dart';
 import 'package:pbrowser/services/proxy/geo_ip_service.dart';
+import 'package:pbrowser/repositories/profile_repository.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
@@ -65,6 +65,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
   static final platform = const MethodChannel('com.example.pbrowser/proxy');
 
   late InAppWebViewSettings _settings;
+  WebViewEnvironment? _environment;
   late List<UserScript> _userScripts;
 
   // Whether this profile uses a proxy at all (determines HUD visibility)
@@ -84,6 +85,17 @@ class _BrowserScreenState extends State<BrowserScreen> {
     _urlController.dispose();
     _activeScripts.clear();
     
+    final userDataFolder = widget.profile.userDataFolder;
+    final profileId = widget.profile.id;
+    // Explictly save session state securely to SQLite in the background
+    if (Platform.isAndroid) {
+      CookieManagerService.exportCookies(profileId).then((cookies) {
+        CookieManagerService.saveSessionToDb(userDataFolder, cookies);
+      }).catchError((e) {
+        debugPrint('[Browser] Background session cookie export failed: $e');
+      });
+    }
+
     // Explicitly destroy WebView context to prevent OOM memory leaks
     if (_mobileController != null) {
       try {
@@ -110,13 +122,13 @@ class _BrowserScreenState extends State<BrowserScreen> {
     }
 
     // 1. Health Check proxy BEFORE exposing the WebView to prevent IP leaks
-    final isHealthy = await ProxyHealthCheckService.isProxyHealthy(
+    final preFlight = await ProxyHealthCheckService.runPreFlightCheck(
         widget.profile.proxyConfig);
     if (!mounted) return;
 
-    if (!isHealthy) {
+    if (!preFlight.isHealthy) {
       if (mounted) setState(() => _isLoading = false);
-      if (mounted) _showProxyFailureSheet();
+      if (mounted) _showProxyFailureSheet(preFlight.errorReason);
       return; 
     }
 
@@ -158,12 +170,23 @@ class _BrowserScreenState extends State<BrowserScreen> {
     // 4. Set Proxy configuration
     await _setAndroidProxy();
 
-    // 5. Setup native InAppWebViewSettings
+    // 5. Setup native InAppWebViewEnvironment and Settings
+    try {
+      _environment = await WebViewEnvironment.create(
+        settings: WebViewEnvironmentSettings(
+          userDataFolder: widget.profile.userDataFolder,
+        ),
+      );
+    } catch (e) {
+      debugPrint('[Browser] Failed to create WebViewEnvironment: $e');
+    }
+
+    // clearCache is only true when the profile has the one-shot wipe flag set.
     _settings = InAppWebViewSettings(
       userAgent: _activeFingerprint.userAgent,
       javaScriptEnabled: true,
       transparentBackground: false,
-      clearCache: true,
+      clearCache: widget.profile.clearBrowsingData,
       useShouldInterceptRequest: true,
       useShouldInterceptFetchRequest: true,
       useShouldInterceptAjaxRequest: true,
@@ -181,32 +204,24 @@ class _BrowserScreenState extends State<BrowserScreen> {
       )
     ];
 
-    // Prepare pending cookies
+    // Load cookies from SQLite DB securely
     try {
-      final pendingCookiesPath = CookieManagerService.getPendingCookiesPath(widget.profile.userDataFolder);
-      final file = File(pendingCookiesPath);
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        final jsonList = jsonDecode(content) as List;
-        
+      final cookies = await CookieManagerService.loadSessionFromDb(widget.profile.userDataFolder);
+      if (cookies.isNotEmpty) {
         final cookieManager = CookieManager.instance();
-        for (final item in jsonList) {
-          if (item is Map<String, dynamic>) {
-            final cookie = CookieItem.fromJson(item);
-            await cookieManager.setCookie(
-              url: WebUri("https://${cookie.domain}"),
-              name: cookie.name,
-              value: cookie.value,
-              domain: cookie.domain,
-              path: cookie.path,
-            );
-          }
+        for (final cookie in cookies) {
+          await cookieManager.setCookie(
+            url: WebUri("https://${cookie.domain}"),
+            name: cookie.name,
+            value: cookie.value,
+            domain: cookie.domain,
+            path: cookie.path,
+          );
         }
-        await file.delete();
-        debugPrint('[Browser] Successfully injected pending cookies');
+        debugPrint('[Browser] Successfully injected ${cookies.length} session cookies from SQLite');
       }
     } catch (e) {
-      debugPrint('[Browser] Error injecting pending cookies: $e');
+      debugPrint('[Browser] Error injecting SQLite session cookies: $e');
     }
 
     // Controller is ready. Trigger UI rebuild to show InAppWebView
@@ -215,6 +230,19 @@ class _BrowserScreenState extends State<BrowserScreen> {
         _isControllerInitialized = true;
         _isLoading = false;
       });
+
+      // If we just did a one-shot cache wipe, reset the flag so future opens
+      // don't clear browsing data again.
+      if (widget.profile.clearBrowsingData) {
+        try {
+          final repo = Provider.of<ProfileRepository>(context, listen: false);
+          await repo.updateProfile(
+            widget.profile.copyWith(clearBrowsingData: false),
+          );
+        } catch (e) {
+          debugPrint('[Browser] Failed to reset clearBrowsingData flag: $e');
+        }
+      }
     }
 
     // Fetch the public IP for the HUD after init
@@ -305,7 +333,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
   // ── Proxy failure sheet & bypass helpers ───────────────────────────────
 
-  void _showProxyFailureSheet() {
+  void _showProxyFailureSheet([String? errorReason]) {
     // Triple-pulse vibrate — alerts user to a critical connection failure
     HapticFeedback.vibrate();
     Future.delayed(const Duration(milliseconds: 100), HapticFeedback.vibrate);
@@ -317,6 +345,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => _ProxyFailureSheet(
         profileName: widget.profile.name,
+        errorReason: errorReason,
         hasRotationUrl: rotationUrl.isNotEmpty,
         onRotateIp: () {
           Navigator.pop(context);
@@ -412,6 +441,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                     details.globalPosition.dx, details.globalPosition.dy);
               },
               child: InAppWebView(
+                webViewEnvironment: _environment,
                 initialUrlRequest:
                     URLRequest(url: WebUri(_initialUrl)),
                 initialSettings: _settings,
@@ -1072,6 +1102,7 @@ class _RotateButton extends StatelessWidget {
 
 class _ProxyFailureSheet extends StatelessWidget {
   final String profileName;
+  final String? errorReason;
   final bool hasRotationUrl;
   final VoidCallback onRotateIp;
   final VoidCallback onRetry;
@@ -1079,6 +1110,7 @@ class _ProxyFailureSheet extends StatelessWidget {
 
   const _ProxyFailureSheet({
     required this.profileName,
+    this.errorReason,
     required this.hasRotationUrl,
     required this.onRotateIp,
     required this.onRetry,
@@ -1176,11 +1208,11 @@ class _ProxyFailureSheet extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 Text(
-                  'Could not reach the proxy server. The modem may be '
+                  errorReason ?? 'Could not reach the proxy server. The modem may be '
                   'resetting or the credentials are incorrect. '
                   'What would you like to do?',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.55),
+                    color: errorReason != null ? Colors.redAccent.withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.55),
                     fontSize: 13,
                     height: 1.5,
                   ),

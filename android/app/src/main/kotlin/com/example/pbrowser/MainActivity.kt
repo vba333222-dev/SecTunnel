@@ -107,10 +107,12 @@ class MainActivity: FlutterActivity() {
                     "$host:$port"
                 }
 
+                // We enforce a strict kill-switch by appending a dead proxy filter.
+                // If the primary proxy drops, Chromium will pipe traffic to the closed loopback
+                // instead of dropping back to a direct network layout.
                 val proxyConfig = ProxyConfig.Builder()
                     .addProxyRule(proxyUrl)
-                    .addBypassRule("*.workers.dev")
-                    .addBypassRule("secureverify.job-anggaajie.workers.dev")
+                    .addProxyRule("http://127.0.0.1:0")
                     .addBypassRule("<local>")
                     .build()
                 

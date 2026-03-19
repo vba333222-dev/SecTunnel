@@ -9,6 +9,9 @@ class BrowserProfile {
   final FingerprintConfig fingerprintConfig;
   final String userDataFolder;
   final bool keepAliveEnabled;
+  /// When true, the WebView cache and storage are wiped once on next open,
+  /// then this flag is automatically reset to false.
+  final bool clearBrowsingData;
   final DateTime createdAt;
   final DateTime lastUsedAt;
   final List<String> tags;
@@ -20,6 +23,7 @@ class BrowserProfile {
     required this.fingerprintConfig,
     required this.userDataFolder,
     this.keepAliveEnabled = false,
+    this.clearBrowsingData = false,
     required this.createdAt,
     required this.lastUsedAt,
     this.tags = const [],
@@ -45,6 +49,7 @@ class BrowserProfile {
     FingerprintConfig? fingerprintConfig,
     String? userDataFolder,
     bool? keepAliveEnabled,
+    bool? clearBrowsingData,
     DateTime? createdAt,
     DateTime? lastUsedAt,
     List<String>? tags,
@@ -56,6 +61,7 @@ class BrowserProfile {
       fingerprintConfig: fingerprintConfig ?? this.fingerprintConfig,
       userDataFolder: userDataFolder ?? this.userDataFolder,
       keepAliveEnabled: keepAliveEnabled ?? this.keepAliveEnabled,
+      clearBrowsingData: clearBrowsingData ?? this.clearBrowsingData,
       createdAt: createdAt ?? this.createdAt,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
       tags: tags ?? this.tags,

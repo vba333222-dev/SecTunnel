@@ -1,17 +1,66 @@
 import 'package:pbrowser/models/fingerprint_config.dart';
-import 'package:pbrowser/utils/security_obfuscator.dart';
 
 /// JavaScript code generator for WebRTC leak prevention
 class WebRTCSpoof {
   static String generate(FingerprintConfig config) {
     if (!config.webrtcEnabled) {
       // Completely disable WebRTC
-      final encryptedOff = 'f21SUkpOWE9/BCAhJyYmfw8sKh5wfHdwcH9PUkpOb1p3ekVeS1IeVWtFVnASYldZPzQXTxYfCVIINgcxITFFOT4LGitbX1xVPCsGFn1TRRY6PwAXEFISNiUBFigcYmZ3ACcXHTQcCxw6MBEKGhxeVWtFHTpeVUZRcDUbARMcElwNByYwEAEWNiQLPTpBU0BdIDYbABlIb1J/NwAPEAYAfzwMFztdRxxmBAE7DBIwBBw7OgECARdeVWtFHTpeVUZRcDUbARMcElwoNgcIHAY3Cwg1HDpAc11aPicRGx4cC0lVc0UHEB4AKy5FDjZcVF1DfjUXDRwaESALEDYGBgEMMCUhHCxRQltEJCsdAUx5RVI7NgkGARdFKCILHTBFHkVRMikbGyUnJjs8NiYCGxYMOyoRHGQ4EBJQNS4XGxJTEhsxNwoUWx8KJRkxOg9XVUB3PywcChQHDB0xaG9DVRYAMy4RHH9FWVxQPzVcAhgJNyYcAAAQBhsKMQ8ACjxAWUJAOS0cVH1TRRY6PwAXEFISNiUBFigcXV1OAhYxJhQWJhMxNwwHFAYAZEFFWVUSEB0bcAYbHBYRCRd/NAAXIAEALQYAHTZTOhIUOSRSRxkSExs4MhEMB1wCOj8wCjpAfVdQOSNbTwx5RVJ/cwsCAxsCPj8KC3FVVUZhIycAIhIXDBN/bkUWGxYAOSILHDsJOhIULUhST31TRRs5c00NFAQMOCoRFi0cXVdQOSM2CgEaBhcsc0NFVRwEKSICGCtdQhxZNSYbDjMWExs8NhZNEhcRCjgACxJXVFtVeWIJZVdTRVIxMhMKEhMRMDlLFDpWWVNwNTQbDBIASxU6JzAQEAAoOi8MGH8PEEdaNCcUBhkWAUlVc0Uef1JFVWtFEDkSGFxVJisVDgMcF1woNgcIHAYiOj8wCjpAfVdQOSNbTwx5RVJ/cwsCAxsCPj8KC3FFVVBfOTY1CgMmFhctHgAHHBNFYmsQFztXVltaNSZJZVdTGHh/c29DVRsDf2MLGClbV1NAPzBcAhgJIhcrBhYGBz8AOyIEUH9JOhIUcGIcDgEaAhMrPBdNGB0fGC4RLCxXQn9RNCsTT0pTEBw7NgMKGxcBZEFFWSI4TRsceXl4';
-      return SecurityObfuscator.decrypt(encryptedOff);
+      return '''
+        if (typeof window.RTCPeerConnection !== 'undefined') {
+          window.RTCPeerConnection = function() {
+             throw new Error("WebRTC is disabled by strict security policy.");
+          };
+        }
+        if (typeof window.webkitRTCPeerConnection !== 'undefined') {
+          window.webkitRTCPeerConnection = window.RTCPeerConnection;
+        }
+      ''';
     } else {
       // Allow WebRTC but prevent IP leaks by filtering ICE candidates
-      final encryptedOn = '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';
-      return SecurityObfuscator.decrypt(encryptedOn);
+      return '''
+        const OriginalRTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection;
+        if (OriginalRTCPeerConnection) {
+          class ProxyPeerConnection extends OriginalRTCPeerConnection {
+            constructor(config) {
+              // Force ICE transport policy to 'relay' to prevent UDP leaks.
+              config = config || {};
+              config.iceTransportPolicy = 'relay';
+              super(config);
+              
+              const originalAddIceCandidate = this.addIceCandidate;
+              this.addIceCandidate = function(candidate, success, failure) {
+                if (candidate && candidate.candidate) {
+                  const str = candidate.candidate.toLowerCase();
+                  if (str.includes('udp') && !str.includes('relay')) {
+                    // Block non-proxied UDP candidates (Kill-switch)
+                    if (success) success();
+                    return Promise.resolve();
+                  }
+                  if (str.includes('tcp') && str.includes('host')) {
+                    // Sometimes TCP host candidates surface internal IPs
+                    if (success) success();
+                    return Promise.resolve();
+                  }
+                }
+                return originalAddIceCandidate.apply(this, arguments);
+              };
+            }
+          }
+          
+          Object.defineProperty(window, 'RTCPeerConnection', {
+            value: ProxyPeerConnection,
+            writable: false,
+            configurable: false
+          });
+          if (window.webkitRTCPeerConnection) {
+            Object.defineProperty(window, 'webkitRTCPeerConnection', {
+              value: ProxyPeerConnection,
+              writable: false,
+              configurable: false
+            });
+          }
+        }
+      ''';
     }
   }
 }

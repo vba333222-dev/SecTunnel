@@ -115,25 +115,100 @@ class CookieManagerService {
     return cookies;
   }
 
-  /// Define pending_cookies.json path
-  static String getPendingCookiesPath(String userDataFolder) {
-    return path.join(userDataFolder, 'pending_cookies.json');
+  /// Define session database path
+  static String getSessionDbPath(String userDataFolder) {
+    return path.join(userDataFolder, 'session.db');
   }
 
-  /// Save raw cookie text to pending file
-  static Future<void> savePendingCookies(String userDataFolder, String cookieText) async {
-    final parsed = parseCookies(cookieText);
-    if (parsed.isEmpty) return;
+  /// Ensure session database exists and table is created
+  static Database _initSessionDb(String userDataFolder) {
+    final dbPath = getSessionDbPath(userDataFolder);
+    final db = sqlite3.open(dbPath);
+    // Create the cookies table if not exists
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS cookies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        domain TEXT,
+        path TEXT,
+        name TEXT,
+        value TEXT,
+        secure INTEGER,
+        http_only INTEGER,
+        expiration_date INTEGER
+      );
+    ''');
+    return db;
+  }
 
-    final filePath = getPendingCookiesPath(userDataFolder);
-    final file = File(filePath);
+  /// Save cookies to session SQLite DB
+  static Future<void> saveSessionToDb(String userDataFolder, List<CookieItem> cookies) async {
+    if (cookies.isEmpty) return;
     
-    final jsonList = parsed.map((e) => e.toJson()).toList();
-    await file.writeAsString(jsonEncode(jsonList));
+    final db = _initSessionDb(userDataFolder);
+    
+    // Clear old cookies to avoid duplicates for the same name/domain/path
+    db.execute('DELETE FROM cookies');
+    
+    final stmt = db.prepare('''
+      INSERT INTO cookies (domain, path, name, value, secure, http_only, expiration_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''');
+    
+    db.execute('BEGIN TRANSACTION');
+    try {
+      for (final cookie in cookies) {
+        stmt.execute([
+          cookie.domain,
+          cookie.path,
+          cookie.name,
+          cookie.value,
+          cookie.secure ? 1 : 0,
+          cookie.httpOnly ? 1 : 0,
+          cookie.expirationDate,
+        ]);
+      }
+      db.execute('COMMIT');
+    } catch (e) {
+      db.execute('ROLLBACK');
+      debugPrint('[CookieManager] Error saving session to DB: $e');
+    } finally {
+      stmt.dispose();
+      db.close();
+    }
+  }
+
+  /// Load cookies from session SQLite DB
+  static Future<List<CookieItem>> loadSessionFromDb(String userDataFolder) async {
+    final dbPath = getSessionDbPath(userDataFolder);
+    if (!File(dbPath).existsSync()) return [];
+
+    final db = _initSessionDb(userDataFolder);
+    final List<CookieItem> cookies = [];
+    
+    try {
+      final results = db.select('SELECT * FROM cookies');
+      for (final row in results) {
+        cookies.add(CookieItem(
+          domain: row['domain'] as String? ?? '',
+          path: row['path'] as String? ?? '/',
+          name: row['name'] as String? ?? '',
+          value: row['value'] as String? ?? '',
+          secure: (row['secure'] as int? ?? 0) == 1,
+          httpOnly: (row['http_only'] as int? ?? 0) == 1,
+          expirationDate: row['expiration_date'] as int?,
+        ));
+      }
+    } catch (e) {
+      debugPrint('[CookieManager] Error loading session from DB: $e');
+    } finally {
+      db.close();
+    }
+    
+    return cookies;
   }
 
   /// Export active cookies for a specific Android WebView Profile ID
-  static Future<String> exportCookies(String profileId) async {
+  static Future<List<CookieItem>> exportCookies(String profileId) async {
     if (!Platform.isAndroid) {
       throw UnsupportedError('Export is only supported on Android');
     }
@@ -178,8 +253,7 @@ class CookieManagerService {
       }
       db.close();
       
-      final jsonList = cookies.map((e) => e.toJson()).toList();
-      return jsonEncode(jsonList);
+      return cookies;
     } catch (e) {
       debugPrint('[CookieManager] Export error: $e');
       rethrow;
