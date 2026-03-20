@@ -77,6 +77,16 @@ class $BrowserProfilesTable extends BrowserProfiles
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("keep_alive_enabled" IN (0, 1))'),
       defaultValue: const Constant(false));
+  static const VerificationMeta _clearBrowsingDataMeta =
+      const VerificationMeta('clearBrowsingData');
+  @override
+  late final GeneratedColumn<bool> clearBrowsingData = GeneratedColumn<bool>(
+      'clear_browsing_data', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("clear_browsing_data" IN (0, 1))'),
+      defaultValue: const Constant(false));
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -108,6 +118,7 @@ class $BrowserProfilesTable extends BrowserProfiles
         fingerprintJson,
         userDataFolder,
         keepAliveEnabled,
+        clearBrowsingData,
         createdAt,
         lastUsedAt,
         tagsJson
@@ -187,6 +198,12 @@ class $BrowserProfilesTable extends BrowserProfiles
           keepAliveEnabled.isAcceptableOrUnknown(
               data['keep_alive_enabled']!, _keepAliveEnabledMeta));
     }
+    if (data.containsKey('clear_browsing_data')) {
+      context.handle(
+          _clearBrowsingDataMeta,
+          clearBrowsingData.isAcceptableOrUnknown(
+              data['clear_browsing_data']!, _clearBrowsingDataMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -236,6 +253,8 @@ class $BrowserProfilesTable extends BrowserProfiles
           DriftSqlType.string, data['${effectivePrefix}user_data_folder'])!,
       keepAliveEnabled: attachedDatabase.typeMapping.read(
           DriftSqlType.bool, data['${effectivePrefix}keep_alive_enabled'])!,
+      clearBrowsingData: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool, data['${effectivePrefix}clear_browsing_data'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
       lastUsedAt: attachedDatabase.typeMapping
@@ -263,6 +282,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
   final String fingerprintJson;
   final String userDataFolder;
   final bool keepAliveEnabled;
+  final bool clearBrowsingData;
   final DateTime createdAt;
   final DateTime lastUsedAt;
   final String? tagsJson;
@@ -278,6 +298,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       required this.fingerprintJson,
       required this.userDataFolder,
       required this.keepAliveEnabled,
+      required this.clearBrowsingData,
       required this.createdAt,
       required this.lastUsedAt,
       this.tagsJson});
@@ -305,6 +326,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
     map['fingerprint_json'] = Variable<String>(fingerprintJson);
     map['user_data_folder'] = Variable<String>(userDataFolder);
     map['keep_alive_enabled'] = Variable<bool>(keepAliveEnabled);
+    map['clear_browsing_data'] = Variable<bool>(clearBrowsingData);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['last_used_at'] = Variable<DateTime>(lastUsedAt);
     if (!nullToAbsent || tagsJson != null) {
@@ -336,6 +358,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       fingerprintJson: Value(fingerprintJson),
       userDataFolder: Value(userDataFolder),
       keepAliveEnabled: Value(keepAliveEnabled),
+      clearBrowsingData: Value(clearBrowsingData),
       createdAt: Value(createdAt),
       lastUsedAt: Value(lastUsedAt),
       tagsJson: tagsJson == null && nullToAbsent
@@ -359,6 +382,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       fingerprintJson: serializer.fromJson<String>(json['fingerprintJson']),
       userDataFolder: serializer.fromJson<String>(json['userDataFolder']),
       keepAliveEnabled: serializer.fromJson<bool>(json['keepAliveEnabled']),
+      clearBrowsingData: serializer.fromJson<bool>(json['clearBrowsingData']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       lastUsedAt: serializer.fromJson<DateTime>(json['lastUsedAt']),
       tagsJson: serializer.fromJson<String?>(json['tagsJson']),
@@ -379,6 +403,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       'fingerprintJson': serializer.toJson<String>(fingerprintJson),
       'userDataFolder': serializer.toJson<String>(userDataFolder),
       'keepAliveEnabled': serializer.toJson<bool>(keepAliveEnabled),
+      'clearBrowsingData': serializer.toJson<bool>(clearBrowsingData),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'lastUsedAt': serializer.toJson<DateTime>(lastUsedAt),
       'tagsJson': serializer.toJson<String?>(tagsJson),
@@ -397,6 +422,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           String? fingerprintJson,
           String? userDataFolder,
           bool? keepAliveEnabled,
+          bool? clearBrowsingData,
           DateTime? createdAt,
           DateTime? lastUsedAt,
           Value<String?> tagsJson = const Value.absent()}) =>
@@ -416,6 +442,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
         fingerprintJson: fingerprintJson ?? this.fingerprintJson,
         userDataFolder: userDataFolder ?? this.userDataFolder,
         keepAliveEnabled: keepAliveEnabled ?? this.keepAliveEnabled,
+        clearBrowsingData: clearBrowsingData ?? this.clearBrowsingData,
         createdAt: createdAt ?? this.createdAt,
         lastUsedAt: lastUsedAt ?? this.lastUsedAt,
         tagsJson: tagsJson.present ? tagsJson.value : this.tagsJson,
@@ -445,6 +472,9 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       keepAliveEnabled: data.keepAliveEnabled.present
           ? data.keepAliveEnabled.value
           : this.keepAliveEnabled,
+      clearBrowsingData: data.clearBrowsingData.present
+          ? data.clearBrowsingData.value
+          : this.clearBrowsingData,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       lastUsedAt:
           data.lastUsedAt.present ? data.lastUsedAt.value : this.lastUsedAt,
@@ -466,6 +496,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           ..write('fingerprintJson: $fingerprintJson, ')
           ..write('userDataFolder: $userDataFolder, ')
           ..write('keepAliveEnabled: $keepAliveEnabled, ')
+          ..write('clearBrowsingData: $clearBrowsingData, ')
           ..write('createdAt: $createdAt, ')
           ..write('lastUsedAt: $lastUsedAt, ')
           ..write('tagsJson: $tagsJson')
@@ -486,6 +517,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
       fingerprintJson,
       userDataFolder,
       keepAliveEnabled,
+      clearBrowsingData,
       createdAt,
       lastUsedAt,
       tagsJson);
@@ -504,6 +536,7 @@ class BrowserProfile extends DataClass implements Insertable<BrowserProfile> {
           other.fingerprintJson == this.fingerprintJson &&
           other.userDataFolder == this.userDataFolder &&
           other.keepAliveEnabled == this.keepAliveEnabled &&
+          other.clearBrowsingData == this.clearBrowsingData &&
           other.createdAt == this.createdAt &&
           other.lastUsedAt == this.lastUsedAt &&
           other.tagsJson == this.tagsJson);
@@ -521,6 +554,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
   final Value<String> fingerprintJson;
   final Value<String> userDataFolder;
   final Value<bool> keepAliveEnabled;
+  final Value<bool> clearBrowsingData;
   final Value<DateTime> createdAt;
   final Value<DateTime> lastUsedAt;
   final Value<String?> tagsJson;
@@ -537,6 +571,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     this.fingerprintJson = const Value.absent(),
     this.userDataFolder = const Value.absent(),
     this.keepAliveEnabled = const Value.absent(),
+    this.clearBrowsingData = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.lastUsedAt = const Value.absent(),
     this.tagsJson = const Value.absent(),
@@ -554,6 +589,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     required String fingerprintJson,
     required String userDataFolder,
     this.keepAliveEnabled = const Value.absent(),
+    this.clearBrowsingData = const Value.absent(),
     required DateTime createdAt,
     required DateTime lastUsedAt,
     this.tagsJson = const Value.absent(),
@@ -577,6 +613,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     Expression<String>? fingerprintJson,
     Expression<String>? userDataFolder,
     Expression<bool>? keepAliveEnabled,
+    Expression<bool>? clearBrowsingData,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? lastUsedAt,
     Expression<String>? tagsJson,
@@ -594,6 +631,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       if (fingerprintJson != null) 'fingerprint_json': fingerprintJson,
       if (userDataFolder != null) 'user_data_folder': userDataFolder,
       if (keepAliveEnabled != null) 'keep_alive_enabled': keepAliveEnabled,
+      if (clearBrowsingData != null) 'clear_browsing_data': clearBrowsingData,
       if (createdAt != null) 'created_at': createdAt,
       if (lastUsedAt != null) 'last_used_at': lastUsedAt,
       if (tagsJson != null) 'tags_json': tagsJson,
@@ -613,6 +651,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       Value<String>? fingerprintJson,
       Value<String>? userDataFolder,
       Value<bool>? keepAliveEnabled,
+      Value<bool>? clearBrowsingData,
       Value<DateTime>? createdAt,
       Value<DateTime>? lastUsedAt,
       Value<String?>? tagsJson,
@@ -629,6 +668,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
       fingerprintJson: fingerprintJson ?? this.fingerprintJson,
       userDataFolder: userDataFolder ?? this.userDataFolder,
       keepAliveEnabled: keepAliveEnabled ?? this.keepAliveEnabled,
+      clearBrowsingData: clearBrowsingData ?? this.clearBrowsingData,
       createdAt: createdAt ?? this.createdAt,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
       tagsJson: tagsJson ?? this.tagsJson,
@@ -672,6 +712,9 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
     if (keepAliveEnabled.present) {
       map['keep_alive_enabled'] = Variable<bool>(keepAliveEnabled.value);
     }
+    if (clearBrowsingData.present) {
+      map['clear_browsing_data'] = Variable<bool>(clearBrowsingData.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -701,6 +744,7 @@ class BrowserProfilesCompanion extends UpdateCompanion<BrowserProfile> {
           ..write('fingerprintJson: $fingerprintJson, ')
           ..write('userDataFolder: $userDataFolder, ')
           ..write('keepAliveEnabled: $keepAliveEnabled, ')
+          ..write('clearBrowsingData: $clearBrowsingData, ')
           ..write('createdAt: $createdAt, ')
           ..write('lastUsedAt: $lastUsedAt, ')
           ..write('tagsJson: $tagsJson, ')
@@ -1207,6 +1251,7 @@ typedef $$BrowserProfilesTableCreateCompanionBuilder = BrowserProfilesCompanion
   required String fingerprintJson,
   required String userDataFolder,
   Value<bool> keepAliveEnabled,
+  Value<bool> clearBrowsingData,
   required DateTime createdAt,
   required DateTime lastUsedAt,
   Value<String?> tagsJson,
@@ -1225,6 +1270,7 @@ typedef $$BrowserProfilesTableUpdateCompanionBuilder = BrowserProfilesCompanion
   Value<String> fingerprintJson,
   Value<String> userDataFolder,
   Value<bool> keepAliveEnabled,
+  Value<bool> clearBrowsingData,
   Value<DateTime> createdAt,
   Value<DateTime> lastUsedAt,
   Value<String?> tagsJson,
@@ -1275,6 +1321,10 @@ class $$BrowserProfilesTableFilterComposer
 
   ColumnFilters<bool> get keepAliveEnabled => $composableBuilder(
       column: $table.keepAliveEnabled,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get clearBrowsingData => $composableBuilder(
+      column: $table.clearBrowsingData,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
@@ -1335,6 +1385,10 @@ class $$BrowserProfilesTableOrderingComposer
       column: $table.keepAliveEnabled,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get clearBrowsingData => $composableBuilder(
+      column: $table.clearBrowsingData,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -1387,6 +1441,9 @@ class $$BrowserProfilesTableAnnotationComposer
   GeneratedColumn<bool> get keepAliveEnabled => $composableBuilder(
       column: $table.keepAliveEnabled, builder: (column) => column);
 
+  GeneratedColumn<bool> get clearBrowsingData => $composableBuilder(
+      column: $table.clearBrowsingData, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -1435,6 +1492,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             Value<String> fingerprintJson = const Value.absent(),
             Value<String> userDataFolder = const Value.absent(),
             Value<bool> keepAliveEnabled = const Value.absent(),
+            Value<bool> clearBrowsingData = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> lastUsedAt = const Value.absent(),
             Value<String?> tagsJson = const Value.absent(),
@@ -1452,6 +1510,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             fingerprintJson: fingerprintJson,
             userDataFolder: userDataFolder,
             keepAliveEnabled: keepAliveEnabled,
+            clearBrowsingData: clearBrowsingData,
             createdAt: createdAt,
             lastUsedAt: lastUsedAt,
             tagsJson: tagsJson,
@@ -1469,6 +1528,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             required String fingerprintJson,
             required String userDataFolder,
             Value<bool> keepAliveEnabled = const Value.absent(),
+            Value<bool> clearBrowsingData = const Value.absent(),
             required DateTime createdAt,
             required DateTime lastUsedAt,
             Value<String?> tagsJson = const Value.absent(),
@@ -1486,6 +1546,7 @@ class $$BrowserProfilesTableTableManager extends RootTableManager<
             fingerprintJson: fingerprintJson,
             userDataFolder: userDataFolder,
             keepAliveEnabled: keepAliveEnabled,
+            clearBrowsingData: clearBrowsingData,
             createdAt: createdAt,
             lastUsedAt: lastUsedAt,
             tagsJson: tagsJson,

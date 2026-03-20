@@ -113,7 +113,7 @@ class ProxyHealthCheckService {
     final bool useProxy = config != null && config.isConfigured;
 
     if (useProxy) {
-      if (config!.type == ProxyType.socks5) {
+      if (config.type == ProxyType.socks5) {
         client.findProxy = (uri) => 'SOCKS5 ${config.host}:${config.port}';
       } else {
         // ProxyType.http — standard CONNECT tunnel.
@@ -128,7 +128,7 @@ class ProxyHealthCheckService {
       // MUST happen after getUrl() but before close().
       // We only inject for HTTP proxies; SOCKS5 carries auth in the handshake.
       if (useProxy &&
-          config!.hasCredentials &&
+          config.hasCredentials &&
           config.type == ProxyType.http) {
         final auth =
             base64Encode(utf8.encode('${config.username}:${config.password}'));
@@ -153,40 +153,7 @@ class ProxyHealthCheckService {
     }
     return null;
   }
-  static Future<String?> fetchExternalIp(ProxyConfig? config) async {
-    final client = HttpClient();
-    client.connectionTimeout = const Duration(seconds: 5);
-    
-    if (config != null && config.isConfigured) {
-      if (config.type == ProxyType.socks5) {
-        client.findProxy = (uri) => 'SOCKS5 \${config.host}:\${config.port}';
-      } else if (config.type == ProxyType.http) {
-        client.findProxy = (uri) => 'PROXY \${config.host}:\${config.port}';
-      }
 
-      if (config.username != null && config.username!.isNotEmpty && config.password != null) {
-        client.authenticateProxy = (host, port, scheme, realm) async {
-          client.addProxyCredentials(
-            host, port, realm, 
-            HttpClientBasicCredentials(config.username!, config.password!)
-          );
-          return true;
-        };
-      }
-    }
-    
-    try {
-      final request = await client.getUrl(Uri.parse('http://ifconfig.me/ip'));
-      final response = await request.close();
-      if (response.statusCode == 200) {
-        return await response.transform(utf8.decoder).join();
-      }
-    } catch (_) {
-    } finally {
-      client.close(force: true);
-    }
-    return null;
-  }
 
   // ── Public API ─────────────────────────────────────────────────────────────
 

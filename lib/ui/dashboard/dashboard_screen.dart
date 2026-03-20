@@ -276,8 +276,12 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     int successCount = 0;
     for (final p in targets) {
-      final ok = await MobileProxyService.rotateIp(p.proxyConfig.rotationUrl!);
-      if (ok) successCount++;
+      try {
+        await MobileProxyService.rotateIp(p.proxyConfig.rotationUrl!);
+        successCount++;
+      } catch (e) {
+        debugPrint('[Dashboard] IP rotation failed for ${p.name}: $e');
+      }
     }
 
     if (!mounted) return;

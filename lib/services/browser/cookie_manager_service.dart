@@ -172,7 +172,7 @@ class CookieManagerService {
       db.execute('ROLLBACK');
       debugPrint('[CookieManager] Error saving session to DB: $e');
     } finally {
-      stmt.dispose();
+      stmt.close();
       db.close();
     }
   }

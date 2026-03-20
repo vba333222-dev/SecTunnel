@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
-import 'package:pbrowser/models/proxy_config.dart';
 import 'package:pbrowser/services/browser/cookie_manager_service.dart';
 import 'dart:convert';
 import 'package:pbrowser/services/background/headless_keep_alive_service.dart';
-import 'package:intl/intl.dart';
 import 'package:pbrowser/ui/shared/proxy_signal_widget.dart';
 
 // ─────────────────────────────────────────────
@@ -257,7 +255,6 @@ class _CardBodyState extends State<_CardBody> {
     final profile = widget.profile;
     final fp = profile.fingerprintConfig;
     final proxy = profile.proxyConfig;
-    final isRotatingIp = widget.isRotatingIp;
     final isSelectMode = widget.isSelectMode;
     final isSelected = widget.isSelected;
     final hasRotation =

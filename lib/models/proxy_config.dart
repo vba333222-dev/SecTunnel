@@ -139,7 +139,7 @@ class ProxyConfig {
     return ProxyConfig(
       type: type ?? this.type,
       useSystemProxyPool: useSystemProxyPool ?? this.useSystemProxyPool,
-      host: host ?? this._host,
+      host: host ?? _host,
       port: port ?? this.port,
       username: username ?? _username,
       password: password ?? _password,
