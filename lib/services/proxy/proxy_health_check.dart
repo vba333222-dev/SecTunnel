@@ -86,7 +86,73 @@ class ProxyHealthCheckService {
     return PreFlightResult(isHealthy: true, latency: latency);
   }
 
-  /// Helper to fetch IP from ifconfig.me
+  /// Fetches the external IP seen by the remote server.
+  ///
+  /// When [config] is `null`, the request goes direct (used to capture the
+  /// device's real IP for leak detection).  When [config] is provided the
+  /// request is routed through the proxy.
+  ///
+  /// **Auth strategy — pre-emptive injection, not challenge-response.**
+  ///
+  /// Dart's `HttpClient` uses a *reactive* auth flow: it sends the request
+  /// naked, waits for a `407 Proxy Authentication Required`, then retries
+  /// with credentials.  3proxy (and many other proxies) close the connection
+  /// after the `407` instead of keeping it alive, so the retry never
+  /// completes and the call silently fails with a perpetual 407.
+  ///
+  /// Fix: compute the `Basic` token, base64-encode it, and inject
+  /// `Proxy-Authorization` directly into the request headers **before**
+  /// `request.close()` is called.  This mirrors what `curl -x`, browsers,
+  /// and most HTTP libraries do by default.
+  static Future<String?> fetchExternalIp(ProxyConfig? config) async {
+    final client = HttpClient();
+    // Generous timeout — proxy chains can be slow on first connection.
+    client.connectionTimeout = const Duration(seconds: 10);
+
+    // ── 1. Route traffic through the proxy ──────────────────────────────────
+    final bool useProxy = config != null && config.isConfigured;
+
+    if (useProxy) {
+      if (config!.type == ProxyType.socks5) {
+        client.findProxy = (uri) => 'SOCKS5 ${config.host}:${config.port}';
+      } else {
+        // ProxyType.http — standard CONNECT tunnel.
+        client.findProxy = (uri) => 'PROXY ${config.host}:${config.port}';
+      }
+    }
+
+    try {
+      final request = await client.getUrl(Uri.parse('http://ifconfig.me/ip'));
+
+      // ── 2. Pre-emptively inject Proxy-Authorization ──────────────────────
+      // MUST happen after getUrl() but before close().
+      // We only inject for HTTP proxies; SOCKS5 carries auth in the handshake.
+      if (useProxy &&
+          config!.hasCredentials &&
+          config.type == ProxyType.http) {
+        final auth =
+            base64Encode(utf8.encode('${config.username}:${config.password}'));
+        request.headers.set(
+          HttpHeaders.proxyAuthorizationHeader, // 'proxy-authorization'
+          'Basic $auth',
+          preserveHeaderCase: true,
+        );
+        debugPrint('[ProxyHealth] Pre-emptive Proxy-Authorization header injected.');
+      }
+
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final ip = (await response.transform(utf8.decoder).join()).trim();
+        return ip.isEmpty ? null : ip;
+      }
+      debugPrint('[ProxyHealth] fetchExternalIp: unexpected status ${response.statusCode}');
+    } catch (e) {
+      debugPrint('[ProxyHealth] fetchExternalIp error: $e');
+    } finally {
+      client.close(force: true);
+    }
+    return null;
+  }
   static Future<String?> fetchExternalIp(ProxyConfig? config) async {
     final client = HttpClient();
     client.connectionTimeout = const Duration(seconds: 5);

@@ -273,16 +273,50 @@ class _BrowserScreenState extends State<BrowserScreen> {
   }
 
   Future<void> _setAndroidProxy() async {
+    final proxyConfig = widget.profile.proxyConfig;
+
+    // ── Engine-level proxy override (flutter_inappwebview v6 API) ────────────
+    // ProxyController.setProxyOverride() is the ONLY way to route WebView
+    // traffic through a proxy in v6. Without it the WebView ignores all
+    // OS-level proxy settings and leaks the real device IP.
+    //
+    // ProxyRule URL format: "[scheme://]host[:port]"
+    //   • HTTP proxy  → "http://host:port"
+    //   • SOCKS5      → "socks5://host:port"
+    // ─────────────────────────────────────────────────────────────────────────
+    if (proxyConfig.isConfigured) {
+      final scheme = proxyConfig.type == ProxyType.socks5 ? 'socks5' : 'http';
+      final proxyUrl = '$scheme://${proxyConfig.host!}:${proxyConfig.port!}';
+
+      try {
+        await ProxyController.instance().setProxyOverride(
+          settings: ProxySettings(
+            proxyRules: [ProxyRule(url: proxyUrl)],
+          ),
+        );
+        debugPrint('[Browser] ProxyController override set → $proxyUrl');
+      } catch (e) {
+        debugPrint('[Browser] ProxyController.setProxyOverride error: $e');
+      }
+    } else {
+      // No proxy for this profile — clear any override left by a previous session.
+      try {
+        await ProxyController.instance().clearProxyOverride();
+      } catch (_) {}
+    }
+
+    // ── Fallback: native MethodChannel for system-level WebView process ───────
+    // Covers edge cases where the Chromium process is shared across WebViews.
     try {
-      if (Platform.isAndroid && widget.profile.proxyConfig.isConfigured) {
+      if (Platform.isAndroid && proxyConfig.isConfigured) {
         await platform.invokeMethod('setProxy', {
-          'host': widget.profile.proxyConfig.host,
-          'port': widget.profile.proxyConfig.port,
-          'scheme': widget.profile.proxyConfig.type.toString(),
+          'host': proxyConfig.host,
+          'port': proxyConfig.port,
+          'scheme': proxyConfig.type.toString(),
         });
       }
     } catch (e) {
-      debugPrint('[Browser] Android proxy error: $e');
+      debugPrint('[Browser] Native setProxy MethodChannel error: $e');
     }
   }
 
