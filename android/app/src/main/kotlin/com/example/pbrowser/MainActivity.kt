@@ -42,7 +42,7 @@ class MainActivity: FlutterActivity() {
                 }
             } else if (call.method == "setProfileDirectory") {
                 val profileId = call.argument<String>("profileId")
-                // ... logic remains
+                
                 if (profileId != null) {
                     try {
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -90,14 +90,14 @@ class MainActivity: FlutterActivity() {
                     Log.e(TAG, "Failed to inject native touch: ${e.message}")
                     result.success(false)
                 }
-                }
             } else if (call.method == "flushCookies") {
                 try {
                     android.webkit.CookieManager.getInstance().flush()
                     Log.i(TAG, "Chromium CookieManager flushed to disk")
                     result.success(true)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to flush cookies: \${e.message}")
+                    // Fixed string interpolation here (removed the backslash)
+                    Log.e(TAG, "Failed to flush cookies: ${e.message}")
                     result.success(false)
                 }
             } else {
@@ -128,9 +128,9 @@ class MainActivity: FlutterActivity() {
                 // Use the main executor (UI thread) effectively for the callback
                 val executor = ContextCompat.getMainExecutor(this)
 
-                ProxyController.getInstance().setProxyOverride(proxyConfig, executor, {
+                ProxyController.getInstance().setProxyOverride(proxyConfig, executor) {
                     Log.i(TAG, "Proxy applied successfully: $host:$port")
-                })
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to apply proxy override: ${e.message}")
             }
