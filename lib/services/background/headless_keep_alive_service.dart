@@ -55,7 +55,7 @@ class HeadlessTaskHandler extends TaskHandler {
     Timer.periodic(const Duration(minutes: 1), (timer) {
       _controller?.runJavaScript("console.log('Keep-Alive Heartbeat');");
       FlutterForegroundTask.updateService(
-        notificationTitle: 'PBrowser Keep-Alive',
+        notificationTitle: 'SecTunnel Keep-Alive',
         notificationText: 'Background session running... (Heartbeat active)',
       );
     });
@@ -92,7 +92,7 @@ class HeadlessKeepAliveService {
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'pbrowser_keep_alive',
-        channelName: 'PBrowser Background Service',
+        channelName: 'SecTunnel Background Service',
         channelDescription: 'Maintains headless webview connections while app is minimized.',
         channelImportance: NotificationChannelImportance.LOW,
         priority: NotificationPriority.LOW,
@@ -131,7 +131,7 @@ class HeadlessKeepAliveService {
     }
 
     final success = await FlutterForegroundTask.startService(
-      notificationTitle: 'PBrowser ($profileName)',
+      notificationTitle: 'SecTunnel ($profileName)',
       notificationText: 'Background farming active...',
       notificationButtons: [
         const NotificationButton(id: 'stop', text: 'STOP'),

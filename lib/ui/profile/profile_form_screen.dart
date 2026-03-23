@@ -1192,7 +1192,7 @@ class _GeneralTab extends StatelessWidget {
           uaManualOverride ? 'User-Agent (Manual)' : 'User-Agent (Auto)',
           Icons.fingerprint,
           hint: 'Auto-generated from OS + Browser selection',
-          tooltip: 'User-Agent: Memberitahu website versi browser dan OS Anda. PBrowser akan memalsukan data ini agar sesuai dengan OS pilihan Anda. Jangan diubah manual kecuali Anda pelajari strukturnya.',
+          tooltip: 'User-Agent: Memberitahu website versi browser dan OS Anda. SecTunnel akan memalsukan data ini agar sesuai dengan OS pilihan Anda. Jangan diubah manual kecuali Anda pelajari strukturnya.',
         ).copyWith(
           suffixIcon: uaManualOverride
               ? IconButton(

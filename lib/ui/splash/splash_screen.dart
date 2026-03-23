@@ -90,30 +90,28 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // PERBAIKAN WARNA AGAR SINKRON DENGAN NATIVE SPLASH
       backgroundColor: const Color(0xFF111111), 
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            Lottie.asset(
-              'assets/lottie/splash_hero.json',
-              controller: _lottieController,
-              width: 280,
-              height: 280,
-              fit: BoxFit.contain,
-              frameRate: FrameRate.max,
+            SizedBox(
+              width: 250,
+              height: 250,
+              child: Lottie.asset(
+                'assets/lottie/splash_hero.json',
+                controller: _lottieController,
+                fit: BoxFit.contain,
+              ),
             ),
-            
-            // PERBAIKAN SIZEDBOX NEGATIF DENGAN TRANSFORM.TRANSLATE
-            Transform.translate(
-              offset: const Offset(0, -20),
-              child: Column(
-                children: [
-                  FadeTransition(
-                    opacity: CurvedAnimation(
-                        parent: _textFadeController, curve: Curves.easeIn),
-                    child: const Text(
+            Positioned(
+              bottom: MediaQuery.of(context).size.height * 0.15,
+              child: FadeTransition(
+                opacity: CurvedAnimation(
+                    parent: _textFadeController, curve: Curves.easeIn),
+                child: Column(
+                  children: [
+                    const Text(
                       'S E C T U N N E L',
                       style: TextStyle(
                         color: Colors.white,
@@ -122,22 +120,18 @@ class _SplashScreenState extends State<SplashScreen>
                         letterSpacing: 8.0,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  FadeTransition(
-                     opacity: CurvedAnimation(
-                        parent: _textFadeController, curve: Curves.easeIn),
-                     child: Text(
+                    const SizedBox(height: 8),
+                    const Text(
                       'V 1.2.2',
                       style: TextStyle(
-                        color: Colors.tealAccent, // Hapus .withValues(alpha: 0.8) jika error di versi Flutter tertentu
+                        color: Colors.tealAccent,
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 5.0,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

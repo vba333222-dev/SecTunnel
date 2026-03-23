@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:lottie/lottie.dart';
 import 'package:pbrowser/models/browser_profile.dart';
 import 'package:pbrowser/services/analytics/privacy_crash_reporter.dart';
 import 'package:pbrowser/repositories/profile_repository.dart';
@@ -39,6 +42,85 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ── Selection ─────────────────────────────────────────
   final Set<String> _selectedIds = {};
   bool get _isSelecting => _selectedIds.isNotEmpty;
+  
+  bool _isRotating = false;
+
+  Future<void> _executeIPRotation(String targetPort) async {
+    if (_isRotating) return;
+    setState(() { _isRotating = true; });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return PopScope(
+          canPop: false,
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Lottie.asset(
+                  'assets/lottie/loading.json',
+                  width: 180,
+                  height: 180,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "Memutar IP Modem...\nProses Hardware Reset (±30 Detik)",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.cyanAccent,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      final baseUrl = dotenv.env['ROTATION_API_BASE_URL'] ?? 'http://100.125.54.116:5000';
+      final apiKey = dotenv.env['ROTATION_API_KEY'] ?? 'sectunnel_secret_2026';
+      final url = Uri.parse('$baseUrl/rotate/$targetPort?key=$apiKey');
+
+      final response = await http.get(url).timeout(const Duration(seconds: 40));
+      if (mounted) Navigator.of(context).pop();
+
+      if (response.statusCode == 200) {
+        _showNotification("BERHASIL: IP Publik Baru aktif di Port $targetPort!", Colors.green);
+      } else {
+        _showNotification("GAGAL: Server menolak rotasi (Error ${response.statusCode})", Colors.red);
+      }
+    } on TimeoutException {
+      if (mounted) Navigator.of(context).pop();
+      _showNotification("TIMEOUT: Modem butuh waktu lebih dari 40 detik.", Colors.orange);
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop();
+      _showNotification("KONEKSI TERPUTUS: Cek Tailscale/VPS Anda.", Colors.redAccent);
+    } finally {
+      if (mounted) setState(() { _isRotating = false; });
+    }
+  }
+
+  void _showNotification(String message, Color bgColor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        backgroundColor: bgColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -660,7 +742,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildCard(BrowserProfile profile) {
     final isSelected = _selectedIds.contains(profile.id);
     final rotator = context.watch<ModemRotatorService>();
-    final isThisRotating = rotator.isRotating && rotator.targetProfileId == profile.id;
+    final isThisRotating = _isRotating || (rotator.isRotating && rotator.targetProfileId == profile.id);
     
     return ProfileCard(
       key: ValueKey(profile.id),
@@ -676,13 +758,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       onDuplicate: () => _duplicateProfile(profile),
       onClearSession: () => _clearSession(profile),
       onRotateIp: () {
-        if (profile.proxyConfig.rotationUrl?.isNotEmpty == true) {
-          context.read<ModemRotatorService>().rotateIp(
-            profile.proxyConfig.rotationUrl!,
-            profile.id,
-            profile.name,
-          );
-        }
+        if (_isRotating) return;
+        _executeIPRotation('8001');
       },
     );
   }

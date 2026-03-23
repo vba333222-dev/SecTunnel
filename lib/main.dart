@@ -32,7 +32,11 @@ void main() async {
   await PrivacyCrashReporter.init();
   
   // Load strict backend configurations
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Warning: Failed to load .env file in main: $e");
+  }
   
   HeadlessKeepAliveService.init();
 
@@ -108,7 +112,7 @@ class PBrowserApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'PBrowser',
+        title: 'SecTunnel',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
