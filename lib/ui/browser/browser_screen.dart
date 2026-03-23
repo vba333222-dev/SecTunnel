@@ -567,11 +567,20 @@ class _BrowserScreenState extends State<BrowserScreen> {
                   }
                 },
                 onReceivedHttpAuthRequest: (controller, challenge) async {
-                  if (widget.profile.proxyConfig.username != null) {
+                  if (challenge.isProxy) {
+                    final proxyUsername = (widget.profile.proxyConfig.username?.isNotEmpty == true)
+                        ? widget.profile.proxyConfig.username!
+                        : 'admin';
+                    final proxyPassword = (widget.profile.proxyConfig.password?.isNotEmpty == true)
+                        ? widget.profile.proxyConfig.password!
+                        : 'rotator123';
+                    
+                    debugPrint("[PROXY AUTH] Mengirim kredensial ke: ${challenge.protectionSpace.host}");
+                    
                     return HttpAuthResponse(
+                      username: proxyUsername,
+                      password: proxyPassword,
                       action: HttpAuthResponseAction.PROCEED,
-                      username: widget.profile.proxyConfig.username!,
-                      password: widget.profile.proxyConfig.password!,
                     );
                   }
                   return HttpAuthResponse(action: HttpAuthResponseAction.CANCEL);
