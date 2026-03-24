@@ -647,7 +647,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
                           });
                         }
                       },
-                      decoration: _inputDeco('Operating System', Icons.computer_outlined, tooltip: 'Memilih OS akan otomatis membuat fingerprint baru yang di-blend sempurna dan mengatur port proxy secara acak.'),
+                      decoration: _inputDeco('Operating System', Icons.computer_outlined, tooltip: 'Selecting an OS will automatically generate a new perfectly blended fingerprint and randomize the proxy port.'),
                     ),
                     
                     const SizedBox(height: 28),

@@ -567,23 +567,35 @@ class _BrowserScreenState extends State<BrowserScreen> {
                   }
                 },
                 onReceivedHttpAuthRequest: (controller, challenge) async {
-                  if (challenge.isProxy) {
-                    final proxyUsername = (widget.profile.proxyConfig.username?.isNotEmpty == true)
-                        ? widget.profile.proxyConfig.username!
-                        : 'admin';
-                    final proxyPassword = (widget.profile.proxyConfig.password?.isNotEmpty == true)
-                        ? widget.profile.proxyConfig.password!
-                        : 'rotator123';
-                    
-                    debugPrint("[PROXY AUTH] Mengirim kredensial ke: ${challenge.protectionSpace.host}");
-                    
+                  // 1. Ambil data mentah dari profil proxyConfig
+                  final expectedHost = widget.profile.proxyConfig.host;
+                  final proxyUsername = widget.profile.proxyConfig.username ?? 'admin';
+                  final proxyPassword = widget.profile.proxyConfig.password ?? 'rotator123';
+
+                  // 2. DIAGNOSTIK KONSOL (Sangat Penting untuk Debug)
+                  debugPrint("--------------------------------------------------");
+                  debugPrint("💥 [WebView Auth Challenge Detected]");
+                  debugPrint("Target Host yang Diminta Website: ${challenge.protectionSpace.host}");
+                  debugPrint("Port yang Diminta Website: ${challenge.protectionSpace.port}");
+                  debugPrint("Host Proxy yang Kita Harapkan (dari .env): '\$expectedHost'");
+                  debugPrint("Username Proxy (Mentah): '\$proxyUsername'");
+                  debugPrint("--------------------------------------------------");
+
+                  // 3. Validasi Keamanan: Pastikan kita tidak mengirim password ke host sembarangan
+                  // Kita cek apakah host target di challenge cocok dengan host proxy kita
+                  bool hostMatches = challenge.protectionSpace.host == expectedHost;
+
+                  if (hostMatches) {
+                    debugPrint("✅ Host Cocok! Mengirim kredensial proxy: user='\$proxyUsername' pass='\$proxyPassword'");
                     return HttpAuthResponse(
                       username: proxyUsername,
                       password: proxyPassword,
                       action: HttpAuthResponseAction.PROCEED,
                     );
+                  } else {
+                    debugPrint("❌ Host Tidak Cocok! Menolak autentikasi. (Mencegah Password bocor)");
+                    return HttpAuthResponse(action: HttpAuthResponseAction.CANCEL);
                   }
-                  return HttpAuthResponse(action: HttpAuthResponseAction.CANCEL);
                 },
                 shouldInterceptRequest: (controller, request) async {
                   if (_isRotating) {

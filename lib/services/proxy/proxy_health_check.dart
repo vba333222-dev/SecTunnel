@@ -32,7 +32,7 @@ class PreFlightResult {
 class ProxyHealthCheckService {
   /// Plain-HTTP host used for CONNECT health checks.
   /// Port 80 avoids TLS negotiation; the host is well-known and stable.
-  static const String _httpCheckHost = 'connectcheck.geojs.io';
+  static const String _httpCheckHost = 'ifconfig.me';
   static const int _httpCheckPort = 80;
 
   // ── Public API ─────────────────────────────────────────────────────────────

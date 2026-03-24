@@ -69,7 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  "Memutar IP Modem...\nProses Hardware Reset (±30 Detik)",
+                  "Rotating Modem IP...\nHardware Reset Process (±30 Seconds)",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.cyanAccent,
@@ -94,16 +94,16 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (mounted) Navigator.of(context).pop();
 
       if (response.statusCode == 200) {
-        _showNotification("BERHASIL: IP Publik Baru aktif di Port $targetPort!", Colors.green);
+        _showNotification("SUCCESS: New Public IP active on Port $targetPort!", Colors.green);
       } else {
-        _showNotification("GAGAL: Server menolak rotasi (Error ${response.statusCode})", Colors.red);
+        _showNotification("FAILED: Server rejected rotation (Error ${response.statusCode})", Colors.red);
       }
     } on TimeoutException {
       if (mounted) Navigator.of(context).pop();
-      _showNotification("TIMEOUT: Modem butuh waktu lebih dari 40 detik.", Colors.orange);
+      _showNotification("TIMEOUT: Modem took more than 40 seconds.", Colors.orange);
     } catch (e) {
       if (mounted) Navigator.of(context).pop();
-      _showNotification("KONEKSI TERPUTUS: Cek Tailscale/VPS Anda.", Colors.redAccent);
+      _showNotification("CONNECTION LOST: Check your Tailscale/VPS.", Colors.redAccent);
     } finally {
       if (mounted) setState(() { _isRotating = false; });
     }

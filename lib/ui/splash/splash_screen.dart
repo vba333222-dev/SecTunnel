@@ -3,7 +3,7 @@ import 'package:lottie/lottie.dart';
 import 'package:pbrowser/ui/dashboard/dashboard_screen.dart';
 import 'package:pbrowser/repositories/profile_repository.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Tambahkan ini
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // Add this
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -32,25 +32,25 @@ class _SplashScreenState extends State<SplashScreen>
     _startSequenceAndInit();
   }
 
-  // UBAH JADI FUNGSI PINTAR
+  // CHANGE TO SMART FUNCTION
   Future<void> _startSequenceAndInit() async {
-    // 1. Jalankan animasi Lottie secara visual
+    // 1. Run Lottie animation visually
     _lottieController.forward();
     
-    // 2. JALANKAN PROSES BERAT DI LATAR BELAKANG SECARA BERSAMAAN
-    // Aplikasi akan memuat .env dan DB sambil Lottie berputar!
+    // 2. RUN HEAVY PROCESS IN BACKGROUND SIMULTANEOUSLY
+    // App will load .env and DB while Lottie plays!
     await Future.wait([
-      _initializeBackend(), // Fungsi buatan kita di bawah
-      Future.delayed(const Duration(milliseconds: 1500)), // Tunggu climax Lottie
+      _initializeBackend(), // Custom function below
+      Future.delayed(const Duration(milliseconds: 1500)), // Wait for Lottie climax
     ]);
     
-    // 3. Climax Lottie tercapai, munculkan teks
+    // 3. Lottie climax reached, show text
     if (mounted) _textFadeController.forward();
     
-    // 4. Tunggu sisa waktu estetika pelindung Lottie selesai
+    // 4. Wait for remaining Lottie aesthetic time
     await Future.delayed(const Duration(milliseconds: 1100));
     
-    // 5. Pindah ke Dashboard dengan mulus
+    // 5. Move to Dashboard smoothly
     if (mounted) {
       final repo = Provider.of<ProfileRepository>(context, listen: false);
       Navigator.of(context).pushReplacement(
@@ -66,17 +66,17 @@ class _SplashScreenState extends State<SplashScreen>
     }
   }
 
-  // FUNGSI INISIALISASI MESIN ANTI-DETECT
+  // ANTI-DETECT ENGINE INITIALIZATION FUNCTION
   Future<void> _initializeBackend() async {
     try {
-      // Muat Environment Variables (Server VPS IP & Password)
+      // Load Environment Variables (VPS IP & Password)
       await dotenv.load(fileName: ".env");
       
-      // Jika Anda punya inisialisasi Database (Drift/SQLite), taruh di sini
+      // If you have Database initialization (Drift/SQLite), put it here
       // await MyDatabase.initialize();
       
     } catch (e) {
-      debugPrint("Gagal memuat sistem: $e");
+      debugPrint("Failed to load system: $e");
     }
   }
 
@@ -89,49 +89,23 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Scaffold dengan latar belakang gelap total
     return Scaffold(
-      backgroundColor: const Color(0xFF111111), 
+      backgroundColor: const Color(0xFF111111), // Solid Black/Deep Gray
       body: Center(
         child: Stack(
           alignment: Alignment.center,
           children: [
+            // SEMENTARA: Lottie murni di tengah layar
+            // Karena Lottie Anda sudah berisi animasi fingerprint dan teks v1.2.2, 
+            // kita hapus semua text widget buatan Flutter agar tidak overlap.
             SizedBox(
               width: 250,
               height: 250,
               child: Lottie.asset(
                 'assets/lottie/splash_hero.json',
-                controller: _lottieController,
-                fit: BoxFit.contain,
-              ),
-            ),
-            Positioned(
-              bottom: MediaQuery.of(context).size.height * 0.15,
-              child: FadeTransition(
-                opacity: CurvedAnimation(
-                    parent: _textFadeController, curve: Curves.easeIn),
-                child: Column(
-                  children: [
-                    const Text(
-                      'S E C T U N N E L',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 8.0,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'V 1.2.2',
-                      style: TextStyle(
-                        color: Colors.tealAccent,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 5.0,
-                      ),
-                    ),
-                  ],
-                ),
+                controller: _lottieController, // _lottieController dikelola di initState
+                fit: BoxFit.contain, // Memastikan Lottie tidak terpotong
               ),
             ),
           ],

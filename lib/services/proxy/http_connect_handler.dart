@@ -152,18 +152,23 @@ class HttpConnectHandler {
           in socket.timeout(_readTimeout, onTimeout: (sink) => sink.close())) {
         buffer.addAll(chunk);
 
-        // Scan for complete lines (CRLF).
+        // Scan for complete lines (LF or CRLF).
         while (true) {
-          final crlfIdx = _indexOfCRLF(buffer);
-          if (crlfIdx == -1) break;
+          final lfIdx = buffer.indexOf(0x0A); // '\n'
+          if (lfIdx == -1) break;
+
+          int crlfIdx = lfIdx;
+          if (lfIdx > 0 && buffer[lfIdx - 1] == 0x0D) { // '\r'
+            crlfIdx = lfIdx - 1;
+          }
 
           final line = utf8.decode(buffer.sublist(0, crlfIdx));
-          buffer.removeRange(0, crlfIdx + 2);
+          buffer.removeRange(0, lfIdx + 1);
 
           if (statusOk == null) {
             // First line: "HTTP/1.x 200 Connection established"
             statusOk = line.contains(' 200 ') || line.endsWith(' 200');
-            debugPrint('[HttpConnect] Status line: "$line" → ok=$statusOk');
+            debugPrint('[HttpConnect] Status line: "\$line" → ok=\$statusOk');
             if (!statusOk) return false;
           } else if (line.isEmpty) {
             // Blank line = end of headers.
@@ -171,15 +176,11 @@ class HttpConnectHandler {
           }
           // Other header lines — ignore.
         }
-
-        if (statusOk == true && _endsWithDoubleNewline(buffer)) {
-          return true;
-        }
       }
 
       return statusOk ?? false;
     } catch (e) {
-      debugPrint('[HttpConnect] _readConnectResponse error: $e');
+      debugPrint('[HttpConnect] _readConnectResponse error: \$e');
       return false;
     }
   }

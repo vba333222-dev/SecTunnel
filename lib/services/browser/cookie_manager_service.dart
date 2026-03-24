@@ -222,7 +222,7 @@ class CookieManagerService {
       final dbFile = File('${appDataDir.path}/app_webview_$profileId/Default/Cookies');
       
       if (!await dbFile.exists()) {
-        throw Exception('Cookie database not found for profile $profileId');
+        return [];
       }
 
       final db = sqlite3.open(dbFile.path, mode: OpenMode.readOnly);
