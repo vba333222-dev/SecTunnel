@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:collection';
@@ -354,8 +355,16 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
   /// Calls the rotation URL then re-fetches the public IP after a short delay.
   Future<void> _rotateIpNow() async {
-    final rotationUrl = widget.profile.proxyConfig.rotationUrl;
-    if (rotationUrl == null || rotationUrl.isEmpty) return;
+    String? rotationUrl = widget.profile.proxyConfig.rotationUrl;
+    
+    // Fallback cerdas jika rotationUrl kosong/null dari profil lama
+    if (rotationUrl == null || rotationUrl.isEmpty) {
+      final targetPort = widget.profile.proxyConfig.port?.toString() ?? '8001';
+      final baseUrl = dotenv.env['ROTATION_API_BASE_URL'] ?? 'http://100.125.54.116:5000';
+      final apiKey = dotenv.env['ROTATION_API_KEY'] ?? 'sectunnel_secret_2026';
+      rotationUrl = '$baseUrl/rotate/$targetPort?key=$apiKey';
+    }
+
     if (_isRotating) return;
 
     setState(() => _isRotating = true);

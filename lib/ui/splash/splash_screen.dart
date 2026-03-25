@@ -91,7 +91,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     // Scaffold dengan latar belakang gelap total
     return Scaffold(
-      backgroundColor: const Color(0xFF111111), // Solid Black/Deep Gray
+      backgroundColor: const Color(0xFF000000), // Solid Black
       body: Center(
         child: Stack(
           alignment: Alignment.center,

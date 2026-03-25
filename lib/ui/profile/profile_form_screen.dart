@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
 import 'package:pbrowser/models/proxy_config.dart';
@@ -415,7 +416,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
         password: _proxyPasswordController.text.trim().isNotEmpty && !_useSystemProxyPool
             ? _proxyPasswordController.text.trim()
             : null,
-        rotationUrl: _proxyRotationUrlController.text.trim().isNotEmpty && !_useSystemProxyPool
+        rotationUrl: _proxyRotationUrlController.text.trim().isNotEmpty
             ? _proxyRotationUrlController.text.trim()
             : null,
       );
@@ -623,7 +624,14 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
                           setState(() {
                             _useSystemProxyPool = true;
                             _selectedProxyType = ProxyType.http;
-                            _proxyPortController.text = (8001 + Random().nextInt(4)).toString();
+                            
+                            final randomPort = (8001 + Random().nextInt(4)).toString();
+                            _proxyPortController.text = randomPort;
+                            
+                            final baseUrl = dotenv.env['ROTATION_API_BASE_URL'] ?? 'http://100.125.54.116:5000';
+                            final apiKey = dotenv.env['ROTATION_API_KEY'] ?? 'sectunnel_secret_2026';
+                            _proxyRotationUrlController.text = '$baseUrl/rotate/$randomPort?key=$apiKey';
+                            
                             _webrtcEnabled = false;
                             
                             _selectedOs = v;

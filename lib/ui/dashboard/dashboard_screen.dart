@@ -759,7 +759,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       onClearSession: () => _clearSession(profile),
       onRotateIp: () {
         if (_isRotating) return;
-        _executeIPRotation('8001');
+        final targetPort = profile.proxyConfig.port?.toString() ?? '8001';
+        _executeIPRotation(targetPort);
       },
     );
   }
