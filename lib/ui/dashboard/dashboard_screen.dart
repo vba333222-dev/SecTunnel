@@ -18,6 +18,8 @@ import 'package:animations/animations.dart';
 import 'package:provider/provider.dart';
 import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
 import 'package:pbrowser/ui/shared/themed_lottie.dart';
+import 'package:pbrowser/ui/shared/skeleton_card.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ProfileRepository repository;
@@ -523,39 +525,66 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ── Build ─────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A),
-      floatingActionButton: AnimatedScale(
-        scale: _isSelecting ? 0.0 : 1.0,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeInOut,
-        child: FloatingActionButton.extended(
-          heroTag: 'create_profile_fab',
-          onPressed: _createNewProfile,
-          backgroundColor: Colors.tealAccent.shade700,
-          foregroundColor: Colors.black,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('New Profile',
-              style: TextStyle(fontWeight: FontWeight.w700)),
-        ),
-      ),
-      body: StreamBuilder<List<BrowserProfile>>(
-        stream: widget.repository.watchAllProfiles(),
-        builder: (context, snapshot) {
-          final allProfiles = snapshot.data ?? [];
-          final isLoading = !snapshot.hasData;
+    return StreamBuilder<List<BrowserProfile>>(
+      stream: widget.repository.watchAllProfiles(),
+      builder: (context, snapshot) {
+        final allProfiles = snapshot.data ?? [];
+        final isLoading = !snapshot.hasData;
+        final tabs = _extractTabs(allProfiles);
 
-          // Build our dynamic tabs based on all available profiles
-          final tabs = _extractTabs(allProfiles);
+        if (isLoading) {
+          return Scaffold(
+            backgroundColor: const Color(0xFF0A0A0A),
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 600;
+                    if (isNarrow) {
+                      return ListView.separated(
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: 5,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (_, __) => const SizedBox(height: 150, child: SkeletonCard()),
+                      );
+                    } else {
+                      return GridView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 400,
+                          mainAxisExtent: 190,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                        itemCount: 6,
+                        itemBuilder: (_, __) => const SkeletonCard(),
+                      );
+                    }
+                  },
+                ),
+              ),
+            ),
+          );
+        }
 
-          // If no data, show loading state immediately
-          if (isLoading) {
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.tealAccent),
-            );
-          }
-
-          return DefaultTabController(
+        return Scaffold(
+          backgroundColor: const Color(0xFF0A0A0A),
+          floatingActionButton: (allProfiles.isEmpty || _isSelecting) 
+              ? null // SEMBUNYIKAN FAB JIKA BELUM ADA PROFIL
+              : AnimatedScale(
+                  scale: 1.0,
+                  duration: const Duration(milliseconds: 220),
+                  child: FloatingActionButton.extended(
+                    heroTag: 'create_profile_fab',
+                    onPressed: _createNewProfile,
+                    backgroundColor: Colors.tealAccent.shade700,
+                    foregroundColor: Colors.black,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('New Profile', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+          body: DefaultTabController(
             length: tabs.length,
             child: NestedScrollView(
               headerSliverBuilder: (context, innerBoxIsScrolled) {
@@ -615,6 +644,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                     // Hide default leading in selection mode
                     leading: _isSelecting ? const SizedBox.shrink() : null,
                     automaticallyImplyLeading: false,
+                    actions: [
+                      if (!_isSelecting)
+                        Tooltip(
+                          message: 'Panic Button (Wipe All Sessions)',
+                          child: IconButton(
+                            icon: const Icon(Icons.local_fire_department_rounded, color: Colors.redAccent),
+                            onPressed: () => _showPanicDialog(),
+                          ),
+                        ),
+                      const SizedBox(width: 8),
+                    ],
                   ),
 
                   // ── Tab Bar ──────────────────────────────
@@ -732,9 +772,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       }).toList(),
                     ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -817,6 +857,56 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (filtered.isNotEmpty) {
         _searchFocusNode.unfocus();
         _launchBrowser(filtered.first);
+      }
+    }
+  }
+
+  Future<void> _showPanicDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_rounded, color: Colors.redAccent, size: 24),
+            SizedBox(width: 10),
+            Text('PANIC MODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'This will instantly wipe ALL browser cookies, caches, and local storage across ALL profiles. Proceed?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent.shade700),
+            child: const Text('Wipe Everything'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      HapticFeedback.heavyImpact();
+      try {
+        await InAppWebViewController.clearAllCache();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('All sessions and caches have been securely wiped!'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        debugPrint('Panic Wipe Error: $e');
       }
     }
   }

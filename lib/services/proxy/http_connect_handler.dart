@@ -215,28 +215,6 @@ class HttpConnectHandler {
     );
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  static int _indexOfCRLF(List<int> buf) {
-    for (int i = 0; i < buf.length - 1; i++) {
-      if (buf[i] == 0x0D && buf[i + 1] == 0x0A) return i;
-    }
-    return -1;
-  }
-
-  static bool _endsWithDoubleNewline(List<int> buf) {
-    // Check for \r\n\r\n at any point in the buffer.
-    const pattern = [0x0D, 0x0A, 0x0D, 0x0A];
-    outer:
-    for (int i = 0; i <= buf.length - 4; i++) {
-      for (int j = 0; j < 4; j++) {
-        if (buf[i + j] != pattern[j]) continue outer;
-      }
-      return true;
-    }
-    return false;
-  }
-
   static void _closeConnections(Socket? client, Socket? proxy) {
     for (final s in [client, proxy]) {
       try {

@@ -250,6 +250,13 @@ class _CardBodyState extends State<_CardBody> {
     );
   }
 
+  Color _getSecurityLevelColor() {
+    if (widget.profile.proxyConfig.type.name == 'none') {
+      return Colors.redAccent;
+    }
+    return Colors.tealAccent;
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = widget.profile;
@@ -269,140 +276,171 @@ class _CardBodyState extends State<_CardBody> {
         ? [BoxShadow(color: Colors.tealAccent.withValues(alpha: 0.18), blurRadius: 12, spreadRadius: 1)]
         : null;
 
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) {
-        setState(() => _isPressed = false);
-        _handleTap();
-      },
-      onTapCancel: () => setState(() => _isPressed = false),
-      onLongPress: isSelectMode ? null : _handleLongPress,
-      child: AnimatedScale(
-        scale: _isPressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        curve: Curves.easeOut,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // ── Main card ─────────────────────────────
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOut,
-              decoration: BoxDecoration(
+    final cardGradient = isSelected
+        ? const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1A2D2A), Color(0xFF111A1A)])
+        : const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1A1A24), Color(0xFF111118)]);
+
+    return AnimatedScale(
+      scale: _isPressed ? 0.96 : 1.0,
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.easeOut,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // ── Main card ─────────────────────────────
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: cardGradient,
+              border: Border.all(color: borderColor, width: borderWidth),
+              boxShadow: cardGlow,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                onHighlightChanged: (val) => setState(() => _isPressed = val),
+                onTap: _handleTap,
+                onLongPress: isSelectMode ? null : _handleLongPress,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: cardGlow,
-              ),
-              child: Card(
-                elevation: 0,
-                color: isSelected
-                    ? const Color(0xFF111A1A)
-                    : const Color(0xFF16161F),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: borderColor, width: borderWidth),
-                ),
-                child: InkWell(
-                  onTap: null, // Tap handled by outer GestureDetector
-                  onLongPress: null,
-                  borderRadius: BorderRadius.circular(16),
-                  splashColor: Colors.tealAccent.withValues(alpha: 0.08),
-                  highlightColor: Colors.tealAccent.withValues(alpha: 0.04),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // ── Header row ────────────────────────────
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // OS badge
-                            Hero(
-                              tag: 'os_badge_${profile.id}',
-                              child: OsBadge(platform: fp.platform),
-                            ),
-                            const SizedBox(width: 12),
-                            // Profile name
-                            Expanded(
-                              child: Hero(
-                                tag: 'profile_name_${profile.id}',
-                                child: Material(
-                                  type: MaterialType.transparency,
-                                  child: Text(
-                                    profile.name,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+                splashColor: Colors.tealAccent.withValues(alpha: 0.08),
+                highlightColor: Colors.tealAccent.withValues(alpha: 0.04),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Header row ────────────────────────────
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // OS badge
+                          Hero(
+                            tag: 'os_badge_${profile.id}',
+                            child: OsBadge(platform: fp.platform),
+                          ),
+                          const SizedBox(width: 12),
+                          // Profile name & Proxy Subtitle
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.shield_rounded,
+                                      color: _getSecurityLevelColor(),
+                                      size: 16,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Hero(
+                                        tag: 'profile_name_${profile.id}',
+                                        child: Material(
+                                          type: MaterialType.transparency,
+                                          child: Text(
+                                            profile.name,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      _getPlatformIcon(fp.platform),
+                                      color: Colors.white38,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Icon(
+                                      profile.proxyConfig.type.name != 'none'
+                                          ? Icons.router_rounded
+                                          : Icons.public_off_rounded,
+                                      size: 14,
+                                      color: profile.proxyConfig.type.name != 'none'
+                                          ? Colors.tealAccent
+                                          : Colors.grey,
+                                    ),
+                                  ],
                                 ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${profile.proxyConfig.host ?? 'Direct'} : ${profile.proxyConfig.port ?? 'No Port'}',
+                                  style: const TextStyle(fontFamily: 'monospace', color: Colors.white54, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (profile.keepAliveEnabled)
+                            const Padding(
+                              padding: EdgeInsets.only(right: 8),
+                              child: Tooltip(
+                                message: 'Keep-Alive Enabled',
+                                child: Icon(Icons.flash_on, color: Colors.yellow, size: 16),
                               ),
                             ),
-                            if (profile.keepAliveEnabled)
-                              const Padding(
-                                padding: EdgeInsets.only(right: 8),
-                                child: Tooltip(
-                                  message: 'Keep-Alive Enabled',
-                                  child: Icon(Icons.flash_on, color: Colors.yellow, size: 16),
-                                ),
-                              ),
-                            if (hasRotation) ...[
-                              IconButton(
-                                icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                tooltip: 'Rotate IP',
-                                onPressed: widget.onRotateIp,
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            // Context menu
+                          if (hasRotation) ...[
                             IconButton(
-                              icon: Icon(Icons.more_vert_rounded, color: Colors.white.withValues(alpha: 0.4), size: 20),
-                              onPressed: () {
-                                HapticFeedback.lightImpact();
-                                _showContextMenu(context);
-                              },
+                              icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
+                              tooltip: 'Rotate IP',
+                              onPressed: widget.onRotateIp,
                             ),
+                            const SizedBox(width: 8),
                           ],
-                        ),
-                        
-                        const Spacer(),
-                        
-                        // Proxy Health Indicator
-                        ProxySignalWidget(config: proxy),
-                        
-                        const Spacer(),
+                          // Context menu
+                          IconButton(
+                            icon: Icon(Icons.more_vert_rounded, color: Colors.white.withValues(alpha: 0.4), size: 20),
+                            onPressed: () {
+                              HapticFeedback.lightImpact();
+                              _showContextMenu(context);
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      
+                      const Spacer(),
+                      
+                      // Proxy Health Indicator
+                      ProxySignalWidget(config: proxy),
+                      
+                      const Spacer(),
 
-                        // ── Launch button ─────────────────
-                        _LaunchButton(
-                          onTap: isSelectMode ? widget.onSelect : widget.onRun,
-                        ),
-                      ],
-                    ),
+                      // ── Launch button ─────────────────
+                      _LaunchButton(
+                        onTap: isSelectMode ? widget.onSelect : widget.onRun,
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-            // ── Checkbox overlay ─────────────────────
-            // AnimatedScale: 0 → 1 when entering selection mode
-            Positioned(
-              top: 8,
-              left: 8,
-              child: AnimatedScale(
-                scale: isSelectMode ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutBack,
-                child: _CheckboxBadge(checked: isSelected),
-              ),
+          ),
+          // ── Checkbox overlay ─────────────────────
+          // AnimatedScale: 0 → 1 when entering selection mode
+          Positioned(
+            top: 8,
+            left: 8,
+            child: AnimatedScale(
+              scale: isSelectMode ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutBack,
+              child: _CheckboxBadge(checked: isSelected),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -558,21 +596,14 @@ class _LaunchButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 36,
+      height: 38,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.tealAccent.shade700,
-              Colors.teal.shade400,
-            ],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
+          color: const Color(0xFF14B8A6),
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: Colors.tealAccent.withValues(alpha: 0.25),
+              color: const Color(0xFF14B8A6).withValues(alpha: 0.25),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -584,7 +615,7 @@ class _LaunchButton extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(10),
-            splashColor: Colors.white12,
+            splashColor: Colors.white24,
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -605,4 +636,13 @@ class _LaunchButton extends StatelessWidget {
       ),
     );
   }
+}
+
+IconData _getPlatformIcon(String platform) {
+  final p = platform.toLowerCase();
+  if (p.contains('win')) return Icons.window_rounded;
+  if (p.contains('mac') || p.contains('iphone') || p.contains('ipad')) return Icons.apple_rounded;
+  if (p.contains('android')) return Icons.android_rounded;
+  if (p.contains('linux')) return Icons.laptop_chromebook_rounded;
+  return Icons.devices_rounded;
 }

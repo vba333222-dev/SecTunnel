@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:collection';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pbrowser/models/browser_profile.dart';
@@ -368,7 +369,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
     if (_isRotating) return;
 
     setState(() => _isRotating = true);
-    HapticFeedback.mediumImpact();
+    HapticFeedback.heavyImpact();
 
     try {
       // Suspend WebView traffic during rotation
@@ -398,6 +399,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
     } catch (e) {
       debugPrint('[HUD] Rotation API error: $e');
     } finally {
+      HapticFeedback.vibrate();
       if (mounted) {
         setState(() => _isRotating = false);
         await _fetchPublicIp();
@@ -491,6 +493,84 @@ class _BrowserScreenState extends State<BrowserScreen> {
     }
   }
 
+  void _showBrowserMenuBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF111115),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(top: BorderSide(color: Colors.white12, width: 1)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag Handle
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Text('Security Menu', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              
+              // Menu Options
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.tealAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Icons.swap_horiz_rounded, color: Colors.tealAccent),
+                ),
+                title: const Text('Rotate IP Address', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Request new IP from modem', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _rotateIpNow();
+                },
+              ),
+              const Divider(color: Colors.white12),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.orangeAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Icons.delete_sweep_rounded, color: Colors.orangeAccent),
+                ),
+                title: const Text('Clear Active Session', style: TextStyle(color: Colors.white)),
+                subtitle: const Text('Wipe cookies & local storage', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  InAppWebViewController.clearAllCache();
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Session cache cleared!')));
+                },
+              ),
+              const Divider(color: Colors.white12),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Icons.close_rounded, color: Colors.redAccent),
+                ),
+                title: const Text('Close Profile', style: TextStyle(color: Colors.redAccent)),
+                onTap: () {
+                  Navigator.pop(context); // Tutup bottom sheet
+                  Navigator.pop(context); // Keluar dari browser
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // =========================================================================
   // UI BUILD
   // =========================================================================
@@ -504,17 +584,75 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black, // Immersive edge-to-edge
-      body: Stack(
-        children: [
-          // ── WebView ─────────────────────────────────────
-          if (_isControllerInitialized && _isProxyHealthy)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (details) {
-                _injectNativeTouch(
-                    details.globalPosition.dx, details.globalPosition.dy);
+      bottomNavigationBar: BottomAppBar(
+        color: const Color(0xFF111111),
+        elevation: 24,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        height: 60,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Back
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white70, size: 22),
+              onPressed: () async {
+                if (await _mobileController?.canGoBack() ?? false) {
+                  _mobileController?.goBack();
+                }
               },
-              child: InAppWebView(
+            ),
+            // Forward
+            IconButton(
+              icon: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 22),
+              onPressed: () async {
+                if (await _mobileController?.canGoForward() ?? false) {
+                  _mobileController?.goForward();
+                }
+              },
+            ),
+            // Home (Whoer)
+            IconButton(
+              icon: const Icon(Icons.shield_rounded, color: Colors.tealAccent, size: 26),
+              tooltip: 'Check Anonymity',
+              onPressed: () {
+                _mobileController?.loadUrl(urlRequest: URLRequest(url: WebUri("https://whoer.net")));
+              },
+            ),
+            // Refresh
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, color: Colors.white70, size: 24),
+              onPressed: () {
+                _mobileController?.reload();
+              },
+            ),
+            // Security Menu
+            IconButton(
+              icon: const Icon(Icons.menu_rounded, color: Colors.white70, size: 24),
+              onPressed: _showBrowserMenuBottomSheet,
+            ),
+          ],
+        ),
+      ),
+      body: SafeArea(
+        child: Stack(
+          children: [
+          // ── WebView dengan Visual Feedback Rotasi ─────────────────────────────────────
+          if (_isControllerInitialized && _isProxyHealthy)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                border: _isRotating 
+                    ? Border.all(color: Colors.orangeAccent, width: 3.0) 
+                    : Border.all(color: Colors.transparent, width: 0.0),
+              ),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (details) {
+                  _injectNativeTouch(
+                      details.globalPosition.dx, details.globalPosition.dy);
+                },
+                child: InAppWebView(
                 webViewEnvironment: _environment,
                 initialUrlRequest:
                     URLRequest(url: WebUri(_initialUrl)),
@@ -656,6 +794,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                   }
                 },
               ),
+              ),
             ),
 
           // ── Progress bar ─────────────────────────────────
@@ -793,6 +932,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
             ),
         ],
       ),
+      ),
     );
   }
 }
@@ -859,26 +999,30 @@ class _DynamicIslandHud extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Main Island Bar
-        Container(
-          height: 48,
-          decoration: BoxDecoration(
-            color: const Color(0xE81A1C29), // Sleek, slightly translucent dark
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.1),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              )
-            ],
-          ),
-          child: Row(
-            children: [
-              // Tap area to expand proxy info
+        ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xAA1A1C29), // Glassmorphism translucent dark
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Tap area to expand proxy info
               InkWell(
                 onTap: onToggleExpand,
                 borderRadius: const BorderRadius.only(
@@ -961,6 +1105,8 @@ class _DynamicIslandHud extends StatelessWidget {
             ],
           ),
         ),
+        ),
+        ),
         
         // Expanded Panel for Proxy Info
         AnimatedSwitcher(
@@ -971,26 +1117,34 @@ class _DynamicIslandHud extends StatelessWidget {
             child: FadeTransition(opacity: animation, child: child),
           ),
           child: expanded
-              ? Container(
+              ? Padding(
                   key: const ValueKey('expanded-panel'),
-                  width: 260, // Fixed width drop down
-                  margin: const EdgeInsets.only(top: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xE8141620),
+                  padding: const EdgeInsets.only(top: 8),
+                  child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _statusColor.withValues(alpha: 0.3),
-                      width: 1,
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+                      child: Container(
+                        width: 260, // Fixed width drop down
+                        decoration: BoxDecoration(
+                          color: const Color(0xAA141620), // Glassmorphism translucent 
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: _statusColor.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            )
+                          ],
+                        ),
+                        child: _expandedContent(),
+                      ),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      )
-                    ],
                   ),
-                  child: _expandedContent(),
                 )
               : const SizedBox.shrink(key: ValueKey('collapsed-panel')),
         ),
