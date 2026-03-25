@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for navigator.keyboard API Desktop Stub.
 /// Chrome Desktop exposes navigator.keyboard with getLayoutMap() Promise.

@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for System-UI Font Metrics Spoofing.
 /// Overrides HTMLElement offsetWidth/Height and canvas measureText to inject

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:pbrowser/models/browser_profile.dart';
+import 'package:SecTunnel/models/browser_profile.dart';
 
 // ─────────────────────────────────────────────
 // DATA MODELS

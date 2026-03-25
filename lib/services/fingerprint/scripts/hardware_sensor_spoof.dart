@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Hardware Sensor / Touch API Spoofing.
 /// Conditionally removes all mobile-exclusive touch and motion APIs

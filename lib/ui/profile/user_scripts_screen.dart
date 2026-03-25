@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:pbrowser/models/user_script.dart';
-import 'package:pbrowser/services/browser/userscript_service.dart';
+import 'package:SecTunnel/models/user_script.dart';
+import 'package:SecTunnel/services/browser/userscript_service.dart';
 
 class UserScriptsScreen extends StatefulWidget {
   final UserScriptService service;

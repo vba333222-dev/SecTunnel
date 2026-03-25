@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:pbrowser/models/proxy_config.dart';
-import 'package:pbrowser/services/proxy/proxy_health_check.dart';
+import 'package:SecTunnel/models/proxy_config.dart';
+import 'package:SecTunnel/services/proxy/proxy_health_check.dart';
 
 /// A dynamic widget that visually indicates proxy health and latency.
 /// Shows glowing signal bars (like game ping) based on response time.

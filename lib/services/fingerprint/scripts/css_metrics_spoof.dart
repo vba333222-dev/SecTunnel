@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// Spoofs CSS Object Model capabilities to hide Android-specific CSS properties.
 /// E.g. -webkit-tap-highlight-color is a dead giveaway for mobile WebViews.

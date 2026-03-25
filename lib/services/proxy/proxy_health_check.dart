@@ -2,9 +2,9 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:pbrowser/models/proxy_config.dart';
-import 'package:pbrowser/services/proxy/http_connect_handler.dart';
-import 'package:pbrowser/services/proxy/socks5_handler.dart';
+import 'package:SecTunnel/models/proxy_config.dart';
+import 'package:SecTunnel/services/proxy/http_connect_handler.dart';
+import 'package:SecTunnel/services/proxy/socks5_handler.dart';
 
 class PreFlightResult {
   final bool isHealthy;

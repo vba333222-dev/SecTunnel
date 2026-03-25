@@ -1,4 +1,4 @@
-import 'package:pbrowser/utils/security_obfuscator.dart';
+import 'package:SecTunnel/utils/security_obfuscator.dart';
 
 /// JavaScript utility functions for native function cloaking
 /// This prevents detection via toString() and other introspection methods

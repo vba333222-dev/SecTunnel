@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:pbrowser/models/proxy_config.dart';
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/proxy_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 class BrowserProfile {
   final String id;

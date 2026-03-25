@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 class ScrollbarSpoof {
   static String generate(FingerprintConfig config) {

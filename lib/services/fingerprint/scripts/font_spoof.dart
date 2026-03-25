@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Font Enumeration and Text Metrics Spoofing
 class FontSpoof {

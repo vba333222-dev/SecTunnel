@@ -10,19 +10,19 @@ import 'package:path/path.dart' as path;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // Database
-import 'package:pbrowser/core/database/database.dart';
-import 'package:pbrowser/core/database/daos/profile_dao.dart';
-import 'package:pbrowser/repositories/profile_repository.dart';
-import 'package:pbrowser/services/browser/userscript_service.dart';
-import 'package:pbrowser/services/background/headless_keep_alive_service.dart';
-import 'package:pbrowser/services/analytics/privacy_crash_reporter.dart';
+import 'package:SecTunnel/core/database/database.dart';
+import 'package:SecTunnel/core/database/daos/profile_dao.dart';
+import 'package:SecTunnel/repositories/profile_repository.dart';
+import 'package:SecTunnel/services/browser/userscript_service.dart';
+import 'package:SecTunnel/services/background/headless_keep_alive_service.dart';
+import 'package:SecTunnel/services/analytics/privacy_crash_reporter.dart';
 
 // UI
-import 'package:pbrowser/ui/splash/splash_screen.dart';
-import 'package:pbrowser/ui/shared/global_task_overlay.dart';
+import 'package:SecTunnel/ui/splash/splash_screen.dart';
+import 'package:SecTunnel/ui/shared/global_task_overlay.dart';
 
 // Services
-import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
+import 'package:SecTunnel/services/proxy/modem_rotator_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {

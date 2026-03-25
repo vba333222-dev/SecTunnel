@@ -1,6 +1,6 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
-import 'package:pbrowser/services/fingerprint/scripts/utils.dart';
-import 'package:pbrowser/utils/security_obfuscator.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:SecTunnel/services/fingerprint/scripts/utils.dart';
+import 'package:SecTunnel/utils/security_obfuscator.dart';
 
 /// JavaScript code generator for timezone and geolocation spoofing
 /// CRITICAL: Synchronizes timezone with proxy IP location for consistency

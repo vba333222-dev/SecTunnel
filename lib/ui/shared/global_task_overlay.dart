@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:pbrowser/services/proxy/modem_rotator_service.dart';
-import 'package:pbrowser/ui/shared/themed_lottie.dart';
+import 'package:SecTunnel/services/proxy/modem_rotator_service.dart';
+import 'package:SecTunnel/ui/shared/themed_lottie.dart';
 
 class GlobalTaskOverlay extends StatelessWidget {
   final Widget child;

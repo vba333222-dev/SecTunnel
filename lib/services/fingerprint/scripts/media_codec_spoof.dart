@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Media Codec Fingerprinting Spoofing.
 /// Overrides canPlayType and MediaSource.isTypeSupported with per-OS codec dictionaries

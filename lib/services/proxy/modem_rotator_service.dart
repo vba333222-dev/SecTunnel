@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:pbrowser/services/proxy/mobile_proxy_service.dart';
+import 'package:SecTunnel/services/proxy/mobile_proxy_service.dart';
 
 /// Global service to track IP Rotation state across the entire application.
 ///

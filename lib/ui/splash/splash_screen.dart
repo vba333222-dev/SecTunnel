@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
-import 'package:pbrowser/ui/dashboard/dashboard_screen.dart';
-import 'package:pbrowser/repositories/profile_repository.dart';
+import 'package:SecTunnel/ui/dashboard/dashboard_screen.dart';
+import 'package:SecTunnel/repositories/profile_repository.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // Add this
 

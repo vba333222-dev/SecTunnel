@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for File System Access API polyfills
 /// and Storage Quota spoofing. Injects Desktop-appropriate APIs and

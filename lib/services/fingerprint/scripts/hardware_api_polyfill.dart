@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Hardware API Polyfills.
 /// Injects mock navigator.usb, bluetooth, hid, serial, keyboard interfaces

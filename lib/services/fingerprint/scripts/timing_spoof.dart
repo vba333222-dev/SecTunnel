@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Performance Timing Attack Evasion.
 /// Reduces resolution of performance.now() and Date.now(), and adds

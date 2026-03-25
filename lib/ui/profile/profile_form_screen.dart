@@ -2,13 +2,13 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/services.dart';
-import 'package:pbrowser/models/browser_profile.dart';
-import 'package:pbrowser/models/proxy_config.dart';
-import 'package:pbrowser/models/fingerprint_config.dart';
-import 'package:pbrowser/repositories/profile_repository.dart';
-import 'package:pbrowser/ui/dashboard/widgets/profile_card.dart';
-import 'package:pbrowser/ui/shared/info_tooltip.dart';
-import 'package:pbrowser/ui/shared/themed_lottie.dart';
+import 'package:SecTunnel/models/browser_profile.dart';
+import 'package:SecTunnel/models/proxy_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:SecTunnel/repositories/profile_repository.dart';
+import 'package:SecTunnel/ui/dashboard/widgets/profile_card.dart';
+import 'package:SecTunnel/ui/shared/info_tooltip.dart';
+import 'package:SecTunnel/ui/shared/themed_lottie.dart';
 
 // ─────────────────────────────────────────────
 //  MAIN SCREEN

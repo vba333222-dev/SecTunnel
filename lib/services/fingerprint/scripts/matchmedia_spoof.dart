@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for CSS Media Queries Spoofing.
 /// Intercepts window.matchMedia to return Desktop-consistent pointer/hover results,

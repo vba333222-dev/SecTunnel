@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// Prevents sandbox evasion by eagerly injecting the main anti-detect payload
 /// into dynamically created `about:blank` iframes before trackers can read them.

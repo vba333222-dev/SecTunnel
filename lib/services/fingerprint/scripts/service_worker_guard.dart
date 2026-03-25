@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for ServiceWorker Scope Protection (H-1 audit fix).
 /// Intercepts navigator.serviceWorker.register() to prepend the spoofing

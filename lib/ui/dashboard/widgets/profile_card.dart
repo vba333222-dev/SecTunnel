@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pbrowser/models/browser_profile.dart';
-import 'package:pbrowser/services/browser/cookie_manager_service.dart';
+import 'package:SecTunnel/models/browser_profile.dart';
+import 'package:SecTunnel/services/browser/cookie_manager_service.dart';
 import 'dart:convert';
-import 'package:pbrowser/services/background/headless_keep_alive_service.dart';
-import 'package:pbrowser/ui/shared/proxy_signal_widget.dart';
+import 'package:SecTunnel/services/background/headless_keep_alive_service.dart';
+import 'package:SecTunnel/ui/shared/proxy_signal_widget.dart';
 
 // ─────────────────────────────────────────────
 //  PROFILE CARD

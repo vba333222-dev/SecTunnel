@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart';
-import 'package:pbrowser/core/database/database.dart';
-import 'package:pbrowser/models/user_script.dart';
+import 'package:SecTunnel/core/database/database.dart';
+import 'package:SecTunnel/models/user_script.dart';
 
 part 'user_script_dao.g.dart';
 

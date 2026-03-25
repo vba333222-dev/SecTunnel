@@ -1,4 +1,4 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 /// Spoofs the iteration order of properties on Navigator.prototype to match
 /// the standard V8 C++ binding order of a native Windows Chrome Desktop build.

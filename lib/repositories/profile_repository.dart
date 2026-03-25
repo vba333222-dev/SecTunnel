@@ -1,5 +1,5 @@
-import 'package:pbrowser/core/database/daos/profile_dao.dart';
-import 'package:pbrowser/models/browser_profile.dart';
+import 'package:SecTunnel/core/database/daos/profile_dao.dart';
+import 'package:SecTunnel/models/browser_profile.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';

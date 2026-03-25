@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart';
-import 'package:pbrowser/core/database/daos/user_script_dao.dart';
+import 'package:SecTunnel/core/database/daos/user_script_dao.dart';
 
 part 'database.g.dart';
 

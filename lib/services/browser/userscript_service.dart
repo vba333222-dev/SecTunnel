@@ -1,5 +1,5 @@
-import 'package:pbrowser/core/database/daos/user_script_dao.dart';
-import 'package:pbrowser/models/user_script.dart';
+import 'package:SecTunnel/core/database/daos/user_script_dao.dart';
+import 'package:SecTunnel/models/user_script.dart';
 import 'package:uuid/uuid.dart';
 
 class UserScriptService {

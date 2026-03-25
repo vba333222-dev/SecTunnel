@@ -6,24 +6,24 @@ import 'dart:collection';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pbrowser/models/browser_profile.dart';
-import 'package:pbrowser/models/user_script.dart' as models;
-import 'package:pbrowser/models/fingerprint_config.dart';
-import 'package:pbrowser/models/proxy_config.dart';
-import 'package:pbrowser/services/fingerprint/fingerprint_injector.dart';
-import 'package:pbrowser/services/browser/cookie_manager_service.dart';
-import 'package:pbrowser/services/browser/userscript_service.dart';
+import 'package:SecTunnel/models/browser_profile.dart';
+import 'package:SecTunnel/models/user_script.dart' as models;
+import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:SecTunnel/models/proxy_config.dart';
+import 'package:SecTunnel/services/fingerprint/fingerprint_injector.dart';
+import 'package:SecTunnel/services/browser/cookie_manager_service.dart';
+import 'package:SecTunnel/services/browser/userscript_service.dart';
 
-import 'package:pbrowser/services/proxy/proxy_health_check.dart';
-import 'package:pbrowser/services/proxy/geo_ip_service.dart';
-import 'package:pbrowser/services/proxy/mobile_proxy_service.dart';
-import 'package:pbrowser/repositories/profile_repository.dart';
+import 'package:SecTunnel/services/proxy/proxy_health_check.dart';
+import 'package:SecTunnel/services/proxy/geo_ip_service.dart';
+import 'package:SecTunnel/services/proxy/mobile_proxy_service.dart';
+import 'package:SecTunnel/repositories/profile_repository.dart';
 
 import 'package:provider/provider.dart';
 
 // WebView imports
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:pbrowser/ui/shared/themed_lottie.dart';
+import 'package:SecTunnel/ui/shared/themed_lottie.dart';
 
 class BrowserScreen extends StatefulWidget {
   final BrowserProfile profile;

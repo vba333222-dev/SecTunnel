@@ -1,8 +1,8 @@
 import 'package:drift/drift.dart';
-import 'package:pbrowser/core/database/database.dart';
-import 'package:pbrowser/models/browser_profile.dart' as model;
-import 'package:pbrowser/models/proxy_config.dart';
-import 'package:pbrowser/models/fingerprint_config.dart';
+import 'package:SecTunnel/core/database/database.dart';
+import 'package:SecTunnel/models/browser_profile.dart' as model;
+import 'package:SecTunnel/models/proxy_config.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
 
 part 'profile_dao.g.dart';
 

@@ -1,5 +1,5 @@
-import 'package:pbrowser/models/fingerprint_config.dart';
-import 'package:pbrowser/utils/security_obfuscator.dart';
+import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:SecTunnel/utils/security_obfuscator.dart';
 
 /// JavaScript code generator for WebGL fingerprint spoofing
 class WebGLSpoof {
