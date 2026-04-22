@@ -30,12 +30,12 @@ class InfoTooltipWidget extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF2A2A35).withValues(alpha: 0.95),
+        color: const Color(0xFF2A2A35).withOpacity(0.95),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
+        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
+            color: Colors.black.withOpacity(0.5),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -53,7 +53,7 @@ class InfoTooltipWidget extends StatelessWidget {
         child: Icon(
           icon,
           size: iconSize,
-          color: Colors.white.withValues(alpha: 0.35),
+          color: Colors.white.withOpacity(0.35),
         ),
       ),
     );

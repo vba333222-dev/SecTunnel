@@ -75,7 +75,7 @@ class _UserScriptsScreenState extends State<UserScriptsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.code, size: 64, color: Colors.white.withValues(alpha: 0.2)),
+          Icon(Icons.code, size: 64, color: Colors.white.withOpacity(0.2)),
           const SizedBox(height: 16),
           const Text(
             'No UserScripts',
@@ -126,7 +126,7 @@ class _UserScriptsScreenState extends State<UserScriptsScreen> {
                 await widget.service.toggleActive(script.id, val);
                 _loadScripts();
               },
-              activeThumbColor: Colors.green, // activeColor maps to activeThumbColor in newer versions, but we should use activeColor if activeThumbColor does not exist. Actually, let's keep activeColor if we want, or use activeThumbColor
+              activeColor: Colors.green,
             ),
             isThreeLine: true,
             onTap: () => _showScriptForm(script),
@@ -267,7 +267,7 @@ class _ScriptFormSheetState extends State<ScriptFormSheet> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              initialValue: _runAt,
+              value: _runAt,
               decoration: _deco('Run At', Icons.access_time),
               dropdownColor: const Color(0xFF2A2A2A),
               style: const TextStyle(color: Colors.white),
@@ -304,10 +304,10 @@ class _ScriptFormSheetState extends State<ScriptFormSheet> {
   InputDecoration _deco(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+      labelStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
       prefixIcon: Icon(icon, color: Colors.white70),
       filled: true,
-      fillColor: Colors.white.withValues(alpha: 0.05),
+      fillColor: Colors.white.withOpacity(0.05),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
     );
   }

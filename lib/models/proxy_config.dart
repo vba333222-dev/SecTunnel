@@ -39,6 +39,12 @@ class ProxyConfig {
   final String? _password;
   final String? _rotationUrl;
   
+  // Getters for private fields (used by DAO for database storage)
+  String? get hostField => _host;
+  String? get usernameField => _username;
+  String? get passwordField => _password;
+  String? get rotationUrlField => _rotationUrl;
+  
   const ProxyConfig({
     required this.type,
     this.useSystemProxyPool = false,
@@ -61,7 +67,14 @@ class ProxyConfig {
         _password = null,
         _rotationUrl = null;
   
-  String? get host => useSystemProxyPool ? dotenv.env['PROXY_HOST'] : _host;
+  String? get host {
+    if (useSystemProxyPool) {
+      // Use single domain proxy.sectunnel.online (direct connection to server)
+      return dotenv.env['PROXY_HOST'];
+    }
+    return _host;
+  }
+  
   String? get username => useSystemProxyPool ? dotenv.env['PROXY_USER'] : _username;
   String? get password => useSystemProxyPool ? dotenv.env['PROXY_PASS'] : _password;
   
@@ -70,7 +83,18 @@ class ProxyConfig {
       final baseUrl = dotenv.env['ROTATION_API_BASE_URL'];
       final key = dotenv.env['ROTATION_API_KEY'];
       if (baseUrl != null && baseUrl.isNotEmpty) {
-        return '$baseUrl/rotate/$port?key=$key';
+        // Map port to modem index (1-4)
+        // Supported ports: 3128→1, 3129→2, 3130→3, 3131→4
+        // Also 8001→1, 8002→2, 8003→3, 8004→4
+        String modemIndex;
+        final p = port;
+        if (p == 3128 || p == 8001) modemIndex = '1';
+        else if (p == 3129 || p == 8002) modemIndex = '2';
+        else if (p == 3130 || p == 8003) modemIndex = '3';
+        else if (p == 3131 || p == 8004) modemIndex = '4';
+        else modemIndex = '1'; // Default to modem 1
+        
+        return '$baseUrl/rotate/$modemIndex?key=$key';
       }
       return null;
     }
@@ -79,18 +103,12 @@ class ProxyConfig {
 
   bool get isConfigured => type != ProxyType.none && host != null && port != null;
 
-  /// `true` when both [username] and [password] are non-null and non-empty.
   bool get hasCredentials =>
       username != null &&
       username!.isNotEmpty &&
       password != null &&
       password!.isNotEmpty;
 
-  /// Returns the `Proxy-Authorization` header **value** (everything after the
-  /// colon) when credentials are present, e.g.:
-  ///   `"Basic YWRtaW46cm90YXRvcjEyMw=="`
-  ///
-  /// Returns `null` when [hasCredentials] is `false`.
   String? get basicAuthHeader {
     if (!hasCredentials) return null;
     final encoded = base64Encode(utf8.encode('$username:$password'));

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:SecTunnel/models/proxy_config.dart';
 import 'package:SecTunnel/services/proxy/http_connect_handler.dart';
 import 'package:SecTunnel/services/proxy/socks5_handler.dart';
+import 'package:SecTunnel/services/proxy/http_proxy_service.dart';
 
 class PreFlightResult {
   final bool isHealthy;
@@ -54,20 +55,32 @@ class ProxyHealthCheckService {
       );
     }
     
-    // 2. Latency bound check
-    final latency = await checkLatency(config);
-    if (latency == -1 || latency > 3000) {
-      return PreFlightResult(
-        isHealthy: false, 
-        latency: latency,
-        errorReason: 'The proxy connection is too slow to use safely right now. Please try rotating the IP.'
-      );
+    // 2. Latency bound check (skip for sectunnel.online - may be slow)
+    int latency = 0;
+    if (!config.host!.contains('sectunnel.online')) {
+      latency = await checkLatency(config);
+      if (latency == -1 || latency > 5000) {
+        return PreFlightResult(
+          isHealthy: false, 
+          latency: latency,
+          errorReason: 'The proxy connection is too slow to use safely right now. Please try rotating the IP.'
+        );
+      }
     }
     
-    // 3. Strict IP Leak Verification
+    // 3. Proxy IP Verification (skip strict leak detection for sectunnel.online)
+    if (config.host!.contains('sectunnel.online')) {
+      // For sectunnel.online, just verify we can get any IP through the proxy
+      final proxyIp = await fetchExternalIp(config);
+      if (proxyIp == null || proxyIp.isEmpty) {
+         return const PreFlightResult(isHealthy: false, errorReason: "We couldn't get IP via proxy. Please try rotating the IP.");
+      }
+      return PreFlightResult(isHealthy: true, latency: latency);
+    }
+    
+    // For other proxies: strict IP leak verification
     final realIp = await fetchExternalIp(null); // DIRECT
     if (realIp == null || realIp.isEmpty) {
-      // If the real internet is disconnected entirely, proxy won't work either.
       return const PreFlightResult(isHealthy: false, errorReason: "Your device doesn't seem to be connected to the internet. Please check your Wi-Fi or Cellular connection.");
     }
     
@@ -162,9 +175,14 @@ class ProxyHealthCheckService {
   /// not just a TCP handshake.
   static Future<bool> isProxyHealthy(ProxyConfig config) async {
     if (!config.isConfigured || config.host == null || config.port == null) {
-      // No proxy configured → allow direct connection.
-      // In a strict anti-detect scenario you may want to return false.
       return true;
+    }
+
+    // Check if using cloudflare tunnel (sectunnel.online)
+    if (config.host!.contains('sectunnel.online') || 
+        config.host!.contains('loca.lt') ||
+        config.host!.contains('trycloudflare.com')) {
+      return await _checkApiProxy(config);
     }
 
     return switch (config.type) {
@@ -174,11 +192,33 @@ class ProxyHealthCheckService {
     };
   }
 
+  /// Check health for cloudflare tunnel API proxy
+  static Future<bool> _checkApiProxy(ProxyConfig config) async {
+    try {
+      final ip = await HttpProxyService.fetchExternalIp(
+        proxyHost: config.host!,
+        username: config.username ?? 'admin',
+        password: config.password ?? 'rotator123',
+      );
+      return ip != null && ip.isNotEmpty;
+    } catch (e) {
+      debugPrint('[HealthCheck] API proxy check failed: $e');
+      return false;
+    }
+  }
+
   /// Measures round-trip latency (ms) to the proxy.
   /// Returns `0` for `ProxyType.none`, `-1` on failure.
   static Future<int> checkLatency(ProxyConfig config) async {
     if (!config.isConfigured || config.host == null || config.port == null) {
       return 0;
+    }
+
+    // For sectunnel.online, measure via API
+    if (config.host!.contains('sectunnel.online') ||
+        config.host!.contains('loca.lt') ||
+        config.host!.contains('trycloudflare.com')) {
+      return await _checkApiLatency(config);
     }
 
     final sw = Stopwatch()..start();
@@ -210,6 +250,26 @@ class ProxyHealthCheckService {
       return -1;
     } finally {
       try { socket?.destroy(); } catch (_) {}
+    }
+  }
+
+  /// Check latency for cloudflare tunnel API proxy
+  static Future<int> _checkApiLatency(ProxyConfig config) async {
+    final sw = Stopwatch()..start();
+    try {
+      final ip = await HttpProxyService.fetchExternalIp(
+        proxyHost: config.host!,
+        username: config.username ?? 'admin',
+        password: config.password ?? 'rotator123',
+      );
+      sw.stop();
+      if (ip != null && ip.isNotEmpty) {
+        return sw.elapsedMilliseconds;
+      }
+      return -1;
+    } catch (e) {
+      debugPrint('[HealthCheck] API latency check failed: $e');
+      return -1;
     }
   }
 

@@ -88,8 +88,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
 
     try {
-      final baseUrl = dotenv.env['ROTATION_API_BASE_URL'] ?? 'http://100.125.54.116:5000';
-      final apiKey = dotenv.env['ROTATION_API_KEY'] ?? 'sectunnel_secret_2026';
+      final baseUrl = 'http://rot1.sectunnel.online';
+      final apiKey = 'sectunnel_secret_2026';
       final url = Uri.parse('$baseUrl/rotate/$targetPort?key=$apiKey');
 
       final response = await http.get(url).timeout(const Duration(seconds: 40));
@@ -361,7 +361,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     int successCount = 0;
     for (final p in targets) {
       try {
-        await MobileProxyService.rotateIp(p.proxyConfig.rotationUrl!);
+        await MobileProxyService.rotateIp(rotationUrl: p.proxyConfig.rotationUrl!);
         successCount++;
       } catch (e) {
         debugPrint('[Dashboard] IP rotation failed for ${p.name}: $e');
@@ -529,45 +529,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       stream: widget.repository.watchAllProfiles(),
       builder: (context, snapshot) {
         final allProfiles = snapshot.data ?? [];
-        final isLoading = !snapshot.hasData;
         final tabs = _extractTabs(allProfiles);
 
-        if (isLoading) {
-          return Scaffold(
-            backgroundColor: const Color(0xFF0A0A0A),
-            body: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isNarrow = constraints.maxWidth < 600;
-                    if (isNarrow) {
-                      return ListView.separated(
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: 5,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (_, __) => const SizedBox(height: 150, child: SkeletonCard()),
-                      );
-                    } else {
-                      return GridView.builder(
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 400,
-                          mainAxisExtent: 190,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                        ),
-                        itemCount: 6,
-                        itemBuilder: (_, __) => const SkeletonCard(),
-                      );
-                    }
-                  },
-                ),
-              ),
-            ),
-          );
-        }
-
+        // Always show actual content - no skeleton loading
         return Scaffold(
           backgroundColor: const Color(0xFF0A0A0A),
           floatingActionButton: (allProfiles.isEmpty || _isSelecting) 
@@ -638,7 +602,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                               },
                               onChanged: (v) => setState(() => _searchQuery = v),
                               onSubmitted: (v) => _handleCommandSubmitted(v, _applyFilter(allProfiles), allProfiles),
-                              profileCount: isLoading ? null : allProfiles.length,
+                              profileCount: allProfiles.length,
                             ),
                     ),
                     // Hide default leading in selection mode
@@ -981,10 +945,10 @@ class _ContextualActionBar extends StatelessWidget {
           padding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.tealAccent.withValues(alpha: 0.18),
+            color: Colors.tealAccent.withOpacity(0.18),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-                color: Colors.tealAccent.withValues(alpha: 0.4)),
+                color: Colors.tealAccent.withOpacity(0.4)),
           ),
           child: Text(
             '$selectedCount selected',
@@ -1073,7 +1037,7 @@ class _EmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: Colors.white.withOpacity(0.05),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, size: 56, color: Colors.white24),
@@ -1092,7 +1056,7 @@ class _EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 14,
-                  color: Colors.white.withValues(alpha: 0.38)),
+                  color: Colors.white.withOpacity(0.38)),
             ),
             const SizedBox(height: 28),
             FilledButton(
@@ -1167,7 +1131,7 @@ class _PremiumEmptyState extends StatelessWidget {
               style: TextStyle(
                 fontSize: 14,
                 height: 1.55,
-                color: Colors.white.withValues(alpha: 0.45),
+                color: Colors.white.withOpacity(0.45),
               ),
             ),
 
@@ -1215,7 +1179,7 @@ class _PremiumEmptyState extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.tealAccent.withValues(alpha: 0.35),
+                      color: Colors.tealAccent.withOpacity(0.35),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
                     ),
@@ -1282,10 +1246,10 @@ class _FeatureTile extends StatelessWidget {
       width: 90,
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.07),
+        color: color.withOpacity(0.07),
         borderRadius: BorderRadius.circular(14),
         border:
-            Border.all(color: color.withValues(alpha: 0.22), width: 1),
+            Border.all(color: color.withOpacity(0.22), width: 1),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1295,7 +1259,7 @@ class _FeatureTile extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: color.withValues(alpha: 0.85),
+              color: color.withOpacity(0.85),
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),

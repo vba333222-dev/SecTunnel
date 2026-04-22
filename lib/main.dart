@@ -1,17 +1,13 @@
 import 'dart:io';
-import 'dart:math';
-import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // Database
 import 'package:SecTunnel/core/database/database.dart';
 import 'package:SecTunnel/core/database/daos/profile_dao.dart';
+import 'package:SecTunnel/core/database/daos/user_script_dao.dart';
 import 'package:SecTunnel/repositories/profile_repository.dart';
 import 'package:SecTunnel/services/browser/userscript_service.dart';
 import 'package:SecTunnel/services/background/headless_keep_alive_service.dart';
@@ -41,10 +37,11 @@ void main() async {
   HeadlessKeepAliveService.init();
 
   // Initialize database
-  final database = await _initializeDatabase();
+  final database = AppDatabase.instance;
   final profileDao = ProfileDao(database);
+  final userScriptDao = UserScriptDao(database);
   final profileRepository = ProfileRepository(profileDao);
-  final userScriptService = UserScriptService(database.userScriptDao);
+  final userScriptService = UserScriptService(userScriptDao);
 
   runApp(PBrowserApp(
     profileRepository: profileRepository,
@@ -52,42 +49,9 @@ void main() async {
   ));
 }
 
-/// Initialize Drift database with SQLCipher (AES-256)
-Future<AppDatabase> _initializeDatabase() async {
+Future<String> _getDatabasePath() async {
   final dbFolder = await getApplicationDocumentsDirectory();
-  final dbPath = path.join(dbFolder.path, 'pbrowser.db');
-  
-  // Manage secure key
-  const storage = FlutterSecureStorage();
-  const keyName = 'pbrowser_db_key';
-  
-  String? key = await storage.read(key: keyName);
-  
-  if (key == null) {
-    // Generate a secure 32-byte (256 bit) random key
-    final random = Random.secure();
-    final bytes = Uint8List(32);
-    for (int i = 0; i < 32; i++) {
-      bytes[i] = random.nextInt(256);
-    }
-    
-    // Store as Base64 encoded string
-    key = base64Encode(bytes);
-    await storage.write(key: keyName, value: key);
-    debugPrint('[Security] Generated new hardware-backed AES-256 key');
-  }
-
-  // Create encrypted native database
-  final executor = NativeDatabase.createInBackground(
-    File(dbPath),
-    setup: (db) {
-      db.execute("PRAGMA key = '$key';");
-      debugPrint('[Database] SQLCipher PRAGMA encryption unlocked');
-    },
-  );
-  
-  debugPrint('[Database] Securely initialized at: $dbPath');
-  return AppDatabase(executor);
+  return path.join(dbFolder.path, 'pbrowser.db');
 }
 
 /// Root application widget

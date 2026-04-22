@@ -67,7 +67,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
   /// Position of the HUD's top-left corner relative to Stack.
   /// Initialized lazily on first layout.
   Offset? _hudOffset;
-  static const String _initialUrl = 'https://whoer.net/ip';
+  static const String _initialUrl = 'https://duckduckgo.com';
   static final platform = const MethodChannel('com.example.pbrowser/proxy');
 
   late InAppWebViewSettings _settings;
@@ -274,23 +274,34 @@ class _BrowserScreenState extends State<BrowserScreen> {
     _fetchPublicIp();
   }
 
-  Future<void> _setAndroidProxy() async {
+Future<void> _setAndroidProxy() async {
     final proxyConfig = widget.profile.proxyConfig;
+    final proxyHost = proxyConfig.host;
+    final proxyPort = proxyConfig.port;
+    final proxyType = proxyConfig.type;
+    final proxyUser = proxyConfig.username;
+    final proxyPass = proxyConfig.password;
 
-    // ── Engine-level proxy override (flutter_inappwebview v6 API) ────────────
-    // ProxyController.setProxyOverride() is the ONLY way to route WebView
-    // traffic through a proxy in v6. Without it the WebView ignores all
-    // OS-level proxy settings and leaks the real device IP.
-    //
-    // ProxyRule URL format: "[scheme://]host[:port]"
-    //   • HTTP proxy  → "http://host:port"
-    //   • SOCKS5      → "socks5://host:port"
-    // ─────────────────────────────────────────────────────────────────────────
-    if (proxyConfig.isConfigured) {
-      final scheme = proxyConfig.type == ProxyType.socks5 ? 'socks5' : 'http';
-      final proxyUrl = '$scheme://${proxyConfig.host!}:${proxyConfig.port!}';
+    debugPrint('[Browser] _setAndroidProxy: host=$proxyHost port=$proxyPort type=$proxyType user=$proxyUser');
 
+    if (!proxyConfig.isConfigured || proxyHost == null || proxyPort == null) {
+      debugPrint('[Browser] Proxy not configured, skipping');
+      return;
+    }
+
+    // For sectunnel.online HTTP API proxy with auth embedded in URL
+    if (proxyHost!.contains('sectunnel.online')) {
       try {
+        final scheme = proxyType == ProxyType.socks5 ? 'socks5' : 'http';
+        
+        // Credentials embedded in URL for HTTP Basic Auth
+        String proxyUrl;
+        if (proxyUser != null && proxyPass != null && proxyUser.isNotEmpty && proxyPass.isNotEmpty) {
+          proxyUrl = '$scheme://$proxyUser:$proxyPass@$proxyHost:$proxyPort';
+        } else {
+          proxyUrl = '$scheme://$proxyHost:$proxyPort';
+        }
+        
         await ProxyController.instance().setProxyOverride(
           settings: ProxySettings(
             proxyRules: [ProxyRule(url: proxyUrl)],
@@ -301,21 +312,38 @@ class _BrowserScreenState extends State<BrowserScreen> {
         debugPrint('[Browser] ProxyController.setProxyOverride error: $e');
       }
     } else {
-      // No proxy for this profile — clear any override left by a previous session.
+      // Standard proxy for other hosts
+      final scheme = proxyType == ProxyType.socks5 ? 'socks5' : 'http';
+      String proxyUrl;
+      if (proxyUser != null && proxyPass != null && proxyUser.isNotEmpty && proxyPass.isNotEmpty) {
+        proxyUrl = '$scheme://$proxyUser:$proxyPass@$proxyHost:$proxyPort';
+      } else {
+        proxyUrl = '$scheme://$proxyHost:$proxyPort';
+      }
+
       try {
-        await ProxyController.instance().clearProxyOverride();
-      } catch (_) {}
+        await ProxyController.instance().setProxyOverride(
+          settings: ProxySettings(
+            proxyRules: [ProxyRule(url: proxyUrl)],
+          ),
+        );
+        debugPrint('[Browser] ProxyController override set');
+      } catch (e) {
+        debugPrint('[Browser] ProxyController.setProxyOverride error: $e');
+      }
     }
 
-    // ── Fallback: native MethodChannel for system-level WebView process ───────
-    // Covers edge cases where the Chromium process is shared across WebViews.
+    // Also set native MethodChannel for system-level WebView
     try {
       if (Platform.isAndroid && proxyConfig.isConfigured) {
         await platform.invokeMethod('setProxy', {
-          'host': proxyConfig.host,
-          'port': proxyConfig.port,
-          'scheme': proxyConfig.type.toString(),
+          'host': proxyHost,
+          'port': proxyPort,
+          'scheme': proxyType.toString(),
+          'username': proxyUser,
+          'password': proxyPass,
         });
+        debugPrint('[Browser] Native setProxy MethodChannel called');
       }
     } catch (e) {
       debugPrint('[Browser] Native setProxy MethodChannel error: $e');
@@ -333,20 +361,26 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
     setState(() => _isIpFetching = true);
     try {
-      final geoData =
-          await GeoIpService.fetchGeoData(widget.profile.proxyConfig);
+      // Try to get IP via proxy (modem IP)
+      final ip = await GeoIpService.fetchIpAddress(widget.profile.proxyConfig);
       if (!mounted) return;
-      setState(() {
-        if (geoData != null) {
-          // ip-api.com returns the external IP in the 'query' field but we
-          // use a lightweight endpoint. Fallback: derive from lat/lon label.
-          _currentPublicIp = geoData['ip'] as String? ??
-              '${(geoData['latitude'] as double).toStringAsFixed(4)}°, '
-                  '${(geoData['longitude'] as double).toStringAsFixed(4)}°';
-        } else {
-          _currentPublicIp = null;
-        }
-      });
+      
+      if (ip != null && ip.isNotEmpty) {
+        setState(() {
+          _currentPublicIp = ip;
+        });
+      } else {
+        // Fallback: try geo data
+        final geoData = await GeoIpService.fetchGeoData(widget.profile.proxyConfig);
+        if (!mounted) return;
+        setState(() {
+          if (geoData != null && geoData['ip'] != null) {
+            _currentPublicIp = geoData['ip'] as String;
+          } else {
+            _currentPublicIp = null;
+          }
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _currentPublicIp = null);
     } finally {
@@ -356,14 +390,26 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
   /// Calls the rotation URL then re-fetches the public IP after a short delay.
   Future<void> _rotateIpNow() async {
-    String? rotationUrl = widget.profile.proxyConfig.rotationUrl;
+    final proxyConfig = widget.profile.proxyConfig;
+    String? rotationUrl = proxyConfig.rotationUrl;
+    final p = proxyConfig.port;
+    
+    debugPrint('[HUD] Rotation called: port=$p, rotationUrl=$rotationUrl');
     
     // Fallback cerdas jika rotationUrl kosong/null dari profil lama
     if (rotationUrl == null || rotationUrl.isEmpty) {
-      final targetPort = widget.profile.proxyConfig.port?.toString() ?? '8001';
-      final baseUrl = dotenv.env['ROTATION_API_BASE_URL'] ?? 'http://100.125.54.116:5000';
-      final apiKey = dotenv.env['ROTATION_API_KEY'] ?? 'sectunnel_secret_2026';
-      rotationUrl = '$baseUrl/rotate/$targetPort?key=$apiKey';
+      // Map port ke modem index (1-4)
+      String modemIndex;
+      if (p == 3128 || p == 8001) modemIndex = '1';
+      else if (p == 3129 || p == 8002) modemIndex = '2';
+      else if (p == 3130 || p == 8003) modemIndex = '3';
+      else if (p == 3131 || p == 8004) modemIndex = '4';
+      else modemIndex = p?.toString() ?? '1';
+      
+      final baseUrl = 'http://rot1.sectunnel.online';
+      final apiKey = 'sectunnel_secret_2026';
+      rotationUrl = '$baseUrl/rotate/$modemIndex?key=$apiKey';
+      debugPrint('[HUD] Using fallback rotation URL: $rotationUrl');
     }
 
     if (_isRotating) return;
@@ -380,13 +426,15 @@ class _BrowserScreenState extends State<BrowserScreen> {
         } catch (_) {}
       }
 
-      await MobileProxyService.rotateIp(rotationUrl);
+      // Direct rotation via rot1.sectunnel.online
+      await MobileProxyService.rotateIp(rotationUrl: rotationUrl);
 
       debugPrint('[HUD] Rotation API called. Waiting for IP assignment…');
 
       // Give the modem ~4 s to assign a new IP before re-checking
       await Future.delayed(const Duration(seconds: 4));
     } on ProxyRotationException catch (e) {
+      debugPrint('[HUD] Rotation exception: ${e.message}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -397,7 +445,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
         );
       }
     } catch (e) {
-      debugPrint('[HUD] Rotation API error: $e');
+      debugPrint('[HUD] Rotation error: $e');
     } finally {
       HapticFeedback.vibrate();
       if (mounted) {
@@ -473,7 +521,19 @@ class _BrowserScreenState extends State<BrowserScreen> {
 
     String url = _urlController.text.trim();
     if (url.isEmpty) return;
-    if (!url.startsWith('http')) url = 'https://$url';
+    
+    // Check if input is a search query or URL
+    final hasDomain = RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9-]*\.[a-zA-Z]{2,}').hasMatch(url);
+    final hasTLD = url.contains('.') && url.split('.').last.length >= 2;
+    
+    if (!url.startsWith('http') && (!hasDomain || !hasTLD)) {
+      // Treat as search query - use DuckDuckGo
+      final encodedQuery = Uri.encodeComponent(url);
+      url = 'https://duckduckgo.com/?q=$encodedQuery';
+    } else if (!url.startsWith('http')) {
+      url = 'https://$url';
+    }
+    
     _mobileController?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
     FocusManager.instance.primaryFocus?.unfocus();
   }
@@ -526,7 +586,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.tealAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: Colors.tealAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.swap_horiz_rounded, color: Colors.tealAccent),
                 ),
                 title: const Text('Rotate IP Address', style: TextStyle(color: Colors.white)),
@@ -540,7 +600,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.orangeAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: Colors.orangeAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.delete_sweep_rounded, color: Colors.orangeAccent),
                 ),
                 title: const Text('Clear Active Session', style: TextStyle(color: Colors.white)),
@@ -555,7 +615,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
                   child: const Icon(Icons.close_rounded, color: Colors.redAccent),
                 ),
                 title: const Text('Close Profile', style: TextStyle(color: Colors.redAccent)),
@@ -891,14 +951,16 @@ class _BrowserScreenState extends State<BrowserScreen> {
                     profileName: widget.profile.name,
                     urlController: _urlController,
                     isProxyHealthy: _isProxyHealthy,
-                    isLoading: _isLoading || _isWebViewLoading, // Merge loading states
+                    isLoading: _isLoading || _isWebViewLoading,
                     expanded: _hudExpanded,
                     proxyConfig: widget.profile.proxyConfig,
+                    proxyHost: widget.profile.proxyConfig.host,
+                    proxyPort: widget.profile.proxyConfig.port,
                     isOnline: _isProxyHealthy && !_isRotating,
                     publicIp: _currentPublicIp,
                     isIpFetching: _isIpFetching,
                     isRotating: _isRotating,
-                    hasRotationUrl: (widget.profile.proxyConfig.rotationUrl ?? '').isNotEmpty,
+                    hasRotationUrl: widget.profile.proxyConfig.rotationUrl != null && widget.profile.proxyConfig.rotationUrl!.isNotEmpty,
                     onLoadUrl: _loadUrl,
                     onReload: () {
                       if (_isControllerInitialized && _isProxyHealthy) {
@@ -948,6 +1010,8 @@ class _DynamicIslandHud extends StatelessWidget {
   final bool isLoading;
   final bool expanded;
   final ProxyConfig proxyConfig;
+  final String? proxyHost;
+  final int? proxyPort;
   final bool isOnline;
   final String? publicIp;
   final bool isIpFetching;
@@ -967,6 +1031,8 @@ class _DynamicIslandHud extends StatelessWidget {
     required this.isLoading,
     required this.expanded,
     required this.proxyConfig,
+    required this.proxyHost,
+    required this.proxyPort,
     required this.isOnline,
     required this.publicIp,
     required this.isIpFetching,
@@ -1009,12 +1075,12 @@ class _DynamicIslandHud extends StatelessWidget {
                 color: const Color(0xAA1A1C29), // Glassmorphism translucent dark
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.15),
+                  color: Colors.white.withOpacity(0.15),
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
+                    color: Colors.black.withOpacity(0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   )
@@ -1042,7 +1108,7 @@ class _DynamicIslandHud extends StatelessWidget {
                           color: _statusColor,
                           boxShadow: [
                             BoxShadow(
-                              color: _statusColor.withValues(alpha: 0.5),
+                              color: _statusColor.withOpacity(0.5),
                               blurRadius: 4,
                             )
                           ],
@@ -1074,7 +1140,7 @@ class _DynamicIslandHud extends StatelessWidget {
                   decoration: InputDecoration(
                     hintText: 'Search or enter URL',
                     hintStyle: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.3),
+                      color: Colors.white.withOpacity(0.3),
                       fontSize: 14,
                     ),
                     border: InputBorder.none,
@@ -1130,12 +1196,12 @@ class _DynamicIslandHud extends StatelessWidget {
                           color: const Color(0xAA141620), // Glassmorphism translucent 
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: _statusColor.withValues(alpha: 0.3),
+                            color: _statusColor.withOpacity(0.3),
                             width: 1,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.4),
+                              color: Colors.black.withOpacity(0.4),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             )
@@ -1169,7 +1235,7 @@ class _DynamicIslandHud extends StatelessWidget {
                   color: _statusColor,
                   boxShadow: [
                     BoxShadow(
-                      color: _statusColor.withValues(alpha: 0.6),
+                      color: _statusColor.withOpacity(0.6),
                       blurRadius: 6,
                     )
                   ],
@@ -1189,11 +1255,11 @@ class _DynamicIslandHud extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Divider(height: 1, color: Colors.white.withValues(alpha: 0.1)),
+            child: Divider(height: 1, color: Colors.white.withOpacity(0.1)),
           ),
           Row(
             children: [
-              Icon(Icons.router_outlined, size: 14, color: Colors.white.withValues(alpha: 0.55)),
+              Icon(Icons.router_outlined, size: 14, color: Colors.white.withOpacity(0.55)),
               const SizedBox(width: 6),
               Expanded(
                 child: isIpFetching
@@ -1218,7 +1284,7 @@ class _DynamicIslandHud extends StatelessWidget {
                   onTap: onCopyIp,
                   child: Padding(
                     padding: const EdgeInsets.only(left: 6),
-                    child: Icon(Icons.copy_rounded, size: 14, color: Colors.white.withValues(alpha: 0.45)),
+                    child: Icon(Icons.copy_rounded, size: 14, color: Colors.white.withOpacity(0.45)),
                   ),
                 ),
               GestureDetector(
@@ -1228,7 +1294,7 @@ class _DynamicIslandHud extends StatelessWidget {
                   child: Icon(
                     Icons.refresh_rounded,
                     size: 14,
-                    color: isIpFetching ? Colors.white12 : Colors.white.withValues(alpha: 0.45),
+                    color: isIpFetching ? Colors.white12 : Colors.white.withOpacity(0.45),
                   ),
                 ),
               ),
@@ -1237,10 +1303,34 @@ class _DynamicIslandHud extends StatelessWidget {
           const SizedBox(height: 12),
           _RotateButton(
             isRotating: isRotating,
-            enabled: hasRotationUrl && !isRotating,
+            enabled: hasRotationUrl || proxyConfig.port != null,
             statusColor: _statusColor,
             onPressed: onRotateIp,
           ),
+          const SizedBox(height: 12),
+          if (proxyHost != null && proxyPort != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.router, size: 12, color: Colors.white54),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$proxyHost:$proxyPort',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -1281,12 +1371,12 @@ class _RotateButton extends StatelessWidget {
                   end: Alignment.centerRight,
                 )
               : null,
-          color: enabled ? null : Colors.white.withValues(alpha: 0.07),
+          color: enabled ? null : Colors.white.withOpacity(0.07),
           borderRadius: BorderRadius.circular(10),
           boxShadow: enabled
               ? [
                   BoxShadow(
-                    color: Colors.orange.withValues(alpha: 0.35),
+                    color: Colors.orange.withOpacity(0.35),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   )
@@ -1364,17 +1454,17 @@ class _ProxyFailureSheet extends StatelessWidget {
             color: const Color(0xFF1A1A28),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: Colors.redAccent.withValues(alpha: 0.3),
+              color: Colors.redAccent.withOpacity(0.3),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.redAccent.withValues(alpha: 0.12),
+                color: Colors.redAccent.withOpacity(0.12),
                 blurRadius: 24,
                 spreadRadius: 2,
               ),
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.6),
+                color: Colors.black.withOpacity(0.6),
                 blurRadius: 12,
               ),
             ],
@@ -1391,7 +1481,7 @@ class _ProxyFailureSheet extends StatelessWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1414,7 +1504,7 @@ class _ProxyFailureSheet extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.12),
+                        color: Colors.redAccent.withOpacity(0.12),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -1440,7 +1530,7 @@ class _ProxyFailureSheet extends StatelessWidget {
                           Text(
                             profileName,
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.45),
+                              color: Colors.white.withOpacity(0.45),
                               fontSize: 12,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -1458,7 +1548,7 @@ class _ProxyFailureSheet extends StatelessWidget {
                   'resetting or the credentials are incorrect. '
                   'What would you like to do?',
                   style: TextStyle(
-                    color: errorReason != null ? Colors.redAccent.withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.55),
+                    color: errorReason != null ? Colors.redAccent.withOpacity(0.8) : Colors.white.withOpacity(0.55),
                     fontSize: 13,
                     height: 1.5,
                   ),
@@ -1466,7 +1556,7 @@ class _ProxyFailureSheet extends StatelessWidget {
 
                 const SizedBox(height: 20),
 
-                Divider(color: Colors.white.withValues(alpha: 0.08)),
+                Divider(color: Colors.white.withOpacity(0.08)),
 
                 const SizedBox(height: 16),
 
@@ -1475,7 +1565,7 @@ class _ProxyFailureSheet extends StatelessWidget {
                   _ActionTile(
                     icon: Icons.swap_horiz_rounded,
                     iconColor: Colors.tealAccent,
-                    bgColor: Colors.tealAccent.withValues(alpha: 0.10),
+                    bgColor: Colors.tealAccent.withOpacity(0.10),
                     title: 'Rotate IP Now',
                     subtitle: 'Request a new IP from the modem, then retry',
                     onTap: onRotateIp,
@@ -1486,7 +1576,7 @@ class _ProxyFailureSheet extends StatelessWidget {
                 _ActionTile(
                   icon: Icons.refresh_rounded,
                   iconColor: Colors.purpleAccent,
-                  bgColor: Colors.purpleAccent.withValues(alpha: 0.10),
+                  bgColor: Colors.purpleAccent.withOpacity(0.10),
                   title: 'Retry Connection',
                   subtitle: 'Re-check proxy health and reconnect',
                   onTap: onRetry,
@@ -1497,7 +1587,7 @@ class _ProxyFailureSheet extends StatelessWidget {
                 _ActionTile(
                   icon: Icons.public_rounded,
                   iconColor: Colors.amberAccent,
-                  bgColor: Colors.amberAccent.withValues(alpha: 0.08),
+                  bgColor: Colors.amberAccent.withOpacity(0.08),
                   title: 'Open Without Proxy',
                   subtitle: 'Browse using your real IP (anonymity reduced)',
                   onTap: onOpenWithoutProxy,
@@ -1543,7 +1633,7 @@ class _ActionTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        splashColor: iconColor.withValues(alpha: 0.1),
+        splashColor: iconColor.withOpacity(0.1),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
@@ -1551,8 +1641,8 @@ class _ActionTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: outlined
-                  ? iconColor.withValues(alpha: 0.35)
-                  : iconColor.withValues(alpha: 0.18),
+                  ? iconColor.withOpacity(0.35)
+                  : iconColor.withOpacity(0.18),
               width: 1,
             ),
           ),
@@ -1563,7 +1653,7 @@ class _ActionTile extends StatelessWidget {
                 height: 40,
                 decoration: BoxDecoration(
                   color: outlined
-                      ? iconColor.withValues(alpha: 0.08)
+                      ? iconColor.withOpacity(0.08)
                       : bgColor,
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -1586,7 +1676,7 @@ class _ActionTile extends StatelessWidget {
                     Text(
                       subtitle,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.42),
+                        color: Colors.white.withOpacity(0.42),
                         fontSize: 11,
                       ),
                     ),
@@ -1595,7 +1685,7 @@ class _ActionTile extends StatelessWidget {
               ),
               Icon(
                 Icons.chevron_right_rounded,
-                color: Colors.white.withValues(alpha: 0.25),
+                color: Colors.white.withOpacity(0.25),
                 size: 20,
               ),
             ],

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:SecTunnel/core/database/daos/profile_dao.dart';
 import 'package:SecTunnel/models/browser_profile.dart';
 import 'package:uuid/uuid.dart';
@@ -10,11 +11,19 @@ class ProfileRepository {
   final ProfileDao _profileDao;
   final _uuid = const Uuid();
   
-  ProfileRepository(this._profileDao);
+  ProfileRepository(this._profileDao) {
+    debugPrint('[ProfileRepository] Created with ProfileDao');
+  }
   
-  Stream<List<BrowserProfile>> watchAllProfiles() => _profileDao.watchAllProfiles();
+  Stream<List<BrowserProfile>> watchAllProfiles() {
+    debugPrint('[ProfileRepository] watchAllProfiles called');
+    return _profileDao.watchAllProfiles();
+  }
   
-  Future<List<BrowserProfile>> getAllProfiles() => _profileDao.getAllProfiles();
+  Future<List<BrowserProfile>> getAllProfiles() {
+    debugPrint('[ProfileRepository] getAllProfiles called');
+    return _profileDao.getAllProfiles();
+  }
   
   Future<BrowserProfile?> getProfileById(String id) => _profileDao.getProfileById(id);
   

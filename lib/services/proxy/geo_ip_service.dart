@@ -3,55 +3,75 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:SecTunnel/models/proxy_config.dart';
+import 'package:SecTunnel/services/proxy/http_proxy_service.dart';
 
-/// Service to fetch Geolocation and Timezone data matching the active external IP.
 class GeoIpService {
-  /// Fetches Geo-IP data routing through the provided ProxyConfig.
-  /// If [proxyConfig] is not configured, it fetches the local network's Geo-IP.
   static Future<Map<String, dynamic>?> fetchGeoData(ProxyConfig proxyConfig) async {
-    final client = HttpClient();
-    
-    // Explicitly route this Dart HttpClient request through the given proxy.
-    // This is crucial; otherwise, we'd get the geolocation of the local PC instead of the proxy output node.
-    if (proxyConfig.isConfigured && proxyConfig.host != null && proxyConfig.port != null) {
+    if (proxyConfig.isConfigured && proxyConfig.host != null) {
+      if (proxyConfig.host!.contains('sectunnel.online') || 
+          proxyConfig.host!.contains('loca.lt') ||
+          proxyConfig.host!.contains('trycloudflare.com')) {
+        final geoData = await HttpProxyService.fetchGeoData(
+          proxyHost: proxyConfig.host!,
+          username: proxyConfig.username ?? 'admin',
+          password: proxyConfig.password ?? 'rotator123',
+        );
+        if (geoData != null) return geoData;
+      }
+
+      final client = HttpClient();
       if (proxyConfig.type == ProxyType.socks5) {
         client.findProxy = (uri) => 'SOCKS5 ${proxyConfig.host}:${proxyConfig.port}';
       } else if (proxyConfig.type == ProxyType.http) {
         client.findProxy = (uri) => 'PROXY ${proxyConfig.host}:${proxyConfig.port}';
       }
-    }
 
-    try {
-      // Use ip-api's JSON endpoint. It returns lat, lon, timezone, countryCode.
-      final request = await client.getUrl(Uri.parse('http://ip-api.com/json'))
-        .timeout(const Duration(seconds: 5));
-      
-      final response = await request.close();
-      
-      if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
-        final data = jsonDecode(responseBody) as Map<String, dynamic>;
+      try {
+        final request = await client.getUrl(Uri.parse('http://ip-api.com/json'))
+          .timeout(const Duration(seconds: 5));
         
-        if (data['status'] == 'success') {
-          return {
-            'latitude': (data['lat'] as num?)?.toDouble() ?? 0.0,
-            'longitude': (data['lon'] as num?)?.toDouble() ?? 0.0,
-            'timezone': data['timezone'] as String? ?? 'Asia/Jakarta',
-            'countryCode': data['countryCode'] as String? ?? 'US',
-          };
+        final response = await request.close();
+        
+        if (response.statusCode == 200) {
+          final responseBody = await response.transform(utf8.decoder).join();
+          final data = jsonDecode(responseBody) as Map<String, dynamic>;
+          
+          if (data['status'] == 'success') {
+            return {
+              'ip': data['query'] as String? ?? '',
+              'latitude': (data['lat'] as num?)?.toDouble() ?? 0.0,
+              'longitude': (data['lon'] as num?)?.toDouble() ?? 0.0,
+              'timezone': data['timezone'] as String? ?? 'Asia/Jakarta',
+              'countryCode': data['countryCode'] as String? ?? 'US',
+            };
+          }
         }
+      } catch (e) {
+        debugPrint('[GeoIpService] Exception fetching geo data: $e');
+      } finally {
+        client.close();
       }
-    } catch (e) {
-      debugPrint('[GeoIpService] Exception fetching geo data: $e');
-    } finally {
-      client.close();
     }
     
     return null;
   }
   
-  /// Helper to convert a country code (e.g. US, ID, GB) to a standard BCP 47 language tag (en-US).
-  /// This helps dynamic language spoofing based on IP.
+  static Future<String?> fetchIpAddress(ProxyConfig proxyConfig) async {
+    if (proxyConfig.isConfigured && proxyConfig.host != null) {
+      if (proxyConfig.host!.contains('sectunnel.online') || 
+          proxyConfig.host!.contains('loca.lt') ||
+          proxyConfig.host!.contains('trycloudflare.com')) {
+        final ip = await HttpProxyService.fetchIp(
+          proxyHost: proxyConfig.host!,
+          username: proxyConfig.username ?? 'admin',
+          password: proxyConfig.password ?? 'rotator123',
+        );
+        if (ip != null) return ip;
+      }
+    }
+    return null;
+  }
+  
   static String countryCodeToLanguage(String countryCode) {
     switch (countryCode.toUpperCase()) {
       case 'US': return 'en-US';
@@ -70,7 +90,7 @@ class GeoIpService {
       case 'MX': return 'es-MX';
       case 'RU': return 'ru-RU';
       case 'IN': return 'en-IN';
-      default: return 'en-US'; // Fallback
+      default: return 'en-US';
     }
   }
 }

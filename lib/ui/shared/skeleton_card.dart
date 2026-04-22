@@ -23,7 +23,7 @@ class SkeletonCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF16161F),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          border: Border.all(color: Colors.white.withOpacity(0.06)),
         ),
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         child: Column(

@@ -25,7 +25,7 @@ if (flutterVersionName == null) {
 android {
     namespace "com.example.pbrowser"
     compileSdkVersion 36
-    ndkVersion flutter.ndkVersion
+    ndkVersion "26.1.10909125"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -42,7 +42,7 @@ android {
 
     defaultConfig {
         applicationId "com.example.pbrowser"
-        minSdkVersion flutter.minSdkVersion
+        minSdkVersion 24
         targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName

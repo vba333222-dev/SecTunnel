@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart';
 import 'package:SecTunnel/ui/dashboard/dashboard_screen.dart';
 import 'package:SecTunnel/repositories/profile_repository.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Add this
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,68 +12,71 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with TickerProviderStateMixin {
-  late final AnimationController _lottieController;
-  late final AnimationController _textFadeController;
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fadeController;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<double> _scaleAnimation;
   
+  bool _isInitialized = false;
+
   @override
   void initState() {
     super.initState();
-
-
-    _lottieController = AnimationController(
-        vsync: this, duration: const Duration(seconds: 5));
     
-    _textFadeController = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800));
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _fadeController,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+      ),
+    );
+    
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _fadeController,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOutBack),
+      ),
+    );
 
-
-    _startSequenceAndInit();
+    _startApp();
   }
 
-  // CHANGE TO SMART FUNCTION
-  Future<void> _startSequenceAndInit() async {
-    // 1. Run Lottie animation visually
-    _lottieController.forward();
+  Future<void> _startApp() async {
+    _fadeController.forward();
     
-    // 2. RUN HEAVY PROCESS IN BACKGROUND SIMULTANEOUSLY
-    // App will load .env and DB while Lottie plays!
     await Future.wait([
-      _initializeBackend(), // Custom function below
-      Future.delayed(const Duration(milliseconds: 1500)), // Wait for Lottie climax
+      _initializeBackend(),
+      Future.delayed(const Duration(milliseconds: 2000)),
     ]);
     
-    // 3. Lottie climax reached, show text
-    if (mounted) _textFadeController.forward();
-    
-    // 4. Wait for remaining Lottie aesthetic time
-    await Future.delayed(const Duration(milliseconds: 1100));
-    
-    // 5. Move to Dashboard smoothly
     if (mounted) {
-      final repo = Provider.of<ProfileRepository>(context, listen: false);
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              DashboardScreen(repository: repo),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 600),
-        ),
-      );
+      setState(() => _isInitialized = true);
+      
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      if (mounted) {
+        final repo = Provider.of<ProfileRepository>(context, listen: false);
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                DashboardScreen(repository: repo),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+        );
+      }
     }
   }
 
-  // ANTI-DETECT ENGINE INITIALIZATION FUNCTION
   Future<void> _initializeBackend() async {
     try {
-      // Load Environment Variables (VPS IP & Password)
       await dotenv.load(fileName: ".env");
-      
-      // If you have Database initialization (Drift/SQLite), put it here
-      // await MyDatabase.initialize();
-      
     } catch (e) {
       debugPrint("Failed to load system: $e");
     }
@@ -82,35 +84,66 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _lottieController.dispose();
-    _textFadeController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Scaffold dengan latar belakang gelap total
     return Scaffold(
-      backgroundColor: const Color(0xFF000000), // Solid Black
+      backgroundColor: const Color(0xFF000000),
       body: Center(
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // SEMENTARA: Lottie murni di tengah layar
-            // Karena Lottie Anda sudah berisi animasi fingerprint dan teks v1.2.2, 
-            // kita hapus semua text widget buatan Flutter agar tidak overlap.
-            SizedBox(
-              width: 250,
-              height: 250,
-              child: Lottie.asset(
-                'assets/lottie/splash_hero.json',
-                controller: _lottieController, // _lottieController dikelola di initState
-                fit: BoxFit.contain, // Memastikan Lottie tidak terpotong
+        child: AnimatedBuilder(
+          animation: _fadeController,
+          builder: (context, child) {
+            return Opacity(
+              opacity: _fadeAnimation.value,
+              child: Transform.scale(
+                scale: _scaleAnimation.value,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [Colors.tealAccent, Colors.cyanAccent],
+                      ).createShader(bounds),
+                      child: const Text(
+                        'SecTunnel',
+                        style: TextStyle(
+                          fontSize: 42,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'v1.2.3',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.5),
+                        letterSpacing: 4,
+                      ),
+                    ),
+                    const SizedBox(height: 48),
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.tealAccent.withOpacity(0.7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
   }
-} 
+}

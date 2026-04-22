@@ -1,101 +1,109 @@
-import 'package:drift/drift.dart';
-import 'package:SecTunnel/core/database/daos/user_script_dao.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+import 'dart:async';
 
-part 'database.g.dart';
+class AppDatabase {
+  static Database? _database;
+  static final AppDatabase instance = AppDatabase._internal();
+  
+  AppDatabase._internal();
+  
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDatabase();
+    return _database!;
+  }
 
-/// Browser profile table definition
-class BrowserProfiles extends Table {
-  TextColumn get id => text()();
-  TextColumn get name => text()();
-  
-  // Proxy configuration
-  TextColumn get proxyType => text()(); // 'none', 'http', 'socks5'
-  TextColumn get proxyHost => text().nullable()();
-  IntColumn get proxyPort => integer().nullable()();
-  TextColumn get proxyUsername => text().nullable()();
-  TextColumn get proxyPassword => text().nullable()();
-  TextColumn get proxyRotationUrl => text().nullable()();
-  
-  // Fingerprint configuration (stored as JSON)
-  TextColumn get fingerprintJson => text()();
-  
-  // Session isolation
-  TextColumn get userDataFolder => text()();
-  
-  // Background Keep-Alive
-  BoolColumn get keepAliveEnabled => boolean().withDefault(const Constant(false))();
-  
-  // One-shot cache clear flag — reset to false after the wipe occurs
-  BoolColumn get clearBrowsingData => boolean().withDefault(const Constant(false))();
-  
-  // Metadata
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get lastUsedAt => dateTime()();
+  Future<Database> _initDatabase() async {
+    final dbFolder = await getApplicationDocumentsDirectory();
+    final dbPath = path.join(dbFolder.path, 'pbrowser.db');
+    
+    return await openDatabase(
+      dbPath,
+      version: 4,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
+  }
 
-  // Tags (stored as JSON array string, e.g. '["Airdrop","BCA"]')
-  TextColumn get tagsJson => text().nullable()();
-  
-  @override
-  Set<Column> get primaryKey => {id};
-}
+  Future<void> _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE browser_profiles (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        proxy_type TEXT NOT NULL,
+        proxy_host TEXT,
+        proxy_port INTEGER,
+        proxy_username TEXT,
+        proxy_password TEXT,
+        proxy_rotation_url TEXT,
+        fingerprint_json TEXT NOT NULL,
+        user_data_folder TEXT NOT NULL,
+        keep_alive_enabled INTEGER DEFAULT 0,
+        clear_browsing_data INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        last_used_at INTEGER NOT NULL,
+        tags_json TEXT
+      )
+    ''');
+    
+    await db.execute('''
+      CREATE TABLE user_scripts (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        url_pattern TEXT NOT NULL,
+        js_payload TEXT NOT NULL,
+        is_active INTEGER DEFAULT 1,
+        run_at TEXT DEFAULT 'document_idle',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+    
+    await db.execute(
+      'CREATE INDEX idx_profiles_last_used ON browser_profiles(last_used_at DESC)'
+    );
+    await db.execute(
+      'CREATE INDEX idx_userscripts_profile ON user_scripts(profile_id)'
+    );
+  }
 
-/// UserScripts table for Mini-Tampermonkey functionality
-@DataClassName('UserScriptEntity')
-class UserScripts extends Table {
-  TextColumn get id => text()();
-  TextColumn get profileId => text()(); // Foreign key to BrowserProfiles
-  TextColumn get name => text()();
-  TextColumn get urlPattern => text()(); // Regex string
-  TextColumn get jsPayload => text()();
-  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
-  TextColumn get runAt => text().withDefault(const Constant('document_idle'))(); // document_start or document_idle
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get updatedAt => dateTime()();
-
-  @override
-  Set<Column> get primaryKey => {id};
-}
-
-@DriftDatabase(tables: [BrowserProfiles, UserScripts], daos: [UserScriptDao])
-class AppDatabase extends _$AppDatabase {
-  AppDatabase(super.e);
-  
-  @override
-  UserScriptDao get userScriptDao => UserScriptDao(this);
-  
-  @override
-  int get schemaVersion => 4;
-  
-  @override
-  MigrationStrategy get migration => MigrationStrategy(
-    onCreate: (Migrator m) async {
-      await m.createAll();
-      
-      // Create index for faster sorting by last used
-      await customStatement(
-        'CREATE INDEX idx_profiles_last_used ON browser_profiles(last_used_at DESC)'
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS user_scripts (
+          id TEXT PRIMARY KEY,
+          profile_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          url_pattern TEXT NOT NULL,
+          js_payload TEXT NOT NULL,
+          is_active INTEGER DEFAULT 1,
+          run_at TEXT DEFAULT 'document_idle',
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_userscripts_profile ON user_scripts(profile_id)'
       );
-      
-      // Index for userscripts by profile
-      await customStatement(
-        'CREATE INDEX idx_userscripts_profile ON user_scripts(profile_id)'
+      await db.execute(
+        'ALTER TABLE browser_profiles ADD COLUMN proxy_rotation_url TEXT'
       );
-    },
-    onUpgrade: (Migrator m, int from, int to) async {
-      if (from < 2) {
-        await m.createTable(userScripts);
-        await customStatement(
-          'CREATE INDEX idx_userscripts_profile ON user_scripts(profile_id)'
-        );
-        await m.addColumn(browserProfiles, browserProfiles.proxyRotationUrl);
-      }
-      if (from < 3) {
-        await m.addColumn(browserProfiles, browserProfiles.keepAliveEnabled);
-        await m.addColumn(browserProfiles, browserProfiles.tagsJson);
-      }
-      if (from < 4) {
-        await m.addColumn(browserProfiles, browserProfiles.clearBrowsingData);
-      }
-    },
-  );
+    }
+    if (oldVersion < 3) {
+      await db.execute(
+        'ALTER TABLE browser_profiles ADD COLUMN keep_alive_enabled INTEGER DEFAULT 0'
+      );
+      await db.execute(
+        'ALTER TABLE browser_profiles ADD COLUMN tags_json TEXT'
+      );
+    }
+    if (oldVersion < 4) {
+      await db.execute(
+        'ALTER TABLE browser_profiles ADD COLUMN clear_browsing_data INTEGER DEFAULT 0'
+      );
+    }
+  }
 }

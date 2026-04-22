@@ -1,121 +1,130 @@
-import 'package:drift/drift.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:flutter/foundation.dart';
 import 'package:SecTunnel/core/database/database.dart';
 import 'package:SecTunnel/models/browser_profile.dart' as model;
 import 'package:SecTunnel/models/proxy_config.dart';
 import 'package:SecTunnel/models/fingerprint_config.dart';
 
-part 'profile_dao.g.dart';
-
-@DriftAccessor(tables: [BrowserProfiles])
-class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
-  ProfileDao(super.db);
+class ProfileDao {
+  final AppDatabase _db;
   
-  /// Get all profiles ordered by last used (most recent first)
+  ProfileDao(this._db);
+  
   Stream<List<model.BrowserProfile>> watchAllProfiles() {
-    return (select(browserProfiles)
-      ..orderBy([
-        (p) => OrderingTerm(expression: p.lastUsedAt, mode: OrderingMode.desc),
-      ]))
-        .watch()
-        .map((rows) => rows.map(_rowToProfile).toList());
+    debugPrint('[ProfileDao] watchAllProfiles called');
+    return Stream.periodic(const Duration(seconds: 2))
+        .asyncMap((_) => getAllProfiles());
   }
   
-  /// Get all profiles as a future
   Future<List<model.BrowserProfile>> getAllProfiles() async {
-    final rows = await (select(browserProfiles)
-      ..orderBy([
-        (p) => OrderingTerm(expression: p.lastUsedAt, mode: OrderingMode.desc),
-      ]))
-        .get();
-    return rows.map(_rowToProfile).toList();
+    debugPrint('[ProfileDao] getAllProfiles called');
+    try {
+      final db = await _db.database;
+      final results = await db.query(
+        'browser_profiles',
+        orderBy: 'last_used_at DESC',
+      );
+      debugPrint('[ProfileDao] getAllProfiles got ${results.length} rows');
+      return results.map(_rowToProfile).toList();
+    } catch (e, st) {
+      debugPrint('[ProfileDao] getAllProfiles error: $e');
+      debugPrint('[ProfileDao] Stack: $st');
+      return [];
+    }
   }
   
-  /// Get a single profile by ID
   Future<model.BrowserProfile?> getProfileById(String id) async {
-    final row = await (select(browserProfiles)
-      ..where((p) => p.id.equals(id)))
-        .getSingleOrNull();
-    return row != null ? _rowToProfile(row) : null;
+    final db = await _db.database;
+    final results = await db.query(
+      'browser_profiles',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (results.isEmpty) return null;
+    return _rowToProfile(results.first);
   }
   
-  /// Create a new profile
   Future<void> createProfile(model.BrowserProfile profile) async {
-    await into(browserProfiles).insert(
-      BrowserProfilesCompanion.insert(
-        id: profile.id,
-        name: profile.name,
-        proxyType: profile.proxyConfig.type.toString(),
-        proxyHost: Value(profile.proxyConfig.host),
-        proxyPort: Value(profile.proxyConfig.port),
-        proxyUsername: Value(profile.proxyConfig.username),
-        proxyPassword: Value(profile.proxyConfig.password),
-        proxyRotationUrl: Value(profile.proxyConfig.rotationUrl),
-        fingerprintJson: profile.fingerprintConfig.toJsonString(),
-        userDataFolder: profile.userDataFolder,
-        keepAliveEnabled: Value(profile.keepAliveEnabled),
-        clearBrowsingData: Value(profile.clearBrowsingData),
-        createdAt: profile.createdAt,
-        lastUsedAt: profile.lastUsedAt,
-        tagsJson: Value(profile.tags.isEmpty ? null : profile.tagsString),
-      ),
+    final db = await _db.database;
+    await db.insert(
+      'browser_profiles',
+      _profileToMap(profile),
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
   
-  /// Update an existing profile
   Future<void> updateProfile(model.BrowserProfile profile) async {
-    await (update(browserProfiles)..where((p) => p.id.equals(profile.id)))
-        .write(
-      BrowserProfilesCompanion(
-        name: Value(profile.name),
-        proxyType: Value(profile.proxyConfig.type.toString()),
-        proxyHost: Value(profile.proxyConfig.host),
-        proxyPort: Value(profile.proxyConfig.port),
-        proxyUsername: Value(profile.proxyConfig.username),
-        proxyPassword: Value(profile.proxyConfig.password),
-        proxyRotationUrl: Value(profile.proxyConfig.rotationUrl),
-        fingerprintJson: Value(profile.fingerprintConfig.toJsonString()),
-        userDataFolder: Value(profile.userDataFolder),
-        keepAliveEnabled: Value(profile.keepAliveEnabled),
-        clearBrowsingData: Value(profile.clearBrowsingData),
-        lastUsedAt: Value(profile.lastUsedAt),
-        tagsJson: Value(profile.tags.isEmpty ? null : profile.tagsString),
-      ),
+    final db = await _db.database;
+    await db.update(
+      'browser_profiles',
+      _profileToMap(profile),
+      where: 'id = ?',
+      whereArgs: [profile.id],
     );
   }
   
-  /// Delete a profile
   Future<void> deleteProfile(String id) async {
-    await (delete(browserProfiles)..where((p) => p.id.equals(id))).go();
+    final db = await _db.database;
+    await db.delete(
+      'browser_profiles',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
   
-  /// Update last used timestamp
   Future<void> updateLastUsed(String id) async {
-    await (update(browserProfiles)..where((p) => p.id.equals(id)))
-        .write(BrowserProfilesCompanion(
-      lastUsedAt: Value(DateTime.now()),
-    ));
+    final db = await _db.database;
+    await db.update(
+      'browser_profiles',
+      {'last_used_at': DateTime.now().millisecondsSinceEpoch},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
   
-  /// Convert database row to model
-  model.BrowserProfile _rowToProfile(BrowserProfile row) {
+  Map<String, dynamic> _profileToMap(model.BrowserProfile profile) {
+    final proxy = profile.proxyConfig;
+    return {
+      'id': profile.id,
+      'name': profile.name,
+      'proxy_type': proxy.type.toString(),
+      'proxy_host': proxy.hostField,
+      'proxy_port': proxy.port,
+      'proxy_username': proxy.usernameField,
+      'proxy_password': proxy.passwordField,
+      'proxy_rotation_url': proxy.rotationUrlField,
+      'fingerprint_json': profile.fingerprintConfig.toJsonString(),
+      'user_data_folder': profile.userDataFolder,
+      'keep_alive_enabled': profile.keepAliveEnabled ? 1 : 0,
+      'clear_browsing_data': profile.clearBrowsingData ? 1 : 0,
+      'created_at': profile.createdAt.millisecondsSinceEpoch,
+      'last_used_at': profile.lastUsedAt.millisecondsSinceEpoch,
+      'tags_json': profile.tags.isEmpty ? null : profile.tagsString,
+    };
+  }
+  
+  model.BrowserProfile _rowToProfile(Map<String, dynamic> row) {
     return model.BrowserProfile(
-      id: row.id,
-      name: row.name,
+      id: row['id'] as String,
+      name: row['name'] as String,
       proxyConfig: ProxyConfig(
-        type: ProxyType.fromString(row.proxyType),
-        host: row.proxyHost,
-        port: row.proxyPort,
-        username: row.proxyUsername,
-        password: row.proxyPassword,
-        rotationUrl: row.proxyRotationUrl,
+        type: ProxyType.fromString(row['proxy_type'] as String),
+        host: row['proxy_host'] as String?,
+        port: row['proxy_port'] as int?,
+        username: row['proxy_username'] as String?,
+        password: row['proxy_password'] as String?,
+        rotationUrl: row['proxy_rotation_url'] as String?,
       ),
-      fingerprintConfig: FingerprintConfig.fromJsonString(row.fingerprintJson),
-      userDataFolder: row.userDataFolder,
-      keepAliveEnabled: row.keepAliveEnabled,
-      clearBrowsingData: row.clearBrowsingData,
-      createdAt: row.createdAt,
-      lastUsedAt: row.lastUsedAt,
-      tags: model.BrowserProfile.parseTags(row.tagsJson),
+      fingerprintConfig: FingerprintConfig.fromJsonString(
+        row['fingerprint_json'] as String,
+      ),
+      userDataFolder: row['user_data_folder'] as String,
+      keepAliveEnabled: (row['keep_alive_enabled'] as int) == 1,
+      clearBrowsingData: (row['clear_browsing_data'] as int) == 1,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+      lastUsedAt: DateTime.fromMillisecondsSinceEpoch(row['last_used_at'] as int),
+      tags: model.BrowserProfile.parseTags(row['tags_json'] as String?),
     );
   }
 }

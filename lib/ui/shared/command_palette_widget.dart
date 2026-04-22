@@ -93,18 +93,18 @@ class CommandPaletteBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: hasFocus 
             ? const Color(0xFF1E1E2A)
-            : Colors.white.withValues(alpha: 0.05),
+            : Colors.white.withOpacity(0.05),
         borderRadius: BorderRadius.circular(hasFocus ? 0 : 14),
         border: Border.all(
           color: hasFocus 
-              ? Colors.tealAccent.withValues(alpha: 0.5) 
-              : Colors.white.withValues(alpha: 0.08),
+              ? Colors.tealAccent.withOpacity(0.5) 
+              : Colors.white.withOpacity(0.08),
           width: hasFocus ? 1.5 : 1,
         ),
         boxShadow: hasFocus
             ? [
                 BoxShadow(
-                  color: Colors.tealAccent.withValues(alpha: 0.1),
+                  color: Colors.tealAccent.withOpacity(0.1),
                   blurRadius: 12,
                   spreadRadius: 2,
                 )
@@ -135,7 +135,7 @@ class CommandPaletteBar extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: hasFocus ? 'Type ">" for commands or search profiles' : 'Search or >command...',
                 hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.3),
+                    color: Colors.white.withOpacity(0.3),
                     fontSize: 15),
                 border: InputBorder.none,
                 isDense: true,
@@ -155,7 +155,7 @@ class CommandPaletteBar extends StatelessWidget {
                 '$profileCount profiles',
                 style: TextStyle(
                     fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.3)),
+                    color: Colors.white.withOpacity(0.3)),
               ),
             ),
         ],
@@ -232,7 +232,7 @@ class CommandPaletteOverlay extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 12, left: 4),
             child: Text(
               'Press Enter to launch top result',
-              style: TextStyle(fontSize: 12, color: Colors.tealAccent.withValues(alpha: 0.6)),
+              style: TextStyle(fontSize: 12, color: Colors.tealAccent.withOpacity(0.6)),
             ),
           );
         }
@@ -249,16 +249,16 @@ class CommandPaletteOverlay extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.03),
+          color: Colors.white.withOpacity(0.03),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: cmd.iconColor.withValues(alpha: 0.1),
+                color: cmd.iconColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(cmd.icon, color: cmd.iconColor, size: 22),
@@ -270,7 +270,7 @@ class CommandPaletteOverlay extends StatelessWidget {
                 children: [
                   Text(cmd.title, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
-                  Text(cmd.subtitle, style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13)),
+                  Text(cmd.subtitle, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
                 ],
               ),
             ),
@@ -283,7 +283,7 @@ class CommandPaletteOverlay extends StatelessWidget {
               ),
               child: Text(
                 cmd.sequence,
-                style: TextStyle(fontFamily: 'monospace', color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
+                style: TextStyle(fontFamily: 'monospace', color: Colors.white.withOpacity(0.7), fontSize: 12),
               ),
             )
           ],
@@ -300,7 +300,7 @@ class CommandPaletteOverlay extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
+          color: Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -323,13 +323,13 @@ class CommandPaletteOverlay extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('💡 Pro Tips', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.tealAccent.withValues(alpha: 0.8), letterSpacing: 1.2)),
+          Text('💡 Pro Tips', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.tealAccent.withOpacity(0.8), letterSpacing: 1.2)),
           const SizedBox(height: 16),
           _buildHintRow(Icons.keyboard_return_rounded, 'Type profile name & press Enter to launch instantly'),
           const SizedBox(height: 12),
           _buildHintRow(Icons.keyboard_command_key, 'Type ">" to access advanced system commands'),
           const SizedBox(height: 32),
-          Text('Available Commands', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white.withValues(alpha: 0.5))),
+          Text('Available Commands', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.5))),
           const SizedBox(height: 12),
           ...kGlobalCommands.map((cmd) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -337,7 +337,7 @@ class CommandPaletteOverlay extends StatelessWidget {
               children: [
                 Text(cmd.sequence, style: const TextStyle(fontFamily: 'monospace', color: Colors.white70)),
                 const SizedBox(width: 12),
-                Text('—  ${cmd.title}', style: TextStyle(color: Colors.white.withValues(alpha: 0.4))),
+                Text('—  ${cmd.title}', style: TextStyle(color: Colors.white.withOpacity(0.4))),
               ],
             ),
           )),
@@ -361,11 +361,11 @@ class CommandPaletteOverlay extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 48, color: Colors.white.withValues(alpha: 0.1)),
+          Icon(icon, size: 48, color: Colors.white.withOpacity(0.1)),
           const SizedBox(height: 16),
           Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text(subtitle, style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 14)),
+          Text(subtitle, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 14)),
         ],
       ),
     );

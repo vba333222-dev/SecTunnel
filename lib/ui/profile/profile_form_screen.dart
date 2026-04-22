@@ -524,7 +524,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
                             widget.existingProfile!.name,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.white.withValues(alpha: 0.5),
+                              color: Colors.white.withOpacity(0.5),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -536,7 +536,7 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
                         'Configure browser fingerprint',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.5),
+                          color: Colors.white.withOpacity(0.5),
                         ),
                       ),
                   ],
@@ -625,12 +625,13 @@ class _ProfileFormScreenState extends State<ProfileFormScreen>
                             _useSystemProxyPool = true;
                             _selectedProxyType = ProxyType.http;
                             
-                            final randomPort = (8001 + Random().nextInt(4)).toString();
-                            _proxyPortController.text = randomPort;
+                            // Use port 1-4 as modem index (will map to proxy1-4.sectunnel.online)
+                            const proxyPort = "1";
+                            _proxyPortController.text = proxyPort;
                             
-                            final baseUrl = dotenv.env['ROTATION_API_BASE_URL'] ?? 'http://100.125.54.116:5000';
+                            final baseUrl = dotenv.env['ROTATION_API_BASE_URL'] ?? 'http://rot1.sectunnel.online';
                             final apiKey = dotenv.env['ROTATION_API_KEY'] ?? 'sectunnel_secret_2026';
-                            _proxyRotationUrlController.text = '$baseUrl/rotate/$randomPort?key=$apiKey';
+                            _proxyRotationUrlController.text = '$baseUrl/rotate/1?key=$apiKey';
                             
                             _webrtcEnabled = false;
                             
@@ -823,7 +824,7 @@ class AnonymityScoreBar extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.7),
+                  color: Colors.white.withOpacity(0.7),
                 ),
               ),
               const SizedBox(width: 8),
@@ -866,7 +867,7 @@ class AnonymityScoreBar extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: result.gradeChipColor,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: result.barColor.withValues(alpha: 0.4)),
+                    border: Border.all(color: result.barColor.withOpacity(0.4)),
                   ),
                   child: Text(
                     result.grade,
@@ -892,7 +893,7 @@ class AnonymityScoreBar extends StatelessWidget {
                   // Track
                   Container(
                     width: double.infinity,
-                    color: Colors.white.withValues(alpha: 0.07),
+                    color: Colors.white.withOpacity(0.07),
                   ),
                   // Fill
                   AnimatedFractionallySizedBox(
@@ -904,7 +905,7 @@ class AnonymityScoreBar extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            result.barColor.withValues(alpha: 0.7),
+                            result.barColor.withOpacity(0.7),
                             result.barColor,
                           ],
                           begin: Alignment.centerLeft,
@@ -912,7 +913,7 @@ class AnonymityScoreBar extends StatelessWidget {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: result.barColor.withValues(alpha: 0.5),
+                            color: result.barColor.withOpacity(0.5),
                             blurRadius: 6,
                           )
                         ],
@@ -950,9 +951,9 @@ class _IssueChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.redAccent.withValues(alpha: 0.12),
+        color: Colors.redAccent.withOpacity(0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1000,7 +1001,7 @@ class _RandomizeButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.purple.withValues(alpha: 0.4),
+            color: Colors.purple.withOpacity(0.4),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -1045,20 +1046,20 @@ InputDecoration _inputDeco(String label, IconData icon,
   return InputDecoration(
     labelText: label,
     hintText: hint,
-    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.25), fontSize: 13),
-    labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.55)),
-    prefixIcon: Icon(icon, color: accentColor.withValues(alpha: 0.8), size: 20),
+    hintStyle: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 13),
+    labelStyle: TextStyle(color: Colors.white.withOpacity(0.55)),
+    prefixIcon: Icon(icon, color: accentColor.withOpacity(0.8), size: 20),
     suffixIcon: tooltip != null ? InfoTooltipWidget(message: tooltip) : null,
     filled: true,
-    fillColor: Colors.white.withValues(alpha: 0.045),
+    fillColor: Colors.white.withOpacity(0.045),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+      borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+      borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
@@ -1102,7 +1103,7 @@ Widget _sectionHeader(String title, {IconData? icon, String? tooltip}) {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Colors.tealAccent.withValues(alpha: 0.35),
+                  Colors.tealAccent.withOpacity(0.35),
                   Colors.transparent,
                 ],
               ),
@@ -1122,7 +1123,7 @@ Widget _darkDropdown<T>({
   required InputDecoration decoration,
 }) {
   return DropdownButtonFormField<T>(
-    initialValue: value,
+    value: value,
     decoration: decoration,
     dropdownColor: const Color(0xFF1E1E2A),
     style: const TextStyle(color: Colors.white, fontSize: 14),
@@ -1200,7 +1201,7 @@ class _GeneralTab extends StatelessWidget {
           uaManualOverride ? 'User-Agent (Manual)' : 'User-Agent (Auto)',
           Icons.fingerprint,
           hint: 'Auto-generated from OS + Browser selection',
-          tooltip: 'User-Agent: Memberitahu website versi browser dan OS Anda. SecTunnel akan memalsukan data ini agar sesuai dengan OS pilihan Anda. Jangan diubah manual kecuali Anda pelajari strukturnya.',
+          tooltip: 'User-Agent: Tells websites your browser and OS version. SecTunnel will spoof this to match your selected OS. Do not change manually unless you understand the structure.',
         ).copyWith(
           suffixIcon: uaManualOverride
               ? IconButton(
@@ -1219,7 +1220,7 @@ class _GeneralTab extends StatelessWidget {
           child: Text(
             'Edit above to override manually',
             style: TextStyle(
-                fontSize: 11, color: Colors.white.withValues(alpha: 0.35)),
+                fontSize: 11, color: Colors.white.withOpacity(0.35)),
           ),
         ),
     ]);
@@ -1300,46 +1301,38 @@ class _NetworkTab extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         
-        Row(
-          children: [
-            if (!useSystemProxyPool) ...[
-              Expanded(
-                flex: 3,
-                child: TextFormField(
-                  controller: hostController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDeco('Host / IP', Icons.dns_outlined,
-                      hint: 'e.g. 192.168.1.1',
-                      accent: Colors.orangeAccent),
-                  validator: (v) => hasProxy && (v == null || v.trim().isEmpty)
-                      ? 'Required'
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 10),
-            ],
-            Expanded(
-              flex: 1,
-              child: TextFormField(
-                controller: portController,
-                style: const TextStyle(color: Colors.white),
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: _inputDeco('Port', Icons.pin_outlined,
-                    hint: '1080', accent: Colors.orangeAccent),
-                validator: (v) {
-                  if (!hasProxy) return null;
-                  if (v == null || v.trim().isEmpty) return 'Required';
-                  final p = int.tryParse(v);
-                  if (p == null || p < 1 || p > 65535) return 'Invalid';
-                  return null;
-                },
-              ),
-            ),
-          ],
-        ),
-        
+        // Hide host field when Use System Proxy Pool is enabled
         if (!useSystemProxyPool) ...[
+          TextFormField(
+            controller: hostController,
+            style: const TextStyle(color: Colors.white),
+            decoration: _inputDeco('Host / IP', Icons.dns_outlined,
+                hint: 'e.g. 192.168.1.1',
+                accent: Colors.orangeAccent),
+            validator: (v) => hasProxy && (v == null || v.trim().isEmpty)
+                ? 'Required'
+                : null,
+          ),
+          const SizedBox(height: 14),
+        ],
+        
+        // Show port field only when NOT using system proxy pool
+        if (!useSystemProxyPool) ...[
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: portController,
+            style: const TextStyle(color: Colors.white),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: _inputDeco('Modem Index', Icons.router,
+                hint: '1-4', accent: Colors.orangeAccent),
+            validator: (v) {
+              if (!hasProxy) return null;
+              final p = int.tryParse(v?.trim() ?? '');
+              if (p == null || p < 1 || p > 4) return 'Use 1, 2, 3, or 4';
+              return null;
+            },
+          ),
           const SizedBox(height: 14),
           TextFormField(
             controller: usernameController,
@@ -1356,7 +1349,7 @@ class _NetworkTab extends StatelessWidget {
                 hint: 'Optional', accent: Colors.orangeAccent),
           ),
           const SizedBox(height: 28),
-          _sectionHeader('Modem Rotator', icon: Icons.autorenew, tooltip: 'Modem Rotator: Jika Anda memakai modem router seluler fisik (4G/5G), masukkan URL rotasi API di sini untuk memaksa modem ganti IP baru sebelum membuka browser.'),
+          _sectionHeader('Modem Rotator', icon: Icons.autorenew, tooltip: 'If using physical 4G/5G modem, enter rotation API URL to force IP change before opening browser.'),
           TextFormField(
             controller: rotationUrlController,
             style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -1373,7 +1366,7 @@ class _NetworkTab extends StatelessWidget {
             child: Text(
               'Leave empty to disable automatic IP rotation',
               style: TextStyle(
-                  fontSize: 11, color: Colors.white.withValues(alpha: 0.35)),
+                  fontSize: 11, color: Colors.white.withOpacity(0.35)),
             ),
           ),
         ],
@@ -1381,7 +1374,7 @@ class _NetworkTab extends StatelessWidget {
 
       const SizedBox(height: 28),
       // ── WebRTC ────────────────────────────
-      _sectionHeader('WebRTC', icon: Icons.wifi_channel, tooltip: 'WebRTC: Fitur koneksi untuk video call. PERHATIAN: Jika menyala tanpa Proxy, IP LAN lokal dan IP Publik Anda akan bocor! Disarankan DIMATIKAN jika target Anda hanya farming Airdrop.'),
+      _sectionHeader('WebRTC', icon: Icons.wifi_channel, tooltip: 'WebRTC: Video call connectivity feature. WARNING: Without Proxy, your LAN and Public IP will leak! Disable if target is only Airdrop farming.'),
       _SettingsToggleCard(
         title: 'WebRTC Enabled',
         subtitle: 'Disable to prevent IP leakage through WebRTC',
@@ -1453,7 +1446,7 @@ class _HardwareTab extends StatelessWidget {
 
     return _tabScroll(children: [
       // ── WebGL ─────────────────────────────
-      _sectionHeader('WebGL Fingerprint', icon: Icons.grain, tooltip: 'WebGL Vendor: Menyamarkan jenis kartu grafis hardware (GPU). Pastikan masuk akal! Jangan pilih Apple GPU jika OS profil Anda Windows, karena akan terlihat aneh dan dideteksi sebagai bot.'),
+      _sectionHeader('WebGL Fingerprint', icon: Icons.grain, tooltip: 'WebGL Vendor: Spoofs GPU hardware. Make it logical! Do not choose Apple GPU if OS is Windows, or it will be detected as bot.'),
       _darkDropdown<String>(
         value: resolvedWebgl,
         items: webglOptions
@@ -1478,9 +1471,9 @@ class _HardwareTab extends StatelessWidget {
       Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.04),
+          color: Colors.white.withOpacity(0.04),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+          border: Border.all(color: Colors.white.withOpacity(0.07)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1488,7 +1481,7 @@ class _HardwareTab extends StatelessWidget {
             Text('Renderer',
                 style: TextStyle(
                     fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.45),
+                    color: Colors.white.withOpacity(0.45),
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             Text(
@@ -1502,7 +1495,7 @@ class _HardwareTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── Canvas ────────────────────────────
-      _sectionHeader('Canvas Fingerprint', icon: Icons.brush_outlined, tooltip: 'Canvas Spoofing & ClientRects: Menambahkan derau unik (noise) pada gambar yang di-render & layout agar perangkat ini tidak dapat dilacak oleh sistem anti-bot (seperti Cloudflare). Sangat disarankan AKTIF.'),
+      _sectionHeader('Canvas Fingerprint', icon: Icons.brush_outlined, tooltip: 'Canvas Spoofing & ClientRects: Adds unique noise to rendered images and layout to evade anti-bot systems (like Cloudflare). Highly recommended ACTIVE.'),
       TextFormField(
         controller: canvasSaltController,
         style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -1511,13 +1504,13 @@ class _HardwareTab extends StatelessWidget {
           Icons.texture,
           hint: 'Random 32-char string',
           accent: Colors.purpleAccent,
-          tooltip: 'Canvas Noise Salt: "Seed" atau kunci acak yang menghasilkan derau grafis di atas. Mengganti kode teks ini akan langsung mengubah identitas unik visual browser.',
+          tooltip: 'Canvas Noise Salt: "Seed" or random key that generates graphical noise above. Changing this text will immediately alter browser visual identity.',
         ),
       ),
       const SizedBox(height: 28),
 
       // ── Screen ────────────────────────────
-      _sectionHeader('Screen & Display', icon: Icons.monitor, tooltip: 'Resolusi Layar: Pastikan resolusi cocok dengan target OS. Jangan membuat ukuran HP jika platform OS adalah Desktop.'),
+      _sectionHeader('Screen & Display', icon: Icons.monitor, tooltip: 'Screen Resolution: Ensure resolution matches target OS. Do not use phone size if platform is Desktop.'),
       _darkDropdown<String>(
         value: resolvedRes,
         items: resolutionItems
@@ -1537,7 +1530,7 @@ class _HardwareTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── CPU / RAM ─────────────────────────
-      _sectionHeader('CPU & Memory', icon: Icons.memory, tooltip: 'Memalsukan nilai Hardware Concurrency (Inti CPU) dan Device Memory (Kapasitas RAM). Biarkan di angka wajar agar terlihat seperti pengguna asli.'),
+      _sectionHeader('CPU & Memory', icon: Icons.memory, tooltip: 'Spoofs Hardware Concurrency (CPU cores) and Device Memory (RAM). Keep values reasonable to appear as normal user.'),
       Row(
         children: [
           Expanded(
@@ -1614,7 +1607,7 @@ class _AdvancedTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return _tabScroll(children: [
       // ── Timezone ──────────────────────────
-      _sectionHeader('Timezone', icon: Icons.schedule_outlined, tooltip: 'Timezone (Zona Waktu): Jika profil ini akan berjalan menggunakan Proxy Amerika (US), maka pastikan zona waktu ini juga diubah agar berada di area Amerika Serikat (misal America/New_York).'),
+      _sectionHeader('Timezone', icon: Icons.schedule_outlined, tooltip: 'Timezone: If using US Proxy, ensure timezone is also set to US area (e.g., America/New_York).'),
       _darkDropdown<String>(
         value: timezones.contains(timezone) ? timezone : timezones.first,
         items: timezones
@@ -1629,7 +1622,7 @@ class _AdvancedTab extends StatelessWidget {
       const SizedBox(height: 28),
 
       // ── Geolocation ───────────────────────
-      _sectionHeader('Geolocation', icon: Icons.location_on_outlined, tooltip: 'Geolocation: Menimpa pelacak koordinat GPS internal navigator. Jika mengaktifkan ini, sesuaikan latitude dan longitude dengan lokasi IP proxy Anda.'),
+      _sectionHeader('Geolocation', icon: Icons.location_on_outlined, tooltip: 'Geolocation: Overrides navigator GPS coordinates. If enabled, match with proxy IP location.'),
       _SettingsToggleCard(
         title: 'Override Geolocation',
         subtitle: 'Inject custom GPS coordinates into the browser',
@@ -1706,50 +1699,50 @@ class _AdvancedTab extends StatelessWidget {
       ),
       const SizedBox(height: 28),
 
-      // ── Custom DNS ────────────────────────
-      _sectionHeader('Custom DNS', icon: Icons.dns_outlined),
-      TextFormField(
-        controller: customDnsController,
-        style: const TextStyle(color: Colors.white),
-        decoration: _inputDeco('Custom DNS Server', Icons.dns,
-            hint: 'e.g. 1.1.1.1 (Cloudflare)', accent: Colors.cyanAccent),
-      ),
-      Padding(
-        padding: const EdgeInsets.only(top: 6, left: 4),
-        child: Text(
-          'Feature coming soon — field saved for compatibility',
-          style: TextStyle(
-              fontSize: 11, color: Colors.white.withValues(alpha: 0.35)),
-        ),
-      ),
-      const SizedBox(height: 28),
+      // TODO: Custom DNS - Reserved for future development
+      // _sectionHeader('Custom DNS', icon: Icons.dns_outlined),
+      // TextFormField(
+      //   controller: customDnsController,
+      //   style: const TextStyle(color: Colors.white),
+      //   decoration: _inputDeco('Custom DNS Server', Icons.dns,
+      //       hint: 'e.g. 1.1.1.1 (Cloudflare)', accent: Colors.cyanAccent),
+      // ),
+      // Padding(
+      //   padding: const EdgeInsets.only(top: 6, left: 4),
+      //   child: Text(
+      //     'Feature coming soon — field saved for compatibility',
+      //     style: TextStyle(
+      //         fontSize: 11, color: Colors.white.withOpacity(0.35)),
+      //   ),
+      // ),
+      // const SizedBox(height: 28),
 
-      // ── API Polyfills (placeholder) ───────
-      _sectionHeader('API Polyfills', icon: Icons.code),
-      Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.info_outline,
-                size: 18, color: Colors.cyanAccent.withValues(alpha: 0.7)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Speech Synthesis, Battery API, and Bluetooth spoofing are always active when a profile is in use.',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.55),
-                    height: 1.5),
-              ),
-            ),
-          ],
-        ),
-      ),
+      // TODO: API Polyfills - Reserved for future development
+      // _sectionHeader('API Polyfills', icon: Icons.code),
+      // Container(
+      //   padding: const EdgeInsets.all(14),
+      //   decoration: BoxDecoration(
+      //     color: Colors.white.withOpacity(0.04),
+      //     borderRadius: BorderRadius.circular(12),
+      //     border: Border.all(color: Colors.white.withOpacity(0.07)),
+      //   ),
+      //   child: Row(
+      //     children: [
+      //       Icon(Icons.info_outline,
+      //           size: 18, color: Colors.cyanAccent.withOpacity(0.7)),
+      //       const SizedBox(width: 12),
+      //       Expanded(
+      //         child: Text(
+      //           'Speech Synthesis, Battery API, and Bluetooth spoofing are always active when a profile is in use.',
+      //           style: TextStyle(
+      //               fontSize: 12,
+      //               color: Colors.white.withOpacity(0.55),
+      //               height: 1.5),
+      //         ),
+      //       ),
+      //     ],
+      //   ),
+      // ),
     ]);
   }
 }
@@ -1779,12 +1772,12 @@ class _SettingsToggleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: Colors.white.withOpacity(0.04),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: value
-              ? activeColor.withValues(alpha: 0.35)
-              : Colors.white.withValues(alpha: 0.07),
+              ? activeColor.withOpacity(0.35)
+              : Colors.white.withOpacity(0.07),
         ),
       ),
       child: SwitchListTile(
@@ -1793,8 +1786,8 @@ class _SettingsToggleCard extends StatelessWidget {
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: value
-                ? activeColor.withValues(alpha: 0.15)
-                : Colors.white.withValues(alpha: 0.05),
+                ? activeColor.withOpacity(0.15)
+                : Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon,
@@ -1807,11 +1800,10 @@ class _SettingsToggleCard extends StatelessWidget {
                 fontWeight: FontWeight.w600)),
         subtitle: Text(subtitle,
             style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.45), fontSize: 12)),
+                color: Colors.white.withOpacity(0.45), fontSize: 12)),
         value: value,
         onChanged: onChanged,
-        activeThumbColor: activeColor,
-        activeTrackColor: activeColor.withValues(alpha: 0.35),
+        activeColor: activeColor,
         inactiveThumbColor: Colors.white38,
         inactiveTrackColor: Colors.white12,
       ),
@@ -1911,11 +1903,11 @@ class _TagInputFieldState extends State<_TagInputField> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: color.withValues(alpha: 0.9),
+                      color: color.withOpacity(0.9),
                     ),
                   ),
-                  backgroundColor: color.withValues(alpha: 0.1),
-                  side: BorderSide(color: color.withValues(alpha: 0.3)),
+                  backgroundColor: color.withOpacity(0.1),
+                  side: BorderSide(color: color.withOpacity(0.3)),
                   deleteIcon: Icon(Icons.close_rounded, size: 16, color: color),
                   onDeleted: () => _removeTag(tag),
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
@@ -1932,7 +1924,7 @@ class _TagInputFieldState extends State<_TagInputField> {
           style: const TextStyle(color: Colors.white, fontSize: 13),
           decoration: _inputDeco('Add a tag...', Icons.local_offer_outlined).copyWith(
             helperText: 'Press Enter or type a comma to add. Max $_maxTags tags.',
-            helperStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35)),
+            helperStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
             suffixIcon: IconButton(
               icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.tealAccent),
               onPressed: _addTag,

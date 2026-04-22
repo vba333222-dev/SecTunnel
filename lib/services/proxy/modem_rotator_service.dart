@@ -79,7 +79,7 @@ class ModemRotatorService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await MobileProxyService.rotateIp(url);
+      await MobileProxyService.rotateIp(rotationUrl: url);
       _profileLastStatus[profileId] = true;
     } on ProxyRotationException catch (e) {
       _profileLastStatus[profileId] = false;

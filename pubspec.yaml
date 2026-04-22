@@ -2,7 +2,7 @@ name: SecTunnel
 description: "A secure, lightweight WebView browser with navigation UI and embedded proxy."
 publish_to: 'none'
 
-version: 1.2.1+2
+version: 1.2.3+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -17,31 +17,30 @@ dependencies:
   
   # WebView
   flutter_inappwebview: ^6.1.5
-  webview_flutter: ^4.13.0
-  webview_flutter_android: ^4.10.11
-  webview_flutter_wkwebview: ^3.23.0
+  webview_flutter: ^4.2.4
+  webview_flutter_android: ^3.10.0
+  webview_flutter_wkwebview: ^3.5.0
   
   # Network
   http: ^1.1.0
   
   # Database
-  drift: ^2.20.3
+  sqflite: ^2.3.0
+  sqlite3_flutter_libs: ^0.5.0
   path_provider: ^2.1.5
-  path: ^1.9.1
+  path: ^1.9.0
   
   # State Management
   provider: ^6.1.2
   
   # Utilities
   uuid: ^4.5.1
-  shared_preferences: ^2.5.4
+  shared_preferences: ^2.2.3
   intl: ^0.20.1
-  sqlite3: ^3.1.6
   flutter_foreground_task: ^9.2.0
-  sqlcipher_flutter_libs: ^0.7.0+eol
   flutter_secure_storage: ^10.0.0
-  animations: ^2.1.1
-  lottie: ^3.3.2
+  animations: ^2.0.8
+  lottie: ^3.1.0
   flutter_dotenv: ^6.0.0
 
 dev_dependencies:
@@ -50,10 +49,6 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.3.10
-  
-  # Code Generation
-  drift_dev: ^2.20.3
-  build_runner: ^2.4.13
 
 flutter:
   uses-material-design: true

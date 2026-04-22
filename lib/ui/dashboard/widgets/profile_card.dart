@@ -143,7 +143,7 @@ class _CardBodyState extends State<_CardBody> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -269,11 +269,11 @@ class _CardBodyState extends State<_CardBody> {
 
     // Selected card border animated
     final borderColor = isSelected
-        ? Colors.tealAccent.withValues(alpha: 0.7)
-        : Colors.white.withValues(alpha: 0.08);
+        ? Colors.tealAccent.withOpacity(0.7)
+        : Colors.white.withOpacity(0.08);
     final borderWidth = isSelected ? 1.8 : 1.0;
     final cardGlow = isSelected
-        ? [BoxShadow(color: Colors.tealAccent.withValues(alpha: 0.18), blurRadius: 12, spreadRadius: 1)]
+        ? [BoxShadow(color: Colors.tealAccent.withOpacity(0.18), blurRadius: 12, spreadRadius: 1)]
         : null;
 
     final cardGradient = isSelected
@@ -305,8 +305,8 @@ class _CardBodyState extends State<_CardBody> {
                 onTap: _handleTap,
                 onLongPress: isSelectMode ? null : _handleLongPress,
                 borderRadius: BorderRadius.circular(16),
-                splashColor: Colors.tealAccent.withValues(alpha: 0.08),
-                highlightColor: Colors.tealAccent.withValues(alpha: 0.04),
+                splashColor: Colors.tealAccent.withOpacity(0.08),
+                highlightColor: Colors.tealAccent.withOpacity(0.04),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
                   child: Column(
@@ -400,7 +400,7 @@ class _CardBodyState extends State<_CardBody> {
                           ],
                           // Context menu
                           IconButton(
-                            icon: Icon(Icons.more_vert_rounded, color: Colors.white.withValues(alpha: 0.4), size: 20),
+                            icon: Icon(Icons.more_vert_rounded, color: Colors.white.withOpacity(0.4), size: 20),
                             onPressed: () {
                               HapticFeedback.lightImpact();
                               _showContextMenu(context);
@@ -517,16 +517,16 @@ class _CheckboxBadge extends StatelessWidget {
       height: 22,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: checked ? Colors.tealAccent : Colors.black.withValues(alpha: 0.55),
+        color: checked ? Colors.tealAccent : Colors.black.withOpacity(0.55),
         border: Border.all(
           color: checked
               ? Colors.tealAccent
-              : Colors.white.withValues(alpha: 0.5),
+              : Colors.white.withOpacity(0.5),
           width: 1.8,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: Colors.black.withOpacity(0.3),
             blurRadius: 4,
           ),
         ],
@@ -555,9 +555,9 @@ class OsBadge extends StatelessWidget {
         width: 34,
         height: 34,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
+          color: color.withOpacity(0.15),
           borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Icon(icon, size: 18, color: color),
       ),
@@ -603,7 +603,7 @@ class _LaunchButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF14B8A6).withValues(alpha: 0.25),
+              color: const Color(0xFF14B8A6).withOpacity(0.25),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),

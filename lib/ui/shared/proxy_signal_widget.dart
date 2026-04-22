@@ -115,7 +115,7 @@ class _ProxySignalWidgetState extends State<ProxySignalWidget> {
     // Glow effect
     final shadow = [
       BoxShadow(
-        color: color.withValues(alpha: 0.4),
+        color: color.withOpacity(0.4),
         blurRadius: 4,
         spreadRadius: 0.5,
       ),
