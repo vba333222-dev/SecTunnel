@@ -1,25 +1,45 @@
 import 'package:SecTunnel/models/fingerprint_config.dart';
-import 'package:SecTunnel/utils/security_obfuscator.dart';
 
-/// JavaScript code generator for WebGL fingerprint spoofing
-class WebGLSpoof {
+class WebglSpoof {
   static String generate(FingerprintConfig config) {
-    final vendor = _escapeJs(config.webglConfig.vendor);
-    final renderer = _escapeJs(config.webglConfig.renderer);
-    
-    final encrypted = 'f21SUkpOWE9/BCAhMj5FDBsqNhl7fnUUbX9PUkp5TVp2c1hdVQlvf2sGFjFBRBJTNTYiDgUSCBcrNhdDSFIyOikiNQ1XXlZRIiscCDQcCwY6KxFNBQAKKyQRAC9XHlVRJBITHRYeAAY6IV5pVVJvf2syHD11fGBRPiYXHR4dAjEwPREGDQZLLzkKDTBGSUJRfiUXGycSFxMyNhEGB1JYfy0QFzxGWV1aeDITHRYeAAY6IUxDDnhFf2tFVnASZXx5ERE5KjMsMzcRFyoxKiUgHQwpc38SEBJdNmJaHxYBBB86JwARVU9YYmtWTmsGBRsUK0hST1dTRVItNhEWBxxFeG8THDFWX0ATa0hST1dTGHh/c0VDf1JFf2tKVn9nfn91Awk3KyghIDwbFjcmJy0yGgkiNVUSEBIUOSRSRwcSFxMyNhEGB1JYYnZFSmgGBAQdcDl4T1dTRVJ/IQAXAAALf2xBCzpcVFdGNTBVVH1TRVJ/Lm9DVVJFVWtFWX9AVUZBIixSCBIHNRMtMggGARcXcSoVCTNLGEZcOTFeTxYBAgcyNgsXBlteVWtFBGQ4EBI+cGJdQFcyCQEwcwoVEAAXNi8AWTldQhJjNSA1I0V5RVI2NUVLAQsVOiQDWQhXUnV4YhAXARMWFxsxNCYMGwYAJz9FWGIPEBVBPiYXCR4dABZ4ekUYf1JFf2sGFjFBRBJTNTYiDgUSCBcrNhdRVU9FCC4HPhMAYldaNCcABhkUJh0xJwAbAVwVLSQRFitLQFcaNycGPxYBBB86JwARTnhFf2tFc38SEBJjNSA1I0UhABw7NhcKGxUmMCURHCdGHkJGPzYdGw4DAFw4NhEzFAAEMi4RHC0SDRJSJSwRGx4cC1ovMhcCGBcROjlMWSQ4EBIUcGJSBhFTTQI+IQQOEAYALWtYRGISAwUAZHdbTwx5RVJ/c0VDVVIXOj8QCzESFxZCNSwWAAVUXnh/c0VDVVIYVWtFWX8SEFtScGoCDgUSCBcrNhdDSE9Yf3hSTWsEGRJPWmJST1dTRVJ/IQAXAAALf2xBCzpcVFdGNTBVVH1TRVJ/c0Uef1JFf2tFWS1XREdGPmIVCgMjBAA+PgAXEABXcSoVCTNLGEZcOTFeTxYBAgcyNgsXBlteVWtFWX9PCzgUcD94El5bTElV';
-    
-    return SecurityObfuscator.decrypt(encrypted)
-        .replaceAll('\$vendor', vendor)
-        .replaceAll('\$renderer', renderer);
-  }
-  
-  static String _escapeJs(String str) {
-    return str
-        .replaceAll('\\', '\\\\')
-        .replaceAll("'", "\\'")
-        .replaceAll('"', '\\"')
-        .replaceAll('\n', '\\n')
-        .replaceAll('\r', '\\r');
+    return '''
+      // 4. WEBGL IMPERFECTION
+      (function() {
+        const originalGetParameter = WebGLRenderingContext.prototype.getParameter;
+        const originalGetShaderPrecisionFormat = WebGLRenderingContext.prototype.getShaderPrecisionFormat;
+
+        function applyParameterJitter(result, parameter) {
+          if (result instanceof Float32Array) {
+            const spoofed = new Float32Array(result.length);
+            for (let i = 0; i < result.length; i++) {
+              spoofed[i] = _imperfectionMicroJitter(result[i], _webglSeed ^ parameter ^ i);
+            }
+            return spoofed;
+          }
+          return result;
+        }
+
+        EmulationEngine.patchMethod(WebGLRenderingContext.prototype, 'getParameter', function(parameter) {
+          const result = originalGetParameter.call(this, parameter);
+          return applyParameterJitter(result, parameter);
+        });
+
+        EmulationEngine.patchMethod(WebGLRenderingContext.prototype, 'getShaderPrecisionFormat', function(shaderType, precisionType) {
+          const result = originalGetShaderPrecisionFormat.call(this, shaderType, precisionType);
+          if (result) {
+            const precisionVar = Math.round(_imperfectionMicroJitter(result.precision, _webglSeed ^ shaderType ^ precisionType) - result.precision);
+            const rangeMinVar = Math.round(_imperfectionMicroJitter(result.rangeMin, _webglSeed ^ shaderType ^ precisionType ^ 1) - result.rangeMin);
+            const rangeMaxVar = Math.round(_imperfectionMicroJitter(result.rangeMax, _webglSeed ^ shaderType ^ precisionType ^ 2) - result.rangeMax);
+            
+            const obj = Object.create(WebGLShaderPrecisionFormat.prototype);
+            Object.defineProperty(obj, 'precision', { value: result.precision + (precisionVar ? 1 : 0), configurable: true, enumerable: true });
+            Object.defineProperty(obj, 'rangeMin', { value: result.rangeMin + (rangeMinVar ? 1 : 0), configurable: true, enumerable: true });
+            Object.defineProperty(obj, 'rangeMax', { value: result.rangeMax + (rangeMaxVar ? 1 : 0), configurable: true, enumerable: true });
+            return obj;
+          }
+          return result;
+        });
+      })();
+''';
   }
 }
