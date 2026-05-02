@@ -14,39 +14,25 @@ class WorkerSpoof {
 // ===== WEB WORKER / SERVICE WORKER FINGERPRINT SHIELD =====
 (() => {
   try {
-    // ---- The spoofing header script injected at the TOP of every Worker ----
-    // This is the raw JS code prepended to each worker's script before execution.
+    const globalScope = (typeof window !== 'undefined' ? window : self);
+    const _masterScript = globalScope.__pbrowser_master_script || (arguments.callee && arguments.callee.caller ? arguments.callee.caller.toString() : null);
+
+    // We inject the entire master script into the worker for 100% cross-context consistency
+    // including imperfection engine, behavior engine, and fingerprint config.
     const WORKER_SPOOF_HEADER = `
 // ----- PBrowser Worker Shield -----
-(function() {
-  try {
-    const _defineWorkerProp = (obj, prop, value) => {
-      try {
-        Object.defineProperty(obj, prop, {
-          get: function() { return value; },
-          configurable: true, enumerable: true
-        });
-      } catch(e) {}
-    };
-
-    if (typeof WorkerNavigator !== 'undefined') {
-      _defineWorkerProp(WorkerNavigator.prototype, 'userAgent', '$userAgent');
-      _defineWorkerProp(WorkerNavigator.prototype, 'platform', '$platform');
-      _defineWorkerProp(WorkerNavigator.prototype, 'language', '$language');
-      _defineWorkerProp(WorkerNavigator.prototype, 'hardwareConcurrency', $hardwareConcurrency);
-      _defineWorkerProp(WorkerNavigator.prototype, 'deviceMemory', $deviceMemory);
-      _defineWorkerProp(WorkerNavigator.prototype, 'webdriver', false);
+try {
+  if (typeof self !== 'undefined' && !self.__pbrowser_injected_secure) {
+    const _master = \${JSON.stringify(_masterScript)};
+    if (_master) {
+      eval('(' + _master + ')(self);');
+      console.debug('[CONTEXT] worker patched');
+      if (self.__pbrowser_validate_context) {
+         self.__pbrowser_validate_context(self, 'worker');
+      }
     }
-    
-    // Fallback: override self.navigator directly in case WorkerNavigator prototype is inaccessible
-    if (typeof self !== 'undefined' && self.navigator) {
-      _defineWorkerProp(self.navigator, 'userAgent', '$userAgent');
-      _defineWorkerProp(self.navigator, 'platform', '$platform');
-      _defineWorkerProp(self.navigator, 'hardwareConcurrency', $hardwareConcurrency);
-      _defineWorkerProp(self.navigator, 'deviceMemory', $deviceMemory);
-    }
-  } catch(e) {}
-})();
+  }
+} catch(e) {}
 // ----- End PBrowser Worker Shield -----
 `;
 

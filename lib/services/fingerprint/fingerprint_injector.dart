@@ -36,6 +36,8 @@ import 'package:SecTunnel/services/fingerprint/scripts/css_metrics_spoof.dart';
 import 'package:SecTunnel/services/fingerprint/scripts/navigator_keys_spoof.dart';
 import 'package:SecTunnel/services/fingerprint/scripts/intl_api_spoof.dart';
 import 'package:SecTunnel/services/fingerprint/scripts/utils.dart';
+import 'package:SecTunnel/services/fingerprint/scripts/behavior_engine.dart';
+import 'package:SecTunnel/services/fingerprint/scripts/context_engine.dart';
 
 /// Orchestrates all fingerprint spoofing scripts into a single coherent
 /// injection payload. Validates cross-parameter consistency before generating.
@@ -80,9 +82,13 @@ class FingerprintInjector {
 (function(window) {
   'use strict';
   
+  // Expose master script for cross-context propagation (workers, iframes)
+  const globalScope = (typeof window !== 'undefined' ? window : self);
+  globalScope.__pbrowser_master_script = arguments.callee.toString();
+
   // Prevent re-injection using a non-enumerable symbol or hidden property
-  if (window.__pbrowser_injected_secure) return;
-  Object.defineProperty(window, '__pbrowser_injected_secure', {
+  if (globalScope.__pbrowser_injected_secure) return;
+  Object.defineProperty(globalScope, '__pbrowser_injected_secure', {
       value: true, enumerable: false, configurable: false, writable: false
   });
   
@@ -90,7 +96,7 @@ class FingerprintInjector {
   ${NativeUtils.initCloaking()}
 
   // L-1: Session-level entropy — same profile fingerprint differs slightly each session
-  ${NativeUtils.initSessionEntropy(config.canvasNoiseSalt.hashCode.abs())}
+  ${NativeUtils.initSessionEntropy(config.sessionBoundSeed.abs())}
 
   // L-3 guard: if cloak failed for any reason, abort rather than crash all modules
   if (typeof self.__pbrowser_cloak !== 'function') return;
@@ -189,7 +195,7 @@ class FingerprintInjector {
   // scrollX / scrollY non-zero: fresh WebView always starts at 0,0
   (() => {
     try {
-      const _seed   = ${config.canvasNoiseSalt.hashCode.abs()};
+      const _seed   = ${config.sessionBoundSeed.abs()};
       const _scrollX = 0;
       const _scrollY = 4 + (_seed % 15);
       const _defWinProp = (prop, val) => {
@@ -216,10 +222,16 @@ class FingerprintInjector {
   // Lock the property iteration order for pure Desktop imitation
   ${NavigatorKeysSpoof.generate(config)}
 
+  // ═══ PHASE 12: Behavioral Realism ════════════════════════════
+  ${BehaviorEngine.generate(config)}
+
+  // ═══ PHASE 13: Cross-Context Consistency ═════════════════════
+  ${ContextEngine.generate(config)}
+
   // Final protection layer
   ${NativeUtils.preventNavigatorDetection()}
 
-})(window);
+})(typeof window !== 'undefined' ? window : self);
 ''';
 
     _log.info(LogTag.system, '[FINGERPRINT] Injection complete — ${config.isDesktop ? "Desktop" : "Mobile"} (${config.screenResolution.width}x${config.screenResolution.height} @${config.devicePixelRatio}x, TZ: ${config.timezone})');

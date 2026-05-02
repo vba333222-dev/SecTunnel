@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:SecTunnel/services/fingerprint/session_seed.dart';
 
 /// Geolocation configuration
 class GeolocationConfig {
@@ -120,6 +121,11 @@ class FingerprintConfig {
     }
     return '';
   }
+  
+  /// Returns a combined seed using the profile's salt and the global SessionSeed.
+  /// This ensures deterministic variation that is unique per profile but
+  /// changes across different app sessions.
+  int get sessionBoundSeed => canvasNoiseSalt.hashCode ^ SessionSeed.getSessionSeed();
   
   Map<String, dynamic> toJson() {
     return {

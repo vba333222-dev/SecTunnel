@@ -10,7 +10,7 @@ class NetworkInfoSpoof {
     }
 
     // Desktop-realistic downlink: 8–95 Mbps range, seeded per profile
-    final seed     = config.canvasNoiseSalt.hashCode.abs();
+    final seed     = config.sessionBoundSeed.abs();
     final downlink = 8.0 + (seed % 87);     // 8–95 Mbps
     final rtt      = 10 + (seed % 40);      // 10–49 ms
 

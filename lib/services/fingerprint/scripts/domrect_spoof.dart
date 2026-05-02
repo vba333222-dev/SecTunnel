@@ -5,7 +5,7 @@ import 'package:SecTunnel/models/fingerprint_config.dart';
 class DOMRectSpoof {
   static String generate(FingerprintConfig config) {
     // Deterministic seed based on canvas noise salt
-    final seed = config.canvasNoiseSalt.hashCode;
+    final seed = config.sessionBoundSeed;
 
     return '''
 // ===== DOMRECT / CLIENTRECT SPOOFING =====

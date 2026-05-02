@@ -9,7 +9,7 @@ class StorageSpoof {
       return '// [StorageSpoof] Mobile profile — storage APIs intact.';
     }
 
-    final seed = config.canvasNoiseSalt.hashCode.abs();
+    final seed = config.sessionBoundSeed.abs();
     // Deterministic quota: 150 GB – 499 GB range (in bytes)
     final quotaGB  = 150 + (seed % 350);                         // 150–499 GB
     final usageGB  = 2 + (seed % 18);                            // 2–19 GB used

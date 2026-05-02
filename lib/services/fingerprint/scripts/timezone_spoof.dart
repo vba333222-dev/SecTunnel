@@ -83,7 +83,7 @@ function(successCallback, errorCallback, options) {
   }
   
   // Return spoofed position immediately and set interval
-  const watchId = ${config.canvasNoiseSalt.hashCode.abs() % 10000};
+  const watchId = ${config.sessionBoundSeed.abs() % 10000};
   
   setTimeout(() => {
     if (successCallback) {

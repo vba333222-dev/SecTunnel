@@ -9,10 +9,10 @@ class GeolocationSpoof {
     final tz = config.timezone.toLowerCase();
 
     // Determine coordinates from timezone
-    final coords = _coordsFromTimezone(tz, config.canvasNoiseSalt.hashCode.abs());
+    final coords = _coordsFromTimezone(tz, config.sessionBoundSeed.abs());
     final lat  = coords['lat']!;
     final lon  = coords['lon']!;
-    final acc  = 20.0 + (config.canvasNoiseSalt.hashCode.abs() % 80); // 20–99m accuracy
+    final acc  = 20.0 + (config.sessionBoundSeed.abs() % 80); // 20–99m accuracy
 
     return '''
 // ===== GEOLOCATION API SPOOFING =====
@@ -96,7 +96,7 @@ class GeolocationSpoof {
       } catch(e) {
         // If watchPosition fails outright, call success once with fake position
         try { successCb(makeFakePosition()); } catch(e2) {}
-        watchId = ${config.canvasNoiseSalt.hashCode.abs() % 10000}; // deterministic from config
+        watchId = ${config.sessionBoundSeed.abs() % 10000}; // deterministic from config
       }
       return watchId;
     };

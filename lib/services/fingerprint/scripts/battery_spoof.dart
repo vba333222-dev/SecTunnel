@@ -4,7 +4,7 @@ import 'package:SecTunnel/models/fingerprint_config.dart';
 class BatterySpoof {
   static String generate(FingerprintConfig config) {
     // Deterministic seeding based on profile
-    final seed = config.canvasNoiseSalt.hashCode;
+    final seed = config.sessionBoundSeed;
     
     return '''
 // ===== BATTERY STATUS API SPOOFING =====

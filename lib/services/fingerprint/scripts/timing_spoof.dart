@@ -6,7 +6,9 @@ import 'package:SecTunnel/models/fingerprint_config.dart';
 class TimingSpoof {
   static String generate(FingerprintConfig config) {
     // Deterministic jitter amplitude: 0.1–0.5ms range per profile
-    final seed = config.canvasNoiseSalt.hashCode.abs();
+    // Combine with SessionSeed to ensure cross-session variation for the same profile
+    final seed = config.sessionBoundSeed.abs();
+    
     final jitterMax = 0.1 + (seed % 5) * 0.1; // 0.1 to 0.5 ms
     // Rounding granularity: 1ms or 2ms bucket
     final roundMs = (seed % 2 == 0) ? 1 : 2;

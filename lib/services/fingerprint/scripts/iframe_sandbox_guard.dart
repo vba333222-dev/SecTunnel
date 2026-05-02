@@ -9,9 +9,10 @@ class IframeSandboxGuard {
 (() => {
   try {
     // 1. Identify the master injection script string representation
-    // We expect this script to be running inside an IIFE `(function(window) { ... })(window);`
+    // We expect this script to be running inside an IIFE
     // We capture its exact source code so we can inject it recursively into child frames.
-    const _masterScript = arguments.callee.caller ? arguments.callee.caller.toString() : null;
+    const globalScope = (typeof window !== 'undefined' ? window : self);
+    const _masterScript = globalScope.__pbrowser_master_script || (arguments.callee && arguments.callee.caller ? arguments.callee.caller.toString() : null);
 
     if (!_masterScript) {
       console.warn('[PBrowser] Iframe Guard: Failed to locate master script caller.');
@@ -24,6 +25,10 @@ class IframeSandboxGuard {
       try {
         // Execute the IIFE string wrapped around the child window context
         childWin.eval(`(\${_masterScript})(window);`);
+        console.debug('[CONTEXT] iframe injected');
+        if (globalScope.__pbrowser_validate_context) {
+           globalScope.__pbrowser_validate_context(childWin, 'iframe');
+        }
       } catch (e) {
         // Cross-origin or eval blocked
       }

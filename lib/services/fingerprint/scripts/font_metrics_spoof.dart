@@ -5,7 +5,7 @@ import 'package:SecTunnel/models/fingerprint_config.dart';
 /// a deterministic sub-pixel delta that masks Android Roboto font baseline kerning.
 class FontMetricsSpoof {
   static String generate(FingerprintConfig config) {
-    final seed = config.canvasNoiseSalt.hashCode.abs();
+    final seed = config.sessionBoundSeed.abs();
     // Produce two small offsets in the range of ± 1.5px —
     // enough to shift Roboto measurements away from its characteristic baseline,
     // but small enough to not break real layout calculations.

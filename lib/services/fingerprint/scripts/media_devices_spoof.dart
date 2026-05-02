@@ -5,7 +5,7 @@ import 'package:SecTunnel/models/fingerprint_config.dart';
 /// deterministic, realistic list of desktop hardware devices per profile.
 class MediaDevicesSpoof {
   static String generate(FingerprintConfig config) {
-    final seed = config.canvasNoiseSalt.hashCode.abs();
+    final seed = config.sessionBoundSeed.abs();
 
     return '''
 // ===== MEDIA DEVICES ENUMERATION SPOOFING =====
