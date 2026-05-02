@@ -3,14 +3,28 @@ import 'package:SecTunnel/models/fingerprint_config.dart';
 /// JavaScript code generator for Window Frame Metrics Spoofing.
 /// Ensures outerWidth > innerWidth (by a small desktop-realistic frame offset),
 /// preventing detection via inner/outer dimension equality checks.
+/// 
+/// All values derive from FingerprintConfig — no independent generation.
 class WindowMetricsSpoof {
   static String generate(FingerprintConfig config) {
     final width = config.screenResolution.width;
     final height = config.screenResolution.height;
-    // Deterministic "frame border size" seeded from profile, 15–20px range
-    final seed = config.canvasNoiseSalt.hashCode.abs();
-    final scrollbarW = 15 + (seed % 6);       // 15–20 px
-    final chromeH = 95 + ((seed >> 4) % 20);  // 95–114 px (tab bar + address bar)
+    final platform = config.platform.toLowerCase();
+    
+    // Deterministic frame metrics from config platform (not from seed)
+    // Windows: 17px scrollbar, 95px chrome. Mac: 15px, 88px. Linux: 15px, 90px.
+    final int scrollbarW;
+    final int chromeH;
+    if (platform.contains('win')) {
+      scrollbarW = 17;
+      chromeH = 95;
+    } else if (platform.contains('mac')) {
+      scrollbarW = 15;
+      chromeH = 88;
+    } else {
+      scrollbarW = 15;
+      chromeH = 90;
+    }
 
     return '''
 // ===== WINDOW FRAME METRICS SPOOFING =====
@@ -18,7 +32,7 @@ class WindowMetricsSpoof {
 //                 outerHeight = innerHeight + chrome UI (tabs, address bar)
 (() => {
   try {
-    // --- Deterministic values derived from profile seed ---
+    // --- Values from FingerprintConfig (no seed derivation) ---
     const INNER_W  = $width;
     const INNER_H  = ${height - chromeH};
     const OUTER_W  = $width  + $scrollbarW;
@@ -45,10 +59,8 @@ class WindowMetricsSpoof {
     defineWindowProp('outerWidth',  OUTER_W);
     defineWindowProp('outerHeight', OUTER_H);
 
-    // Also spoof devicePixelRatio to a standard desktop value (1 or 2)
-    // WebViews often report 2.75, 3.0 etc — distinctly mobile device DPRs
-    const dpr = ${ (seed % 2) == 0 ? 1 : 2 };
-    defineWindowProp('devicePixelRatio', dpr);
+    // DPR is handled by screen_spoof.dart from config.devicePixelRatio.
+    // Removed duplicate DPR override here (was seed-based, inconsistent).
 
   } catch(e) {}
 })();

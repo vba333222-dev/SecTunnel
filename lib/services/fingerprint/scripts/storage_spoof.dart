@@ -5,13 +5,7 @@ import 'package:SecTunnel/models/fingerprint_config.dart';
 /// reports hard drive quota consistent with a high-end PC.
 class StorageSpoof {
   static String generate(FingerprintConfig config) {
-    final platform = config.platform.toLowerCase();
-    final isDesktop = platform.contains('win32') ||
-        platform.contains('macintel') ||
-        platform.contains('linux x86_64') ||
-        platform.contains('linux x64');
-
-    if (!isDesktop) {
+    if (!config.isDesktop) {
       return '// [StorageSpoof] Mobile profile — storage APIs intact.';
     }
 

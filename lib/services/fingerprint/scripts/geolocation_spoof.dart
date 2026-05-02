@@ -59,8 +59,8 @@ class GeolocationSpoof {
         // Call native — if user has granted permission, intercept the result
         origGetCurrentPosition.call(this,
           (realPos) => {
-            // Replace with spoofed position
-            try { successCb(makeFakePosition()); } catch(e) { successCb(realPos); }
+            // Always override with spoofed position — never leak real coordinates
+            successCb(makeFakePosition());
           },
           (err) => {
             // If denied/unavailable, still return spoofed position (Desktop behavior)
@@ -87,7 +87,8 @@ class GeolocationSpoof {
       try {
         watchId = origWatchPosition.call(this,
           (realPos) => {
-            try { successCb(makeFakePosition()); } catch(e) { successCb(realPos); }
+            // Always override with spoofed position — never leak real coordinates
+            successCb(makeFakePosition());
           },
           errorCb,
           options
@@ -95,7 +96,7 @@ class GeolocationSpoof {
       } catch(e) {
         // If watchPosition fails outright, call success once with fake position
         try { successCb(makeFakePosition()); } catch(e2) {}
-        watchId = Math.floor(Math.random() * 10000); // fake watchId
+        watchId = ${config.canvasNoiseSalt.hashCode.abs() % 10000}; // deterministic from config
       }
       return watchId;
     };

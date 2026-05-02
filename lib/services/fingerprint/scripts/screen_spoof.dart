@@ -5,22 +5,18 @@ import 'package:SecTunnel/models/fingerprint_config.dart';
 /// screen.availLeft/availTop match desktop taskbar offsets (M-1 audit fix).
 class ScreenSpoof {
   static String generate(FingerprintConfig config) {
-    final platform = config.platform.toLowerCase();
-    final isDesktop = platform.contains('win') ||
-        platform.contains('mac') ||
-        platform.contains('linux x86_64') ||
-        platform.contains('linux x64');
-
-    if (!isDesktop) {
+    if (!config.isDesktop) {
       return '// [ScreenSpoof] Mobile profile — screen properties intact.';
     }
 
-    final seed = config.canvasNoiseSalt.hashCode.abs();
+    final platform = config.platform.toLowerCase();
+
     final width  = config.screenResolution.width;
     final height = config.screenResolution.height;
-    // Desktop taskbar typically 40–48px on Windows, 25px on Mac
+    // Desktop taskbar: Windows 40px, Mac 25px, Linux 28px (deterministic from platform)
     final isWindows = platform.contains('win');
-    final taskbarH  = isWindows ? 40 + (seed % 8) : 25;
+    final isMac = platform.contains('mac');
+    final taskbarH  = isWindows ? 40 : (isMac ? 25 : 28);
     final availLeft = 0;
     final availTop  = 0;
 
@@ -75,11 +71,9 @@ class ScreenSpoof {
     }
 
     // --- devicePixelRatio Spoofing ---
-    // Android scales differ wildly (e.g. 2.75, 3.15). Mobile profiles skip this.
-    // Desktop usually uses 1, 1.25, 1.5, or 2 (Mac Retina).
-    // Pick a deterministic realistic scale based on the session seed.
-    const _scales = [1, 1.25, 1.5, 2];
-    const _dpr = _scales[$seed % _scales.length];
+    // Uses the value from FingerprintConfig for cross-parameter consistency.
+    // Desktop: 1, 1.25, 1.5, 2 (Mac Retina). Mobile profiles skip this block.
+    const _dpr = ${config.devicePixelRatio};
     
     try {
         const spoofedDpr = function() { return _dpr; };

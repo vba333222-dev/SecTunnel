@@ -7,7 +7,6 @@ import 'package:lottie/lottie.dart';
 import 'package:SecTunnel/models/browser_profile.dart';
 import 'package:SecTunnel/services/analytics/privacy_crash_reporter.dart';
 import 'package:SecTunnel/repositories/profile_repository.dart';
-import 'package:SecTunnel/services/proxy/mobile_proxy_service.dart';
 import 'package:SecTunnel/ui/profile/profile_form_screen.dart';
 import 'package:SecTunnel/ui/browser/browser_screen.dart';
 import 'package:SecTunnel/ui/dashboard/widgets/profile_card.dart';
@@ -17,6 +16,7 @@ import 'package:SecTunnel/services/browser/userscript_service.dart';
 import 'package:animations/animations.dart';
 import 'package:provider/provider.dart';
 import 'package:SecTunnel/services/proxy/modem_rotator_service.dart';
+import 'package:SecTunnel/ui/debug/debug_panel.dart';
 import 'package:SecTunnel/ui/shared/themed_lottie.dart';
 import 'package:SecTunnel/ui/shared/skeleton_card.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -472,7 +472,21 @@ class _DashboardScreenState extends State<DashboardScreen>
                     leading: _isSelecting ? const SizedBox.shrink() : null,
                     automaticallyImplyLeading: false,
                     actions: [
-                      if (!_isSelecting)
+                      if (!_isSelecting) ...[
+                        Tooltip(
+                          message: 'Debug Logs',
+                          child: IconButton(
+                            icon: const Icon(Icons.bug_report_outlined, color: Colors.white38),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const DebugPanel(),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                         Tooltip(
                           message: 'Panic Button (Wipe All Sessions)',
                           child: IconButton(
@@ -480,6 +494,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             onPressed: () => _showPanicDialog(),
                           ),
                         ),
+                      ],
                       const SizedBox(width: 8),
                     ],
                   ),
@@ -609,7 +624,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildCard(BrowserProfile profile) {
     final isSelected = _selectedIds.contains(profile.id);
     final rotator = context.watch<ModemRotatorService>();
-    final isThisRotating = rotator.isRotating && rotator.targetProfileId == profile.id;
+    final isThisRotating = rotator.isRotating && rotator.activeProfileId == profile.id;
     
     return ProfileCard(
       key: ValueKey(profile.id),

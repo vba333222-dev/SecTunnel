@@ -1,4 +1,6 @@
 import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:SecTunnel/core/logging/logger.dart';
+import 'package:SecTunnel/services/fingerprint/fingerprint_validator.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:SecTunnel/services/fingerprint/scripts/navigator_spoof.dart';
 import 'package:SecTunnel/services/fingerprint/scripts/canvas_spoof.dart';
@@ -35,19 +37,44 @@ import 'package:SecTunnel/services/fingerprint/scripts/navigator_keys_spoof.dart
 import 'package:SecTunnel/services/fingerprint/scripts/intl_api_spoof.dart';
 import 'package:SecTunnel/services/fingerprint/scripts/utils.dart';
 
-/// Orchestrates all fingerprint spoofing scripts
+/// Orchestrates all fingerprint spoofing scripts into a single coherent
+/// injection payload. Validates cross-parameter consistency before generating.
+///
+/// Architecture:
+///   FingerprintConfig (model) → FingerprintValidator (guard)
+///     → FingerprintInjector (orchestrator) → 34 script modules → JS payload
 class FingerprintInjector {
   final FingerprintConfig config;
   final bool lightweight;
+  final AppLogger _log = AppLogger.instance;
   
-  const FingerprintInjector(
+  FingerprintInjector(
     this.config, {
     this.lightweight = false,
   });
   
-  /// Generate complete injection script with native cloaking
+  // ── Validation ──────────────────────────────────────────────────
+  
+  /// Validates the fingerprint config and logs results.
+  /// Throws [FingerprintInconsistencyException] if config is invalid.
+  void _validateAndLog() {
+    _log.info(LogTag.system, '[FINGERPRINT] Config loaded — ${config.isDesktop ? "Desktop" : "Mobile"} profile (${config.platform})');
+    
+    // Hard-block injection if cross-parameter inconsistencies detected
+    FingerprintValidator.assertValid(config);
+    
+    _log.info(LogTag.system, '[FINGERPRINT] Validation passed — all ${7} cross-checks OK');
+  }
+  
+  // ── Full Injection ──────────────────────────────────────────────
+
+  /// Generate complete injection script with native cloaking.
+  /// All spoofing parameters are derived from the single [config] model.
   String generateInjectionScript() {
-    return '''
+    _validateAndLog();
+    _log.info(LogTag.system, '[FINGERPRINT] Applying modules — 11 phases, 34 script modules');
+    _log.info(LogTag.system, '[FINGERPRINT] UA: ${_truncateUA(config.userAgent)}');
+    final script = '''
 // === CORE ANTI-DETECT WRAPPER ===
 // Everything is wrapped in a secure IIFE to prevent global namespace pollution
 (function(window) {
@@ -68,10 +95,12 @@ class FingerprintInjector {
   // L-3 guard: if cloak failed for any reason, abort rather than crash all modules
   if (typeof self.__pbrowser_cloak !== 'function') return;
   
+  // ═══ PHASE 1: Environment Sanitization ═══════════════════════
   // Wipe out Android/Flutter WebView leaks immediately
   ${WebviewScrubber.generate(config)}
   
-  // Install all spoofing modules with native cloaking
+  // ═══ PHASE 2: Core Identity (navigator.*) ════════════════════
+  // All navigator properties spoofed from unified DeviceFingerprint
   ${NavigatorSpoof.generate(config)}
 
   // Align navigator.userAgentData (UA-CH API) with spoofed userAgent
@@ -86,21 +115,33 @@ class FingerprintInjector {
   // Strip mobile-only NetworkInformation properties (.type/.saveData)
   ${NetworkInfoSpoof.generate(config)}
 
-  // Mask Android Roboto kerning via deterministc font metric deltas
-  ${FontMetricsSpoof.generate(config)}
-
-  // Enforce Desktop codec capability table (canPlayType / isTypeSupported)
-  ${MediaCodecSpoof.generate(config)}
-
-  // Inject File Picker API stubs and spoof storage quota
-  ${StorageSpoof.generate(config)}
-
-  // Normalize screen color/pixel depth and dimensions (M-1 fix)
+  // ═══ PHASE 3: Visual Metrics (screen/DPR/window) ═════════════
+  // Normalize screen color/pixel depth and dimensions
   ${ScreenSpoof.generate(config)}
 
-  // Normalize Error.prototype.stack format to Chrome Desktop (H-2 fix)
-  ${ErrorStackSpoof.generate(config)}
+  // Fix window frame metrics: outerWidth > innerWidth (desktop browser chrome)
+  ${WindowMetricsSpoof.generate(config)}
+
+  // Spoof CSS pointer/hover media queries to match Desktop input model
+  ${MatchMediaSpoof.generate(config)}
+
+  // ═══ PHASE 4: Canvas/WebGL/Audio Fingerprinting ══════════════
+  ${CanvasSpoof.generate(config)}
   
+  ${WebGLSpoof.generate(config)}
+  
+  ${AudioSpoof.generate(config)}
+
+  // ═══ PHASE 5: Timezone/Locale/Intl ═══════════════════════════
+  ${IntlApiSpoof.generate(config)}
+  
+  ${TimezoneSpoof.generate(config)}
+
+  // ═══ PHASE 6: Network Isolation ══════════════════════════════
+  // WebRTC leak prevention (IP exposure defense)
+  ${WebRTCSpoof.generate(config)}
+
+  // ═══ PHASE 7: Hardware/Sensor/API Surface ════════════════════
   // Conditionally strip mobile-only APIs for Desktop profiles
   ${HardwareSensorSpoof.generate(config)}
 
@@ -113,30 +154,26 @@ class FingerprintInjector {
   // Shield Worker/SharedWorker sandboxes from leaking real navigator values
   ${WorkerSpoof.generate(config)}
 
-  // Fix window frame metrics: outerWidth > innerWidth (desktop browser chrome)
-  ${WindowMetricsSpoof.generate(config)}
-
-  // Spoof CSS pointer/hover media queries to match Desktop input model
-  ${MatchMediaSpoof.generate(config)}
-
   // Inject Desktop hardware API stubs (USB, Bluetooth, HID, Serial, Keyboard)
   ${HardwareApiPolyfill.generate(config)}
 
+  // ═══ PHASE 8: Timing/Entropy Defense ═════════════════════════
   // Fuzz timing APIs to defeat Proxy-overhead timing comparison attacks
   ${TimingSpoof.generate(config)}
-  
-  ${CanvasSpoof.generate(config)}
-  
-  ${WebGLSpoof.generate(config)}
-  
-  ${WebRTCSpoof.generate(config)}
-  
-  ${AudioSpoof.generate(config)}
-  
-  ${IntlApiSpoof.generate(config)}
-  
-  ${TimezoneSpoof.generate(config)}
-  
+
+  // ═══ PHASE 9: Font/DOM/CSS Fingerprinting ════════════════════
+  // Mask Android Roboto kerning via deterministic font metric deltas
+  ${FontMetricsSpoof.generate(config)}
+
+  // Enforce Desktop codec capability table (canPlayType / isTypeSupported)
+  ${MediaCodecSpoof.generate(config)}
+
+  // Inject File Picker API stubs and spoof storage quota
+  ${StorageSpoof.generate(config)}
+
+  // Normalize Error.prototype.stack format to Chrome Desktop
+  ${ErrorStackSpoof.generate(config)}
+
   ${BatterySpoof.generate(config)}
   
   ${FontSpoof.generate(config)}
@@ -145,16 +182,16 @@ class FingerprintInjector {
 
   ${ScrollbarSpoof.generate(config)}
   
-  // Cloak Android WebView specific CSS capabilities (-webkit-tap-highlight-color)
+  // Cloak Android WebView specific CSS capabilities
   ${CSSMetricsSpoof.generate(config)}
 
-  // scrollX / scrollY non-zero: fresh WebView always starts at 0,0 — a detection signal
-  // Spoof to a plausible small scroll offset that looks like the user has scrolled a bit
+  // ═══ PHASE 10: Scroll Position Entropy ═══════════════════════
+  // scrollX / scrollY non-zero: fresh WebView always starts at 0,0
   (() => {
     try {
       const _seed   = ${config.canvasNoiseSalt.hashCode.abs()};
-      const _scrollX = 0;             // Usually 0 horizontally on Desktop
-      const _scrollY = 4 + (_seed % 15); // 4–18 px — natural page entry scroll
+      const _scrollX = 0;
+      const _scrollY = 4 + (_seed % 15);
       const _defWinProp = (prop, val) => {
         try {
           Object.defineProperty(window, prop, {
@@ -169,11 +206,11 @@ class FingerprintInjector {
     } catch(e) {}
   })();
   
-  // --- Iframe Context Shield (contentWindow & contentDocument Eager Injection) ---
-  // Prevents trackers from creating an about:blank iframe and reading its raw .navigator
+  // ═══ PHASE 11: Context Isolation ═════════════════════════════
+  // Prevents trackers from creating about:blank iframe and reading raw navigator
   ${IframeSandboxGuard.generate(config)}
   
-  // Protect Service Worker scope from real navigator leaks (H-1 fix)
+  // Protect Service Worker scope from real navigator leaks
   ${ServiceWorkerGuard.generate(config)}
 
   // Lock the property iteration order for pure Desktop imitation
@@ -184,10 +221,17 @@ class FingerprintInjector {
 
 })(window);
 ''';
+
+    _log.info(LogTag.system, '[FINGERPRINT] Injection complete — ${config.isDesktop ? "Desktop" : "Mobile"} (${config.screenResolution.width}x${config.screenResolution.height} @${config.devicePixelRatio}x, TZ: ${config.timezone})');
+    return script;
   }
   
+  // ── Lightweight Injection ───────────────────────────────────────
+
   /// Generate minimal metadata override (faster for non-critical pages)
   String generateLightweightScript() {
+    _log.info(LogTag.system, '[FINGERPRINT] Applying lightweight profile');
+    
     return '''
 // === LIGHTWEIGHT ANTI-DETECT WRAPPER ===
 (function(window) {
@@ -211,12 +255,11 @@ class FingerprintInjector {
   ${TimingSpoof.generate(config)}
   // Storage quota (some light pages probe this)
   ${StorageSpoof.generate(config)}
-  // Permissions API hardening
-  // (prevents TypeError on desktop-only permission queries)
-  // Already included in NavigatorSpoof
 })(window);
 ''';
   }
+
+  // ── UserScript Generators ───────────────────────────────────────
 
   /// Wraps the heavy anti-detect fingerprint generator inside a strict
   /// Document_Start execution boundary to prevent early-boot leakage.
@@ -239,5 +282,12 @@ class FingerprintInjector {
         forMainFrameOnly: false,
       )
     ];
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────
+
+  /// Truncates UA to first 60 chars for log readability.
+  static String _truncateUA(String ua) {
+    return ua.length > 60 ? '${ua.substring(0, 60)}…' : ua;
   }
 }

@@ -16,10 +16,10 @@ import 'package:SecTunnel/services/browser/userscript_service.dart';
 
 import 'package:SecTunnel/services/proxy/proxy_health_check.dart';
 import 'package:SecTunnel/services/proxy/geo_ip_service.dart';
-import 'package:SecTunnel/services/proxy/mobile_proxy_service.dart';
 import 'package:SecTunnel/repositories/profile_repository.dart';
 
 import 'package:provider/provider.dart';
+import 'package:SecTunnel/services/proxy/modem_rotator_service.dart';
 
 // WebView imports
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';

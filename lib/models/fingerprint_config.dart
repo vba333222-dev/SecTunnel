@@ -80,9 +80,12 @@ class WebGLConfig {
 class FingerprintConfig {
   final String userAgent;
   final String platform;
+  final String vendor;
   final String language;
   final int hardwareConcurrency;
   final int deviceMemory;
+  final int maxTouchPoints;
+  final double devicePixelRatio;
   final ScreenResolution screenResolution;
   final WebGLConfig webglConfig;
   final String canvasNoiseSalt;
@@ -93,9 +96,12 @@ class FingerprintConfig {
   const FingerprintConfig({
     required this.userAgent,
     required this.platform,
+    this.vendor = 'Google Inc.',
     required this.language,
     required this.hardwareConcurrency,
     required this.deviceMemory,
+    this.maxTouchPoints = 0,
+    this.devicePixelRatio = 1.0,
     required this.screenResolution,
     required this.webglConfig,
     required this.canvasNoiseSalt,
@@ -119,9 +125,12 @@ class FingerprintConfig {
     return {
       'userAgent': userAgent,
       'platform': platform,
+      'vendor': vendor,
       'language': language,
       'hardwareConcurrency': hardwareConcurrency,
       'deviceMemory': deviceMemory,
+      'maxTouchPoints': maxTouchPoints,
+      'devicePixelRatio': devicePixelRatio,
       'screenResolution': screenResolution.toJson(),
       'timezone': timezone,
       'webglConfig': webglConfig.toJson(),
@@ -135,9 +144,12 @@ class FingerprintConfig {
     return FingerprintConfig(
       userAgent: json['userAgent'] as String,
       platform: json['platform'] as String,
+      vendor: json['vendor'] as String? ?? 'Google Inc.',
       language: json['language'] as String,
       hardwareConcurrency: json['hardwareConcurrency'] as int,
       deviceMemory: json['deviceMemory'] as int,
+      maxTouchPoints: json['maxTouchPoints'] as int? ?? 0,
+      devicePixelRatio: (json['devicePixelRatio'] as num?)?.toDouble() ?? 1.0,
       screenResolution: ScreenResolution.fromJson(
         json['screenResolution'] as Map<String, dynamic>,
       ),
@@ -156,9 +168,12 @@ class FingerprintConfig {
   FingerprintConfig copyWith({
     String? userAgent,
     String? platform,
+    String? vendor,
     String? language,
     int? hardwareConcurrency,
     int? deviceMemory,
+    int? maxTouchPoints,
+    double? devicePixelRatio,
     ScreenResolution? screenResolution,
     WebGLConfig? webglConfig,
     String? canvasNoiseSalt,
@@ -169,9 +184,12 @@ class FingerprintConfig {
     return FingerprintConfig(
       userAgent: userAgent ?? this.userAgent,
       platform: platform ?? this.platform,
+      vendor: vendor ?? this.vendor,
       language: language ?? this.language,
       hardwareConcurrency: hardwareConcurrency ?? this.hardwareConcurrency,
       deviceMemory: deviceMemory ?? this.deviceMemory,
+      maxTouchPoints: maxTouchPoints ?? this.maxTouchPoints,
+      devicePixelRatio: devicePixelRatio ?? this.devicePixelRatio,
       screenResolution: screenResolution ?? this.screenResolution,
       webglConfig: webglConfig ?? this.webglConfig,
       canvasNoiseSalt: canvasNoiseSalt ?? this.canvasNoiseSalt,
@@ -190,34 +208,36 @@ class FingerprintConfig {
   }
   
   /// Generate a random fingerprint configuration
+  /// Whether this config targets a mobile device
+  bool get isMobile {
+    final p = platform.toLowerCase();
+    return p.contains('iphone') || p.contains('ipad') || p.contains('arm');
+  }
+
+  /// Whether this config targets a desktop device
+  bool get isDesktop => !isMobile;
+
   factory FingerprintConfig.random() {
     final random = Random();
     
-    // Normalization logic for Mobile vs Desktop
+    // Decide platform class first — all parameters derive from this
     final isMobileProfile = random.nextBool();
     
-    // Default desktop profiles
-    var resolutions = [
-      ScreenResolution(width: 1920, height: 1080, colorDepth: 24),
-      ScreenResolution(width: 2560, height: 1440, colorDepth: 24),
-      ScreenResolution(width: 1366, height: 768, colorDepth: 24),
-    ];
-    
-    var userAgents = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    ];
-    
-    var cpuCores = [8, 12, 16];
-    var ramSizes = [8, 16, 32];
-    var platform = 'Win32';
+    // ── Resolution pools (device-class aware) ────────────
+    late final List<ScreenResolution> resolutions;
+    late final List<String> userAgents;
+    late final List<int> cpuCores;
+    late final List<int> ramSizes;
+    late final List<WebGLConfig> webglPool;
+    late final String vendor;
+    late final int maxTouchPoints;
+    late final double dpr;
 
     if (isMobileProfile) {
       resolutions = [
-        ScreenResolution(width: 390, height: 844, colorDepth: 32), // iPhone 12/13/14
-        ScreenResolution(width: 414, height: 896, colorDepth: 32), // iPhone X Max
-        ScreenResolution(width: 360, height: 800, colorDepth: 24), // Generic Android
+        const ScreenResolution(width: 390, height: 844, colorDepth: 32),
+        const ScreenResolution(width: 414, height: 896, colorDepth: 32),
+        const ScreenResolution(width: 360, height: 800, colorDepth: 24),
       ];
       userAgents = [
         'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
@@ -225,40 +245,62 @@ class FingerprintConfig {
       ];
       cpuCores = [6, 8];
       ramSizes = [4, 6, 8];
-      platform = userAgents[0].contains('iPhone') ? 'iPhone' : 'Linux armv81';
+      webglPool = [
+        const WebGLConfig(vendor: 'Apple Inc.', renderer: 'Apple GPU'),
+        const WebGLConfig(vendor: 'Qualcomm', renderer: 'Adreno (TM) 650'),
+      ];
+      maxTouchPoints = 5;
+      dpr = [2.0, 3.0][random.nextInt(2)];
     } else {
-        platform = userAgents[0].contains('Macintosh') ? 'MacIntel' : 'Win32';
+      resolutions = [
+        const ScreenResolution(width: 1920, height: 1080, colorDepth: 24),
+        const ScreenResolution(width: 2560, height: 1440, colorDepth: 24),
+        const ScreenResolution(width: 1366, height: 768, colorDepth: 24),
+      ];
+      userAgents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      ];
+      cpuCores = [8, 12, 16];
+      ramSizes = [8, 16, 32];
+      webglPool = [
+        const WebGLConfig(
+          vendor: 'Google Inc. (NVIDIA)',
+          renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0)',
+        ),
+        const WebGLConfig(
+          vendor: 'Google Inc. (AMD)',
+          renderer: 'ANGLE (AMD, AMD Radeon RX 6700 XT Direct3D11 vs_5_0 ps_5_0)',
+        ),
+        const WebGLConfig(
+          vendor: 'Google Inc. (Intel)',
+          renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0)',
+        ),
+      ];
+      maxTouchPoints = 0;
+      dpr = [1.0, 1.25, 1.5, 2.0][random.nextInt(4)];
     }
 
+    // ── Select UA → derive platform + vendor ─────────────
     final selectedUa = userAgents[random.nextInt(userAgents.length)];
-    if(selectedUa.contains('iPhone')) { platform = 'iPhone'; }
-    else if(selectedUa.contains('Android')) { platform = 'Linux armv81'; }
-    else if(selectedUa.contains('Macintosh')) { platform = 'MacIntel'; }
-    else { platform = 'Win32'; }
+    String platform;
+    if (selectedUa.contains('iPhone')) {
+      platform = 'iPhone';
+      vendor = 'Apple Computer, Inc.';
+    } else if (selectedUa.contains('Android')) {
+      platform = 'Linux armv81';
+      vendor = 'Google Inc.';
+    } else if (selectedUa.contains('Macintosh')) {
+      platform = 'MacIntel';
+      vendor = 'Google Inc.';
+    } else {
+      platform = 'Win32';
+      vendor = 'Google Inc.';
+    }
 
-    // Random WebGL vendors
-    final webglVendors = isMobileProfile ? [
-       WebGLConfig(vendor: 'Apple Inc.', renderer: 'Apple GPU'),
-       WebGLConfig(vendor: 'Qualcomm', renderer: 'Adreno (TM) 650'),
-    ] : [
-      WebGLConfig(
-        vendor: 'Google Inc. (NVIDIA)',
-        renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0)',
-      ),
-      WebGLConfig(
-        vendor: 'Google Inc. (AMD)',
-        renderer: 'ANGLE (AMD, AMD Radeon RX 6700 XT Direct3D11 vs_5_0 ps_5_0)',
-      ),
-      WebGLConfig(
-        vendor: 'Google Inc. (Intel)',
-        renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0)',
-      ),
-    ];
-    
-    // Random languages
+    // ── Languages / Timezones ────────────────────────────
     final languages = ['en-US', 'en-GB', 'en-CA', 'id-ID'];
-    
-    // Random timezones
     final timezones = [
       'America/New_York',
       'Europe/London',
@@ -270,12 +312,15 @@ class FingerprintConfig {
     return FingerprintConfig(
       userAgent: selectedUa,
       platform: platform,
+      vendor: vendor,
       language: languages[random.nextInt(languages.length)],
       hardwareConcurrency: cpuCores[random.nextInt(cpuCores.length)],
       deviceMemory: ramSizes[random.nextInt(ramSizes.length)],
+      maxTouchPoints: maxTouchPoints,
+      devicePixelRatio: dpr,
       screenResolution: resolutions[random.nextInt(resolutions.length)],
       timezone: timezones[random.nextInt(timezones.length)],
-      webglConfig: webglVendors[random.nextInt(webglVendors.length)],
+      webglConfig: webglPool[random.nextInt(webglPool.length)],
       canvasNoiseSalt: _generateRandomSalt(),
       webrtcEnabled: random.nextBool(),
     );

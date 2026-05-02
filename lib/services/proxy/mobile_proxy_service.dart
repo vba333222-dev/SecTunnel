@@ -1,69 +1,124 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-import 'package:http/http.dart' as http;
+import 'package:SecTunnel/core/network/api_client.dart';
 import 'package:SecTunnel/models/proxy_config.dart';
 import 'package:SecTunnel/models/ip_info.dart';
 
-class ProxyRotationException implements Exception {
-  final String message;
-  ProxyRotationException(this.message);
-  @override
-  String toString() => message;
+// ─── Rotation-Specific Error ────────────────────────────────────
+enum RotationErrorType {
+  validationFailed,
+  ipNotChanged,
+  serverTimeout,
+  tunnelUnreachable,
+  rotationFailed,
 }
 
-class MobileProxyService {
-  static const String _apiHost = '35.198.231.6:6000';
-  static const String _authHeader = 'secret123';
-  static const Duration _rotateTimeout = Duration(seconds: 30);
-  static const Duration _ipTimeout = Duration(seconds: 8);
+class RotationException implements Exception {
+  final RotationErrorType type;
+  final String message;
 
-  static Future<IpInfo> getIpInfo() async {
+  const RotationException(this.type, this.message);
+
+  /// Human-readable message for UI display.
+  String get displayMessage {
+    switch (type) {
+      case RotationErrorType.validationFailed:
+        return 'Validation failed';
+      case RotationErrorType.ipNotChanged:
+        return 'IP not changed';
+      case RotationErrorType.serverTimeout:
+        return 'Server timeout';
+      case RotationErrorType.tunnelUnreachable:
+        return 'Tunnel unreachable';
+      case RotationErrorType.rotationFailed:
+        return 'Rotation failed';
+    }
+  }
+
+  @override
+  String toString() => '[RotationException] ${type.name}: $message';
+}
+
+// ─── Service ────────────────────────────────────────────────────
+/// Stateless service layer between ModemRotatorService and ApiClient.
+/// Handles only network calls — no state, no UI, no retry logic.
+class MobileProxyService {
+  static const Duration _ipInfoTimeout = Duration(seconds: 8);
+  static const String _ipInfoUrl =
+      'http://ip-api.com/json/?fields=status,message,country,regionName,isp,proxy,hosting,query';
+
+  final ApiClient _api;
+
+  MobileProxyService([ApiClient? api]) : _api = api ?? ApiClient.instance;
+
+  /// Fetches current public IP info from ip-api.com.
+  /// Measures round-trip latency.
+  Future<IpInfo> getIpInfo() async {
     try {
       final sw = Stopwatch()..start();
-      final response = await http.get(Uri.parse('http://ip-api.com/json/?fields=status,message,country,regionName,isp,proxy,hosting,query')).timeout(_ipTimeout);
+      final data = await _api.getJson(
+        _ipInfoUrl,
+        requestTimeout: _ipInfoTimeout,
+      );
       sw.stop();
-      
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          return IpInfo.fromJson(data, latency: sw.elapsedMilliseconds);
-        }
-      }
-      throw ProxyRotationException('validation_failed');
-    } catch (_) {
-      throw ProxyRotationException('validation_failed');
-    }
-  }
 
-  static Future<void> rotateIp() async {
-    final uri = Uri.parse('http://$_apiHost/rotate');
-    
-    try {
-      final response = await http.post(
-        uri,
-        headers: {'Authorization': _authHeader},
-      ).timeout(_rotateTimeout);
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return;
+      if (data['status'] == 'success') {
+        return IpInfo.fromJson(data, latency: sw.elapsedMilliseconds);
       }
-      
-      throw ProxyRotationException('Rotation failed');
-    } on TimeoutException {
-      throw ProxyRotationException('Server timeout');
-    } on SocketException {
-      throw ProxyRotationException('Tunnel unreachable');
+      throw const RotationException(
+        RotationErrorType.validationFailed,
+        'IP API returned non-success status',
+      );
+    } on RotationException {
+      rethrow;
+    } on ApiException catch (e) {
+      throw RotationException(
+        _mapApiError(e.type),
+        e.message,
+      );
     } catch (e) {
-      if (e is ProxyRotationException) rethrow;
-      throw ProxyRotationException('Rotation failed');
+      throw RotationException(
+        RotationErrorType.validationFailed,
+        e.toString(),
+      );
     }
   }
 
-  static bool supportsRotation(ProxyConfig config) {
-    if (!config.isConfigured) return false;
-    return true;
+  /// Sends a POST /rotate to the relay VPS.
+  /// Returns void on success. Throws [RotationException] on failure.
+  Future<void> rotateIp() async {
+    try {
+      await _api.post('/rotate');
+    } on ApiException catch (e) {
+      throw RotationException(
+        _mapApiError(e.type),
+        e.message,
+      );
+    } catch (e) {
+      if (e is RotationException) rethrow;
+      throw RotationException(
+        RotationErrorType.rotationFailed,
+        e.toString(),
+      );
+    }
   }
 
-  static List<int> getAvailablePorts() => [1, 2, 3, 4];
+  /// Utility: whether a given proxy config supports rotation.
+  bool supportsRotation(ProxyConfig config) => config.isConfigured;
+
+  /// Available modem port indices.
+  List<int> getAvailablePorts() => const [1, 2, 3, 4];
+
+  // Maps ApiException types to RotationException types.
+  RotationErrorType _mapApiError(ApiErrorType type) {
+    switch (type) {
+      case ApiErrorType.timeout:
+        return RotationErrorType.serverTimeout;
+      case ApiErrorType.networkUnreachable:
+        return RotationErrorType.tunnelUnreachable;
+      case ApiErrorType.unauthorized:
+      case ApiErrorType.serverError:
+      case ApiErrorType.unknown:
+        return RotationErrorType.rotationFailed;
+    }
+  }
 }

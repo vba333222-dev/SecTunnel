@@ -19,6 +19,7 @@ import 'package:SecTunnel/ui/shared/global_task_overlay.dart';
 
 // Services
 import 'package:SecTunnel/services/proxy/modem_rotator_service.dart';
+import 'package:SecTunnel/core/logging/logger.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
@@ -71,6 +72,9 @@ class PBrowserApp extends StatelessWidget {
       providers: [
         Provider<ProfileRepository>.value(value: profileRepository),
         Provider<UserScriptService>.value(value: userScriptService),
+        ChangeNotifierProvider<AppLogger>.value(
+          value: AppLogger.instance,
+        ),
         ChangeNotifierProvider<ModemRotatorService>(
           create: (_) => ModemRotatorService(),
         ),

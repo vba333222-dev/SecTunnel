@@ -5,13 +5,7 @@ import 'package:SecTunnel/models/fingerprint_config.dart';
 /// on Desktop profiles to match Chrome Desktop NetworkInformation structure.
 class NetworkInfoSpoof {
   static String generate(FingerprintConfig config) {
-    final platform = config.platform.toLowerCase();
-    final isDesktop = platform.contains('win') ||
-        platform.contains('mac') ||
-        platform.contains('linux x86_64') ||
-        platform.contains('linux x64');
-
-    if (!isDesktop) {
+    if (!config.isDesktop) {
       return '// [NetworkInfoSpoof] Mobile profile — NetworkInformation intact.';
     }
 

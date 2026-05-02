@@ -19,7 +19,7 @@ class GlobalTaskOverlay extends StatelessWidget {
           bottom: 30, // Hover above safe area
           child: Consumer<ModemRotatorService>(
             builder: (context, service, _) {
-              final isVisible = service.targetProfileName != null;
+              final isVisible = service.activeProfileName != null;
               final isRotating = service.isRotating;
               final hasError = service.errorMessage != null;
 
@@ -81,10 +81,10 @@ class GlobalTaskOverlay extends StatelessWidget {
                           Flexible(
                             child: Text(
                               isRotating
-                                  ? 'Rotating IP: \${service.targetProfileName}...'
+                                  ? 'Rotating IP: \${service.activeProfileName}...'
                                   : hasError
-                                      ? 'Rotation Failed: \${service.targetProfileName}'
-                                      : 'Rotation Complete: \${service.targetProfileName}',
+                                      ? 'Rotation Failed: \${service.activeProfileName}'
+                                      : 'Rotation Complete: \${service.activeProfileName}',
                               style: const TextStyle(
                                 fontSize: 13,
                                 color: Colors.white,

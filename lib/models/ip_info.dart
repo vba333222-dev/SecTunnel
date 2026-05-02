@@ -1,3 +1,5 @@
+/// IP metadata returned by ip-api.com.
+/// Immutable value object — no business logic.
 class IpInfo {
   final String ip;
   final String? country;
@@ -6,7 +8,7 @@ class IpInfo {
   final bool isProxy;
   final int? latencyMs;
 
-  IpInfo({
+  const IpInfo({
     required this.ip,
     this.country,
     this.regionName,
@@ -17,12 +19,15 @@ class IpInfo {
 
   factory IpInfo.fromJson(Map<String, dynamic> json, {int? latency}) {
     return IpInfo(
-      ip: json['query'] ?? '',
-      country: json['country'],
-      regionName: json['regionName'],
-      isp: json['isp'],
+      ip: json['query'] as String? ?? '',
+      country: json['country'] as String?,
+      regionName: json['regionName'] as String?,
+      isp: json['isp'] as String?,
       isProxy: json['proxy'] == true || json['hosting'] == true,
       latencyMs: latency,
     );
   }
+
+  @override
+  String toString() => 'IpInfo($ip, $country, $isp)';
 }
