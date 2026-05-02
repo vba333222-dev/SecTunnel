@@ -47,69 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   
   bool _isRotating = false;
 
-  Future<void> _executeIPRotation(String targetPort) async {
-    if (_isRotating) return;
-    setState(() { _isRotating = true; });
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return PopScope(
-          canPop: false,
-          child: Dialog(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Lottie.asset(
-                  'assets/lottie/loading.json',
-                  width: 180,
-                  height: 180,
-                  fit: BoxFit.contain,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  "Rotating Modem IP...\nHardware Reset Process (±30 Seconds)",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.cyanAccent,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    try {
-      final baseUrl = 'http://rot1.sectunnel.online';
-      final apiKey = 'sectunnel_secret_2026';
-      final url = Uri.parse('$baseUrl/rotate/$targetPort?key=$apiKey');
-
-      final response = await http.get(url).timeout(const Duration(seconds: 40));
-      if (mounted) Navigator.of(context).pop();
-
-      if (response.statusCode == 200) {
-        _showNotification("SUCCESS: New Public IP active on Port $targetPort!", Colors.green);
-      } else {
-        _showNotification("FAILED: Server rejected rotation (Error ${response.statusCode})", Colors.red);
-      }
-    } on TimeoutException {
-      if (mounted) Navigator.of(context).pop();
-      _showNotification("TIMEOUT: Modem took more than 40 seconds.", Colors.orange);
-    } catch (e) {
-      if (mounted) Navigator.of(context).pop();
-      _showNotification("CONNECTION LOST: Check your Tailscale/VPS.", Colors.redAccent);
-    } finally {
-      if (mounted) setState(() { _isRotating = false; });
-    }
-  }
+  // Legacy _executeIPRotation removed - handled by ModemRotatorService & GlobalTaskOverlay
 
   void _showNotification(String message, Color bgColor) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -312,93 +250,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  /// Bulk rotate IP — 3-phase toast per profile card (fire-and-forget).
+  /// Bulk rotate IP — delegates to ModemRotatorService globally
   Future<void> _bulkRotateIp(List<BrowserProfile> allProfiles) async {
     final targets = allProfiles
-        .where((p) =>
-            _selectedIds.contains(p.id) &&
-            (p.proxyConfig.rotationUrl?.isNotEmpty ?? false))
+        .where((p) => _selectedIds.contains(p.id))
         .toList(growable: false);
 
     if (targets.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('None of the selected profiles have a rotation URL.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
       return;
     }
 
     HapticFeedback.mediumImpact();
     _clearSelection();
 
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                  strokeWidth: 2, color: Colors.tealAccent.shade200),
-            ),
-            const SizedBox(width: 14),
-            Text('Rotating IP for ${targets.length} profile(s)…',
-                style: const TextStyle(fontSize: 13)),
-          ],
-        ),
-        backgroundColor: const Color(0xFF1E1E2A),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(minutes: 3),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      ),
-    );
-
-    int successCount = 0;
-    for (final p in targets) {
-      try {
-        await MobileProxyService.rotateIp(rotationUrl: p.proxyConfig.rotationUrl!);
-        successCount++;
-      } catch (e) {
-        debugPrint('[Dashboard] IP rotation failed for ${p.name}: $e');
-      }
-    }
-
-    if (!mounted) return;
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              successCount == targets.length
-                  ? Icons.check_circle_rounded
-                  : Icons.warning_amber_rounded,
-              size: 18,
-              color: successCount == targets.length
-                  ? Colors.tealAccent
-                  : Colors.orangeAccent,
-            ),
-            const SizedBox(width: 10),
-            Text(
-              '$successCount / ${targets.length} rotations succeeded',
-              style: const TextStyle(fontSize: 13),
-            ),
-          ],
-        ),
-        backgroundColor: successCount == targets.length
-            ? const Color(0xFF0D2B25)
-            : const Color(0xFF2B200D),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      ),
-    );
+    // With a single hardware modem, bulk rotating means triggering 1 global rotation
+    context.read<ModemRotatorService>().rotateIp(targets.first.id, "Bulk Rotate");
   }
 
   /// Bulk launch — opens browser screens sequentially with brief gaps.
@@ -578,10 +444,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                               totalCount: allProfiles.length, // total changes based on tab context usually, but global is fine here
                               allSelected:
                                   _selectedIds.length == allProfiles.length,
-                              hasRotatable: allProfiles.any((p) =>
-                                  _selectedIds.contains(p.id) &&
-                                  (p.proxyConfig.rotationUrl?.isNotEmpty ??
-                                      false)),
+                              hasRotatable: true, // Globablly supported now
                               onClose: _clearSelection,
                               onSelectAll: () => _selectedIds.length ==
                                       allProfiles.length
@@ -746,7 +609,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildCard(BrowserProfile profile) {
     final isSelected = _selectedIds.contains(profile.id);
     final rotator = context.watch<ModemRotatorService>();
-    final isThisRotating = _isRotating || (rotator.isRotating && rotator.targetProfileId == profile.id);
+    final isThisRotating = rotator.isRotating && rotator.targetProfileId == profile.id;
     
     return ProfileCard(
       key: ValueKey(profile.id),
@@ -762,9 +625,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       onDuplicate: () => _duplicateProfile(profile),
       onClearSession: () => _clearSession(profile),
       onRotateIp: () {
-        if (_isRotating) return;
-        final targetPort = profile.proxyConfig.port?.toString() ?? '8001';
-        _executeIPRotation(targetPort);
+        context.read<ModemRotatorService>().rotateIp(profile.id, profile.name);
       },
     );
   }
@@ -777,7 +638,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     switch (type) {
       case CommandType.rotateIp:
-        final rotatable = allProfiles.where((p) => (p.proxyConfig.rotationUrl ?? '').isNotEmpty).toList();
+        final rotatable = allProfiles.where((p) => _selectedIds.contains(p.id)).toList();
         if (rotatable.isNotEmpty) {
           _bulkRotateIp(rotatable);
         } else {

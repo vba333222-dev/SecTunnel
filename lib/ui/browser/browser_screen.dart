@@ -390,28 +390,6 @@ Future<void> _setAndroidProxy() async {
 
   /// Calls the rotation URL then re-fetches the public IP after a short delay.
   Future<void> _rotateIpNow() async {
-    final proxyConfig = widget.profile.proxyConfig;
-    String? rotationUrl = proxyConfig.rotationUrl;
-    final p = proxyConfig.port;
-    
-    debugPrint('[HUD] Rotation called: port=$p, rotationUrl=$rotationUrl');
-    
-    // Fallback cerdas jika rotationUrl kosong/null dari profil lama
-    if (rotationUrl == null || rotationUrl.isEmpty) {
-      // Map port ke modem index (1-4)
-      String modemIndex;
-      if (p == 3128 || p == 8001) modemIndex = '1';
-      else if (p == 3129 || p == 8002) modemIndex = '2';
-      else if (p == 3130 || p == 8003) modemIndex = '3';
-      else if (p == 3131 || p == 8004) modemIndex = '4';
-      else modemIndex = p?.toString() ?? '1';
-      
-      final baseUrl = 'http://rot1.sectunnel.online';
-      final apiKey = 'sectunnel_secret_2026';
-      rotationUrl = '$baseUrl/rotate/$modemIndex?key=$apiKey';
-      debugPrint('[HUD] Using fallback rotation URL: $rotationUrl');
-    }
-
     if (_isRotating) return;
 
     setState(() => _isRotating = true);
@@ -426,24 +404,13 @@ Future<void> _setAndroidProxy() async {
         } catch (_) {}
       }
 
-      // Direct rotation via rot1.sectunnel.online
-      await MobileProxyService.rotateIp(rotationUrl: rotationUrl);
+      // Direct rotation via global service
+      await context.read<ModemRotatorService>().rotateIp(widget.profile.id, widget.profile.name);
 
       debugPrint('[HUD] Rotation API called. Waiting for IP assignment…');
 
       // Give the modem ~4 s to assign a new IP before re-checking
       await Future.delayed(const Duration(seconds: 4));
-    } on ProxyRotationException catch (e) {
-      debugPrint('[HUD] Rotation exception: ${e.message}');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message, style: const TextStyle(color: Colors.white)),
-            backgroundColor: Colors.redAccent.shade700,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     } catch (e) {
       debugPrint('[HUD] Rotation error: $e');
     } finally {
