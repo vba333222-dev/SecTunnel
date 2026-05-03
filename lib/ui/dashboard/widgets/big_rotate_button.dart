@@ -34,20 +34,25 @@ class _BigRotateButtonState extends State<BigRotateButton> {
     Color fgColor = Colors.white;
     String text = 'Rotate IP & Connect';
     IconData icon = Icons.sync;
-    bool isBusy = false;
+    bool isBusy = state == RotationState.rotating ||
+        state == RotationState.waitingModem ||
+        state == RotationState.stabilizing ||
+        state == RotationState.fetchingIp ||
+        state == RotationState.verifying;
 
-    if (state == RotationState.connecting ||
-        state == RotationState.rotating ||
-        state == RotationState.validating) {
+    if (isBusy) {
       bgColor = Colors.blue[400]!;
-      if (state == RotationState.connecting) {
-        text = 'Connecting...';
-      } else if (state == RotationState.rotating) {
-        text = 'Acquiring IP...';
-      } else if (state == RotationState.validating) {
-        text = 'Validating Network...';
+      if (state == RotationState.rotating) {
+        text = 'Initiating Rotation...';
+      } else if (state == RotationState.waitingModem) {
+        text = 'Waiting for Modem...';
+      } else if (state == RotationState.stabilizing) {
+        text = 'Stabilizing Connection...';
+      } else if (state == RotationState.fetchingIp) {
+        text = 'Fetching New IP...';
+      } else if (state == RotationState.verifying) {
+        text = 'Verifying Network...';
       }
-      isBusy = true;
     } else if (state == RotationState.success) {
       bgColor = Colors.green[600]!;
       fgColor = Colors.white;

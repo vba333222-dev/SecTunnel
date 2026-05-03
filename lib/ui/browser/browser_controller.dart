@@ -283,7 +283,10 @@ class BrowserController extends ChangeNotifier {
 
       // ignore: use_build_context_synchronously
       await context.read<ModemRotatorService>().rotateIp(profile.id, profile.name);
-      await Future.delayed(const Duration(seconds: 4));
+
+      if (webViewController != null) {
+        await webViewController!.reload();
+      }
     } catch (e) {
       debugPrint('[HUD] Rotation error: $e');
     } finally {

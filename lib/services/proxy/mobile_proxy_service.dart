@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:sec_tunnel/core/network/api_client.dart';
 import 'package:sec_tunnel/models/proxy_config.dart';
 import 'package:sec_tunnel/models/ip_info.dart';
@@ -42,32 +43,33 @@ class RotationException implements Exception {
 /// Stateless service layer between ModemRotatorService and ApiClient.
 /// Handles only network calls — no state, no UI, no retry logic.
 class MobileProxyService {
-  static const Duration _ipInfoTimeout = Duration(seconds: 8);
-  static const String _ipInfoUrl =
-      'http://ip-api.com/json/?fields=status,message,country,regionName,isp,proxy,hosting,query';
-
+  // AppLogger removed as unused
   final ApiClient _api;
 
   MobileProxyService([ApiClient? api]) : _api = api ?? ApiClient.instance;
 
-  /// Fetches current public IP info from ip-api.com.
-  /// Measures round-trip latency.
+  /// Fetches current public IP using api.ipify.org via the proxy.
+  /// IMPORTANT: Uses PROXY $host:$port to avoid direct leakage.
   Future<IpInfo> getIpInfo() async {
+    const ipUrl = 'http://api.ipify.org?format=json';
+    
     try {
-      final sw = Stopwatch()..start();
-      final data = await _api.getJson(
-        _ipInfoUrl,
-        requestTimeout: _ipInfoTimeout,
-      );
-      sw.stop();
-
-      if (data['status'] == 'success') {
-        return IpInfo.fromJson(data, latency: sw.elapsedMilliseconds);
+      final json = await _api.getJsonThroughProxy(ipUrl);
+      
+      final ip = json['ip'] as String?;
+      if (ip == null || ip.isEmpty) {
+        throw const RotationException(
+          RotationErrorType.validationFailed,
+          'IP API returned empty response',
+        );
       }
-      throw const RotationException(
-        RotationErrorType.validationFailed,
-        'IP API returned non-success status',
-      );
+
+      return IpInfo.fromJson({
+        'query': ip,
+        'status': 'success',
+        'country': 'Unknown',
+        'isp': 'Unknown',
+      });
     } on RotationException {
       rethrow;
     } on ApiException catch (e) {
@@ -84,17 +86,34 @@ class MobileProxyService {
   }
 
   /// Sends a POST /rotate to the relay VPS.
-  /// Returns void on success. Throws [RotationException] on failure.
   Future<void> rotateIp() async {
     try {
-      await _api.post('/rotate');
+      final endpoint = dotenv.env['API_ROTATE_ENDPOINT'] ?? '/rotate';
+      await _api.post(endpoint);
     } on ApiException catch (e) {
       throw RotationException(
         _mapApiError(e.type),
         e.message,
       );
     } catch (e) {
-      if (e is RotationException) rethrow;
+      throw RotationException(
+        RotationErrorType.rotationFailed,
+        e.toString(),
+      );
+    }
+  }
+
+  /// Polls the backend for the current rotation status.
+  Future<Map<String, dynamic>> getRotationStatus() async {
+    try {
+      final endpoint = dotenv.env['API_STATUS_ENDPOINT'] ?? '/status';
+      return await _api.get(endpoint);
+    } on ApiException catch (e) {
+      throw RotationException(
+        _mapApiError(e.type),
+        e.message,
+      );
+    } catch (e) {
       throw RotationException(
         RotationErrorType.rotationFailed,
         e.toString(),
@@ -104,9 +123,6 @@ class MobileProxyService {
 
   /// Utility: whether a given proxy config supports rotation.
   bool supportsRotation(ProxyConfig config) => config.isConfigured;
-
-  /// Available modem port indices.
-  List<int> getAvailablePorts() => const [1, 2, 3, 4];
 
   // Maps ApiException types to RotationException types.
   RotationErrorType _mapApiError(ApiErrorType type) {

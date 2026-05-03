@@ -24,7 +24,8 @@ enum LogTag {
   network,
   validation,
   cooldown,
-  system;
+  system,
+  proxy;
 
   String get label => name.toUpperCase();
 }

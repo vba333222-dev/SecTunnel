@@ -221,9 +221,7 @@ class RotationWidget extends StatelessWidget {
   // ─── Pure Display Helpers (no side effects) ─────────────────
 
   static bool _isBusy(RotationState s) =>
-      s == RotationState.connecting ||
-      s == RotationState.rotating ||
-      s == RotationState.validating;
+      s != RotationState.idle && s != RotationState.success && s != RotationState.failed;
 
   static (String, Color) _healthDisplay(int health) {
     if (health > 70) return ('Healthy', Colors.green);
@@ -268,16 +266,20 @@ class RotationWidget extends StatelessWidget {
     switch (state) {
       case RotationState.idle:
         return 'Ready';
-      case RotationState.connecting:
-        return 'Checking current IP...';
       case RotationState.rotating:
-        return 'Rotating IP...';
-      case RotationState.validating:
-        return 'Verifying new IP...';
+        return 'Initiating rotation...';
+      case RotationState.waitingModem:
+        return 'Waiting for modem (901)...';
+      case RotationState.stabilizing:
+        return 'Stabilizing connection...';
+      case RotationState.fetchingIp:
+        return 'Fetching real IP...';
+      case RotationState.verifying:
+        return 'Verifying IP change...';
       case RotationState.success:
-        return 'IP Updated';
+        return 'Rotation successful';
       case RotationState.failed:
-        return error ?? 'Rotation Failed';
+        return error ?? 'Rotation failed';
     }
   }
 }

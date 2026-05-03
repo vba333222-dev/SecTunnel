@@ -152,9 +152,11 @@ class StatusCardWidget extends StatelessWidget {
   }
 
   static bool _isBusy(RotationState s) =>
-      s == RotationState.connecting ||
       s == RotationState.rotating ||
-      s == RotationState.validating;
+      s == RotationState.waitingModem ||
+      s == RotationState.stabilizing ||
+      s == RotationState.fetchingIp ||
+      s == RotationState.verifying;
 
   Widget _buildNetworkBadge(RotationState state, int health) {
     Color color;
