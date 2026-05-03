@@ -1,4 +1,4 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Network Information API Spoofing.
 /// Strips mobile-exclusive properties (.type, .saveData) from navigator.connection

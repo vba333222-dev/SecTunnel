@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print
 import 'device_preset.dart';
 import 'preset_repository.dart';
 import 'preset_variation.dart';
@@ -18,13 +19,13 @@ class PresetSelector {
     // Total weight to ensure majority distribution
     int totalWeight = candidates.fold(0, (sum, item) => sum + item.weight);
     
-    final rnd = (int max) {
+    int rnd(int max) {
        var s = seed ^ (seed << 13);
        s ^= s >> 17;
        s ^= s << 5;
        seed = s;
        return (s.abs() % max);
-    };
+    }
     
     int randomValue = rnd(totalWeight);
     int currentWeight = 0;

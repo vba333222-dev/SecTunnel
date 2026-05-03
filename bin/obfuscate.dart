@@ -1,5 +1,11 @@
 // ignore_for_file: avoid_print
-import 'package:pbrowser/utils/security_obfuscator.dart';
+import 'dart:convert';
+
+// Simple obfuscation stub (replaces pbrowser SecurityObfuscator)
+class SecurityObfuscator {
+  static String encrypt(String input) => base64Encode(utf8.encode(input));
+}
+
 
 void main() async {
   final wrapAsNative = r'''

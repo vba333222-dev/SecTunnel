@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:SecTunnel/models/proxy_config.dart';
-import 'package:SecTunnel/services/proxy/http_proxy_service.dart';
+import 'package:sec_tunnel/models/proxy_config.dart';
+import 'package:sec_tunnel/services/proxy/http_proxy_service.dart';
 
 class GeoIpService {
   static Future<Map<String, dynamic>?> fetchGeoData(ProxyConfig proxyConfig) async {

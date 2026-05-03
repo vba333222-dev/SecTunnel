@@ -1,4 +1,4 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for User-Agent Client Hints (UA-CH) Spoofing.
 /// Creates a complete NavigatorUAData mock aligned with the active FingerprintConfig,

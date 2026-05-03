@@ -1,9 +1,9 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:flutter/foundation.dart';
-import 'package:SecTunnel/core/database/database.dart';
-import 'package:SecTunnel/models/browser_profile.dart' as model;
-import 'package:SecTunnel/models/proxy_config.dart';
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/core/database/database.dart';
+import 'package:sec_tunnel/models/browser_profile.dart' as model;
+import 'package:sec_tunnel/models/proxy_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 class ProfileDao {
   final AppDatabase _db;

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:SecTunnel/core/logging/logger.dart';
+import 'package:sec_tunnel/core/logging/logger.dart';
 
 /// Hidden debug panel showing structured logs with level filtering.
 /// Access: long-press version text, or programmatic toggle via [AppLogger.debugMode].
@@ -127,7 +127,7 @@ class _LogTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
@@ -147,7 +147,7 @@ class _LogTile extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'monospace',
               fontSize: 11,
-              color: color.withOpacity(0.7),
+              color: color.withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(width: 6),
@@ -204,7 +204,7 @@ class _FilterChip extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: isActive ? color.withOpacity(0.2) : Colors.transparent,
+            color: isActive ? color.withValues(alpha: 0.2) : Colors.transparent,
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
               color: isActive ? color : Colors.white24,

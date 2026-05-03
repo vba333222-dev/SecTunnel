@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
-import 'package:SecTunnel/core/logging/logger.dart';
-import 'package:SecTunnel/services/proxy/mobile_proxy_service.dart';
-import 'package:SecTunnel/models/rotation_log.dart';
-import 'package:SecTunnel/models/ip_info.dart';
+import 'package:sec_tunnel/core/logging/logger.dart';
+import 'package:sec_tunnel/services/proxy/mobile_proxy_service.dart';
+import 'package:sec_tunnel/models/rotation_log.dart';
+import 'package:sec_tunnel/models/ip_info.dart';
 
 // ─── State Machine ──────────────────────────────────────────────
 enum RotationState {
@@ -135,7 +135,7 @@ class ModemRotatorService extends ChangeNotifier {
 
   // ─── Main Rotation Flow ─────────────────────────────────────
 
-  Future<void> rotateIp(String profileId, [String? profileName]) async {
+  Future<void> rotateIp(String profileId, [String? profileName, int retryCount = 0]) async {
     // Store name for overlay display
     if (profileName != null) _names[profileId] = profileName;
 
@@ -191,9 +191,19 @@ class ModemRotatorService extends ChangeNotifier {
       _log.info(LogTag.validation, 'QUALITY: ${quality.label} ($qualityScore)', profileId: profileId);
 
     } on RotationException catch (e) {
+      if (retryCount < 1) {
+        _log.info(LogTag.rotate, 'Auto-retrying...', profileId: profileId);
+        _setState(profileId, RotationState.idle);
+        return rotateIp(profileId, profileName, retryCount + 1);
+      }
       _log.error(LogTag.rotate, e.displayMessage, profileId: profileId, state: 'failed');
       _setState(profileId, RotationState.failed, error: e.displayMessage);
     } catch (e) {
+      if (retryCount < 1) {
+        _log.info(LogTag.rotate, 'Auto-retrying unexpected error...', profileId: profileId);
+        _setState(profileId, RotationState.idle);
+        return rotateIp(profileId, profileName, retryCount + 1);
+      }
       _log.error(LogTag.rotate, 'Unexpected: $e', profileId: profileId, state: 'failed');
       _setState(profileId, RotationState.failed, error: 'Rotation failed');
     } finally {

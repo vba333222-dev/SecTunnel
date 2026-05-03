@@ -1,4 +1,4 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Screen Object Spoofing.
 /// Normalizes screen.colorDepth/pixelDepth to 24, and ensures

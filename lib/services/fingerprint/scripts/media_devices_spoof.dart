@@ -1,4 +1,4 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Media Devices Enumeration Spoofing.
 /// Intercepts navigator.mediaDevices.enumerateDevices() and returns a

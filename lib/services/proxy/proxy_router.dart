@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:SecTunnel/models/proxy_config.dart';
-import 'package:SecTunnel/services/proxy/http_connect_handler.dart';
-import 'package:SecTunnel/services/proxy/socks5_handler.dart';
+import 'package:sec_tunnel/models/proxy_config.dart';
+import 'package:sec_tunnel/services/proxy/http_connect_handler.dart';
+import 'package:sec_tunnel/services/proxy/socks5_handler.dart';
 
 /// Unified proxy dispatcher.
 ///

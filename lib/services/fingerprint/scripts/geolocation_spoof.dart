@@ -1,4 +1,4 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Geolocation API Spoofing.
 /// Returns timezone-consistent coordinates when sites call getCurrentPosition/watchPosition.

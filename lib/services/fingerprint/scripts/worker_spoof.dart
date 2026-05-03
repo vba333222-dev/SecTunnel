@@ -1,4 +1,5 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+// ignore_for_file: unused_local_variable
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Web Worker / SharedWorker fingerprint protection.
 /// Uses the Blob URL Prepend technique to inject navigator spoofing into Worker sandboxes.

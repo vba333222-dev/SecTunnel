@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print
 import 'dart:io';
 
 void main() {
@@ -11,7 +12,7 @@ void main() {
     for (final file in files) {
       final content = file.readAsStringSync();
       if (content.contains('package:pbrowser/')) {
-        final newContent = content.replaceAll('package:pbrowser/', 'package:SecTunnel/');
+        final newContent = content.replaceAll('package:pbrowser/', 'package:sec_tunnel/');
         file.writeAsStringSync(newContent);
         print('Fixed imports in ${file.path}');
       }

@@ -1,5 +1,5 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
-import 'package:SecTunnel/utils/security_obfuscator.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/utils/security_obfuscator.dart';
 
 /// JavaScript code generator for navigator spoofing
 class NavigatorSpoof {

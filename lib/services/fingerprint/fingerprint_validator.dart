@@ -1,4 +1,4 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 /// Cross-validates all fingerprint parameters for internal consistency.
 /// Catches mismatches that anti-detect scanners look for:

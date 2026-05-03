@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:SecTunnel/services/proxy/modem_rotator_service.dart';
-import 'package:SecTunnel/models/ip_info.dart';
-import 'package:SecTunnel/models/rotation_log.dart';
+import 'package:sec_tunnel/services/proxy/modem_rotator_service.dart';
+import 'package:sec_tunnel/models/ip_info.dart';
+import 'package:sec_tunnel/models/rotation_log.dart';
 
 /// Displays rotation status, IP quality, health score, and cooldown for a single profile.
 /// All state comes from [ModemRotatorService] via Provider. Zero local business logic.
@@ -68,7 +68,7 @@ class RotationWidget extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: color),
           ),
@@ -294,7 +294,7 @@ class _QualityBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: color),
       ),

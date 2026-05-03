@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:SecTunnel/services/proxy/modem_rotator_service.dart';
-import 'package:SecTunnel/ui/shared/themed_lottie.dart';
+import 'package:sec_tunnel/services/proxy/modem_rotator_service.dart';
+import 'package:sec_tunnel/ui/shared/themed_lottie.dart';
 
 class GlobalTaskOverlay extends StatelessWidget {
   final Widget child;
@@ -35,19 +35,19 @@ class GlobalTaskOverlay extends StatelessWidget {
                       margin: const EdgeInsets.symmetric(horizontal: 24),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF16161F).withOpacity(0.95),
+                        color: const Color(0xFF16161F).withValues(alpha: 0.95),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: hasError
-                              ? Colors.redAccent.withOpacity(0.5)
+                              ? Colors.redAccent.withValues(alpha: 0.5)
                               : isRotating
-                                  ? Colors.tealAccent.withOpacity(0.3)
-                                  : Colors.greenAccent.withOpacity(0.5),
+                                  ? Colors.tealAccent.withValues(alpha: 0.3)
+                                  : Colors.greenAccent.withValues(alpha: 0.5),
                           width: 1,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.4),
+                            color: Colors.black.withValues(alpha: 0.4),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           )

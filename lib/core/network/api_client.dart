@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:SecTunnel/core/logging/logger.dart';
+import 'package:sec_tunnel/core/logging/logger.dart';
 
 // ─── Structured Error Types ─────────────────────────────────────
 enum ApiErrorType {

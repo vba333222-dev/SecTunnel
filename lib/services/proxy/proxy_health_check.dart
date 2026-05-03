@@ -2,10 +2,10 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:SecTunnel/models/proxy_config.dart';
-import 'package:SecTunnel/services/proxy/http_connect_handler.dart';
-import 'package:SecTunnel/services/proxy/socks5_handler.dart';
-import 'package:SecTunnel/services/proxy/http_proxy_service.dart';
+import 'package:sec_tunnel/models/proxy_config.dart';
+import 'package:sec_tunnel/services/proxy/http_connect_handler.dart';
+import 'package:sec_tunnel/services/proxy/socks5_handler.dart';
+import 'package:sec_tunnel/services/proxy/http_proxy_service.dart';
 
 class PreFlightResult {
   final bool isHealthy;

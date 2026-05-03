@@ -1,5 +1,6 @@
+// ignore_for_file: avoid_print
 import 'dart:math';
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 import 'device_profile_repository.dart';
 import 'distribution_engine.dart';
 import 'statistical_validator.dart';
@@ -31,19 +32,23 @@ class FingerprintConfigGenerator {
     // 7. PROFILE LOCKING
     // Values are derived deterministically per session
     return FingerprintConfig(
-      sessionBoundSeed: sessionSeed,
       userAgent: profile.userAgent,
       platform: profile.platform,
+      language: profile.language,
       hardwareConcurrency: profile.hardwareConcurrency,
       deviceMemory: profile.deviceMemory,
       devicePixelRatio: finalDpr,
-      screenWidth: finalWidth,
-      screenHeight: finalHeight,
-      webglVendor: profile.webglVendor,
-      webglRenderer: profile.webglRenderer,
+      screenResolution: ScreenResolution(
+        width: finalWidth,
+        height: finalHeight,
+        colorDepth: 24,
+      ),
+      webglConfig: WebGLConfig(
+        vendor: profile.webglVendor,
+        renderer: profile.webglRenderer,
+      ),
+      canvasNoiseSalt: FingerprintConfig.generateNewSalt(),
       timezone: profile.timezone,
-      language: profile.language,
-      isMobile: profile.type == 'mobile',
     );
   }
 }

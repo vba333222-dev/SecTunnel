@@ -1,5 +1,5 @@
-import 'package:SecTunnel/core/database/daos/user_script_dao.dart';
-import 'package:SecTunnel/models/user_script.dart';
+import 'package:sec_tunnel/core/database/daos/user_script_dao.dart';
+import 'package:sec_tunnel/models/user_script.dart';
 import 'package:uuid/uuid.dart';
 
 class UserScriptService {

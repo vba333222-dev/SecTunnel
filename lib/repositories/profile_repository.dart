@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:SecTunnel/core/database/daos/profile_dao.dart';
-import 'package:SecTunnel/models/browser_profile.dart';
+import 'package:sec_tunnel/core/database/daos/profile_dao.dart';
+import 'package:sec_tunnel/models/browser_profile.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';

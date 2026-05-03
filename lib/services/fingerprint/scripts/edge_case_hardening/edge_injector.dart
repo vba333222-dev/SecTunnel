@@ -1,4 +1,4 @@
-import 'edge_hardening_engine.dart';
+// edge_hardening_engine import removed (unused)
 
 class EdgeCaseInjector {
   static String getInjectionScript() {

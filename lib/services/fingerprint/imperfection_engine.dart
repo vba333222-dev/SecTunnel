@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:crypto/crypto.dart';
-import 'package:SecTunnel/services/fingerprint/session_seed.dart';
+import 'package:sec_tunnel/services/fingerprint/session_seed.dart';
+
 
 /// The Imperfection Engine applies controlled, deterministic jitter and noise.
 /// 
@@ -23,8 +23,8 @@ class ImperfectionEngine {
   /// Generates a deterministic noise salt string based on a [prefix] and the SessionSeed.
   static String generateNoiseSalt(String prefix) {
     final seed = SessionSeed.getSessionSeed();
-    final raw = '\$prefix:\$seed';
-    return md5.convert(utf8.encode(raw)).toString();
+    final raw = '$prefix:$seed';
+    return _quickHash(raw).toRadixString(16);
   }
 
   /// Applies a deterministic rounding to an integer [value] using a specified [step].
@@ -43,13 +43,18 @@ class ImperfectionEngine {
   /// Helper to generate an integer hash from a salt and the session seed.
   static int _generateHash(String salt) {
     final seed = SessionSeed.getSessionSeed();
-    final raw = '\$salt:\$seed';
-    final digest = md5.convert(utf8.encode(raw));
-    // Use the first 8 bytes of the MD5 digest to form an integer
-    var hash = 0;
-    for (var i = 0; i < 8; i++) {
-      hash = (hash << 8) | digest.bytes[i];
+    final raw = '$salt:$seed';
+    return _quickHash(raw).abs();
+  }
+
+  /// Pure-dart hash: FNV-1a 64-bit (no external deps).
+  static int _quickHash(String input) {
+    final bytes = utf8.encode(input);
+    var hash = 0xcbf29ce484222325;
+    for (final b in bytes) {
+      hash ^= b;
+      hash = (hash * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF;
     }
-    return hash.abs();
+    return hash;
   }
 }

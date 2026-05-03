@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:SecTunnel/models/proxy_config.dart';
+// proxy_config import removed (unused)
 
 class ProxyApiException implements Exception {
   final String message;

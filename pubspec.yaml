@@ -1,4 +1,4 @@
-name: SecTunnel
+name: sec_tunnel
 description: "A secure, lightweight WebView browser with navigation UI and embedded proxy."
 publish_to: 'none'
 

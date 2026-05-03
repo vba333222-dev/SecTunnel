@@ -1,4 +1,4 @@
-import 'package:SecTunnel/models/ip_info.dart';
+import 'package:sec_tunnel/models/ip_info.dart';
 
 /// Quality classification derived from IP scoring.
 enum IpQuality {

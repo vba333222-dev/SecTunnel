@@ -1,43 +1,43 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
-import 'package:SecTunnel/core/logging/logger.dart';
-import 'package:SecTunnel/services/fingerprint/fingerprint_validator.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/core/logging/logger.dart';
+import 'package:sec_tunnel/services/fingerprint/fingerprint_validator.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/navigator_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/canvas_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/webgl_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/webrtc_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/audio_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/timezone_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/battery_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/font_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/webview_scrubber.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/domrect_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/hardware_sensor_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/media_devices_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/worker_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/window_metrics_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/matchmedia_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/hardware_api_polyfill.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/timing_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/uach_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/speech_synthesis_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/network_info_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/font_metrics_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/media_codec_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/storage_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/screen_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/error_stack_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/geolocation_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/keyboard_api_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/service_worker_guard.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/iframe_sandbox_guard.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/scrollbar_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/css_metrics_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/navigator_keys_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/intl_api_spoof.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/utils.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/behavior_engine.dart';
-import 'package:SecTunnel/services/fingerprint/scripts/context_engine.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/navigator_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/canvas_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/webgl_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/webrtc_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/audio_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/timezone_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/battery_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/font_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/webview_scrubber.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/domrect_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/hardware_sensor_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/media_devices_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/worker_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/window_metrics_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/matchmedia_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/hardware_api_polyfill.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/timing_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/uach_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/speech_synthesis_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/network_info_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/font_metrics_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/media_codec_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/storage_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/screen_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/error_stack_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/geolocation_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/keyboard_api_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/service_worker_guard.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/iframe_sandbox_guard.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/scrollbar_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/css_metrics_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/navigator_keys_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/intl_api_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/utils.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/behavior_engine.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/context_engine.dart';
 
 /// Orchestrates all fingerprint spoofing scripts into a single coherent
 /// injection payload. Validates cross-parameter consistency before generating.
@@ -134,7 +134,7 @@ class FingerprintInjector {
   // ═══ PHASE 4: Canvas/WebGL/Audio Fingerprinting ══════════════
   ${CanvasSpoof.generate(config)}
   
-  ${WebGLSpoof.generate(config)}
+  ${WebglSpoof.generate(config)}
   
   ${AudioSpoof.generate(config)}
 
@@ -223,7 +223,7 @@ class FingerprintInjector {
   ${NavigatorKeysSpoof.generate(config)}
 
   // ═══ PHASE 12: Behavioral Realism ════════════════════════════
-  ${BehaviorEngine.generate(config)}
+  ${BehaviorEngine.generate(config.sessionBoundSeed, config.hardwareConcurrency, config.isMobile)}
 
   // ═══ PHASE 13: Cross-Context Consistency ═════════════════════
   ${ContextEngine.generate(config)}

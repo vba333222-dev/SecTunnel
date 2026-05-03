@@ -1,4 +1,4 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Window Frame Metrics Spoofing.
 /// Ensures outerWidth > innerWidth (by a small desktop-realistic frame offset),

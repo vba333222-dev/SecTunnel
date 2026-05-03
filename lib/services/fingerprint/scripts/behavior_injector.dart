@@ -1,4 +1,5 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+// ignore_for_file: dead_null_aware_expression
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 import 'behavior_engine.dart';
 import 'timing_patch.dart';
 import 'scroll_model.dart';

@@ -1,4 +1,4 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for Web Speech API Voices Spoofing.
 /// Intercepts speechSynthesis.getVoices() to return OS-appropriate TTS

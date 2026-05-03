@@ -1,7 +1,6 @@
 import 'package:sqflite/sqflite.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:SecTunnel/core/database/database.dart';
-import 'package:SecTunnel/models/user_script.dart';
+import 'package:sec_tunnel/core/database/database.dart';
+import 'package:sec_tunnel/models/user_script.dart';
 
 class UserScriptDao {
   final AppDatabase _db;

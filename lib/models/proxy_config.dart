@@ -88,11 +88,17 @@ class ProxyConfig {
         // Also 8001→1, 8002→2, 8003→3, 8004→4
         String modemIndex;
         final p = port;
-        if (p == 3128 || p == 8001) modemIndex = '1';
-        else if (p == 3129 || p == 8002) modemIndex = '2';
-        else if (p == 3130 || p == 8003) modemIndex = '3';
-        else if (p == 3131 || p == 8004) modemIndex = '4';
-        else modemIndex = '1'; // Default to modem 1
+        if (p == 3128 || p == 8001) {
+          modemIndex = '1';
+        } else if (p == 3129 || p == 8002) {
+          modemIndex = '2';
+        } else if (p == 3130 || p == 8003) {
+          modemIndex = '3';
+        } else if (p == 3131 || p == 8004) {
+          modemIndex = '4';
+        } else {
+          modemIndex = '1'; // Default to modem 1
+        }
         
         return '$baseUrl/rotate/$modemIndex?key=$key';
       }

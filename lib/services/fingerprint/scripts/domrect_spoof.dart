@@ -1,4 +1,4 @@
-import 'package:SecTunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
 
 /// JavaScript code generator for DOMRect / ClientRect Fingerprinting Spoofing
 /// Injects deterministic sub-pixel noise to measurements to hide native OS rendering footprints.

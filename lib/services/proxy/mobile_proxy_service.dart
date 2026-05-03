@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'package:SecTunnel/core/network/api_client.dart';
-import 'package:SecTunnel/models/proxy_config.dart';
-import 'package:SecTunnel/models/ip_info.dart';
+import 'package:sec_tunnel/core/network/api_client.dart';
+import 'package:sec_tunnel/models/proxy_config.dart';
+import 'package:sec_tunnel/models/ip_info.dart';
 
 // ─── Rotation-Specific Error ────────────────────────────────────
 enum RotationErrorType {

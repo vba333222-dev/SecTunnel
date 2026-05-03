@@ -1,3 +1,4 @@
+// ignore_for_file: unused_local_variable
 import 'self_test_engine.dart';
 
 class SelfTestIntegrationExample {

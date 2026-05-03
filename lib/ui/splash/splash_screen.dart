@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:SecTunnel/ui/dashboard/dashboard_screen.dart';
-import 'package:SecTunnel/repositories/profile_repository.dart';
+import 'package:sec_tunnel/ui/dashboard/dashboard_screen.dart';
+import 'package:sec_tunnel/repositories/profile_repository.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sec_tunnel/ui/onboarding/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -17,8 +19,6 @@ class _SplashScreenState extends State<SplashScreen>
   late final Animation<double> _fadeAnimation;
   late final Animation<double> _scaleAnimation;
   
-  bool _isInitialized = false;
-
   @override
   void initState() {
     super.initState();
@@ -54,22 +54,38 @@ class _SplashScreenState extends State<SplashScreen>
     ]);
     
     if (mounted) {
-      setState(() => _isInitialized = true);
-      
       await Future.delayed(const Duration(milliseconds: 300));
       
       if (mounted) {
-        final repo = Provider.of<ProfileRepository>(context, listen: false);
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                DashboardScreen(repository: repo),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-            transitionDuration: const Duration(milliseconds: 400),
-          ),
-        );
+        final prefs = await SharedPreferences.getInstance();
+        final hasCompletedOnboarding = prefs.getBool('has_completed_onboarding') ?? false;
+
+        if (!mounted) return;
+
+        if (!hasCompletedOnboarding) {
+          Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  const OnboardingScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: const Duration(milliseconds: 400),
+            ),
+          );
+        } else {
+          final repo = Provider.of<ProfileRepository>(context, listen: false);
+          Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  DashboardScreen(repository: repo),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: const Duration(milliseconds: 400),
+            ),
+          );
+        }
       }
     }
   }
@@ -122,7 +138,7 @@ class _SplashScreenState extends State<SplashScreen>
                       'v1.2.3',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withValues(alpha: 0.5),
                         letterSpacing: 4,
                       ),
                     ),
@@ -133,7 +149,7 @@ class _SplashScreenState extends State<SplashScreen>
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.tealAccent.withOpacity(0.7),
+                          Colors.tealAccent.withValues(alpha: 0.7),
                         ),
                       ),
                     ),

@@ -1,25 +1,20 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:lottie/lottie.dart';
-import 'package:SecTunnel/models/browser_profile.dart';
-import 'package:SecTunnel/services/analytics/privacy_crash_reporter.dart';
-import 'package:SecTunnel/repositories/profile_repository.dart';
-import 'package:SecTunnel/ui/profile/profile_form_screen.dart';
-import 'package:SecTunnel/ui/browser/browser_screen.dart';
-import 'package:SecTunnel/ui/dashboard/widgets/profile_card.dart';
-import 'package:SecTunnel/ui/shared/command_palette_widget.dart';
-import 'package:SecTunnel/ui/profile/user_scripts_screen.dart';
-import 'package:SecTunnel/services/browser/userscript_service.dart';
-import 'package:animations/animations.dart';
 import 'package:provider/provider.dart';
-import 'package:SecTunnel/services/proxy/modem_rotator_service.dart';
-import 'package:SecTunnel/ui/debug/debug_panel.dart';
-import 'package:SecTunnel/ui/shared/themed_lottie.dart';
-import 'package:SecTunnel/ui/shared/skeleton_card.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:sec_tunnel/models/browser_profile.dart';
+import 'package:sec_tunnel/models/fingerprint_config.dart';
+import 'package:sec_tunnel/models/proxy_config.dart';
+import 'package:sec_tunnel/repositories/profile_repository.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/presets/device_preset.dart';
+import 'package:sec_tunnel/services/proxy/modem_rotator_service.dart';
+import 'package:sec_tunnel/ui/browser/browser_screen.dart';
+import 'package:sec_tunnel/ui/debug/debug_panel.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/presets/preset_repository.dart';
+
+import 'widgets/preset_selector_widget.dart';
+import 'widgets/big_rotate_button.dart';
+import 'widgets/status_card_widget.dart';
+import 'widgets/activity_log_widget.dart';
+import 'package:shimmer/shimmer.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ProfileRepository repository;
@@ -33,155 +28,122 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen>
-    with SingleTickerProviderStateMixin {
-  // ── Search & Command Palette ────────────────────────
-  final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
-  String _searchQuery = '';
-  String? _selectedTag;
+class _DashboardScreenState extends State<DashboardScreen> {
+  static const String globalSessionId = 'global_active_session';
 
-  // ── Selection ─────────────────────────────────────────
-  final Set<String> _selectedIds = {};
-  bool get _isSelecting => _selectedIds.isNotEmpty;
-  
-  bool _isRotating = false;
+  DevicePreset? _selectedPreset;
 
-  // Legacy _executeIPRotation removed - handled by ModemRotatorService & GlobalTaskOverlay
+  // Advanced settings controllers
+  final TextEditingController _proxyHostController = TextEditingController();
+  final TextEditingController _proxyPortController = TextEditingController();
+  final TextEditingController _proxyUserController = TextEditingController();
+  final TextEditingController _proxyPassController = TextEditingController();
 
-  void _showNotification(String message, Color bgColor) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        backgroundColor: bgColor,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 4),
-      ),
-    );
-  }
+  bool _isInit = false;
 
   @override
   void initState() {
     super.initState();
-    _searchFocusNode.addListener(() {
-      setState(() {}); // Re-render when focus changes for overlay
-    });
+    _initGlobalSession();
+  }
+
+  Future<void> _initGlobalSession() async {
+    final profile = await widget.repository.getProfileById(globalSessionId);
+    if (profile != null && profile.proxyConfig.type != ProxyType.none) {
+      _proxyHostController.text = profile.proxyConfig.host ?? '';
+      _proxyPortController.text = profile.proxyConfig.port?.toString() ?? '';
+      _proxyUserController.text = profile.proxyConfig.username ?? '';
+      _proxyPassController.text = profile.proxyConfig.password ?? '';
+    } else {
+      // Default placeholder if empty
+      _proxyPortController.text = '1';
+    }
+
+    // Smart Default: Auto-select a preset if none is chosen
+    if (_selectedPreset == null) {
+      final defaultPreset = PresetRepository.presets.where((p) => p.category == 'mobile').firstOrNull ??
+                            PresetRepository.presets.firstOrNull;
+      if (defaultPreset != null) {
+        _selectedPreset = defaultPreset;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isInit = true;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _searchFocusNode.dispose();
-    _searchController.dispose();
+    _proxyHostController.dispose();
+    _proxyPortController.dispose();
+    _proxyUserController.dispose();
+    _proxyPassController.dispose();
     super.dispose();
   }
 
-  // ── Filtering ─────────────────────────────────────────
-  List<BrowserProfile> _applyFilter(List<BrowserProfile> profiles) {
-    var filtered = profiles;
-    
-    // Tag filter
-    if (_selectedTag != null) {
-      filtered = filtered.where((p) => p.tags.contains(_selectedTag)).toList(growable: false);
+  Future<void> _saveAndRotate() async {
+    if (_selectedPreset == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a device preset first.')),
+      );
+      return;
     }
 
-    // Search query filter (applies across all tabs)
-    final q = _searchQuery.trim().toLowerCase();
-    if (q.isNotEmpty) {
-      filtered = filtered.where((p) => p.name.toLowerCase().contains(q)).toList(growable: false);
-    }
-    
-    return filtered;
-  }
+    // Save profile
+    final proxyConfig = ProxyConfig(
+      type: ProxyType.http,
+      useSystemProxyPool: true,
+      host: _proxyHostController.text.trim().isNotEmpty ? _proxyHostController.text.trim() : null,
+      port: _proxyPortController.text.trim().isNotEmpty ? int.tryParse(_proxyPortController.text.trim()) : null,
+      username: _proxyUserController.text.trim().isNotEmpty ? _proxyUserController.text.trim() : null,
+      password: _proxyPassController.text.trim().isNotEmpty ? _proxyPassController.text.trim() : null,
+      rotationUrl: null, // Modem rotator handles its own endpoint
+    );
 
-  // Helper to extract unique tabs from all profiles
-  List<String> _extractTabs(List<BrowserProfile> profiles) {
-    final tags = <String>{};
-    for (var p in profiles) {
-      tags.addAll(p.tags);
-    }
-    final sortedTags = tags.toList()..sort();
-    return ['All', ...sortedTags];
-  }
+    final userDataPath = await widget.repository.generateUserDataPath(globalSessionId);
 
-  // ── Selection helpers ─────────────────────────────────
-  void _toggleSelect(String id) {
-    setState(() {
-      if (_selectedIds.contains(id)) {
-        _selectedIds.remove(id);
+    final profile = BrowserProfile(
+      id: globalSessionId,
+      name: 'Active Session',
+      proxyConfig: proxyConfig,
+      fingerprintConfig: FingerprintConfig.fromPreset(_selectedPreset!),
+      userDataFolder: userDataPath,
+      keepAliveEnabled: true,
+      createdAt: DateTime.now(),
+      lastUsedAt: DateTime.now(),
+      tags: ['Global'],
+    );
+
+    // Trigger rotation immediately for optimistic UI
+    if (mounted) {
+      context.read<ModemRotatorService>().rotateIp(globalSessionId, 'Active Session');
+    }
+
+    // Save into repo asynchronously
+    widget.repository.getProfileById(globalSessionId).then((existing) {
+      if (existing != null) {
+        widget.repository.updateProfile(profile);
       } else {
-        _selectedIds.add(id);
+        widget.repository.createProfile(profile);
       }
     });
   }
 
-  void _selectAll(List<BrowserProfile> profiles) {
-    setState(() => _selectedIds.addAll(profiles.map((p) => p.id)));
-  }
+  Future<void> _launchBrowser() async {
+    final profile = await widget.repository.getProfileById(globalSessionId);
+    if (profile == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile not ready. Please rotate IP first.')),
+        );
+      }
+      return;
+    }
 
-  void _clearSelection() {
-    setState(() => _selectedIds.clear());
-  }
-
-  void _enterSelectMode(String firstId) {
-    HapticFeedback.mediumImpact();
-    setState(() {
-      _selectedIds.clear();
-      _selectedIds.add(firstId);
-    });
-  }
-
-  // ── Navigation helpers ─────────────────────────────────
-  void _createNewProfile() {
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 300),
-        reverseTransitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return ProfileFormScreen(repository: widget.repository);
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SharedAxisTransition(
-            animation: animation,
-            secondaryAnimation: secondaryAnimation,
-            transitionType: SharedAxisTransitionType.scaled,
-            fillColor: const Color(0xFF0A0A0A),
-            child: child,
-          );
-        },
-      ),
-    );
-  }
-
-  void _editProfile(BrowserProfile profile) {
-    Navigator.push(
-      context,
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 300),
-        reverseTransitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return ProfileFormScreen(
-            repository: widget.repository,
-            existingProfile: profile,
-          );
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SharedAxisTransition(
-            animation: animation,
-            secondaryAnimation: secondaryAnimation,
-            transitionType: SharedAxisTransitionType.scaled,
-            fillColor: const Color(0xFF0A0A0A),
-            child: child,
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _launchBrowser(BrowserProfile profile) async {
-    await widget.repository.markAsUsed(profile.id);
+    await widget.repository.markAsUsed(globalSessionId);
     if (mounted) {
       Navigator.push(
         context,
@@ -192,955 +154,164 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  Future<void> _deleteProfile(BrowserProfile profile) async {
-    final confirmed = await _showDeleteDialog(
-      count: 1,
-      names: [profile.name],
-    );
-    if (confirmed == true) {
-      await widget.repository.deleteProfile(profile.id);
-    }
-  }
-
-  Future<void> _duplicateProfile(BrowserProfile profile) async {
-    HapticFeedback.mediumImpact();
-    await widget.repository.duplicateProfile(profile);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Profile duplicated successfully.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  Future<void> _clearSession(BrowserProfile profile) async {
-    HapticFeedback.lightImpact();
-    await widget.repository.clearProfileSession(profile.id);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Session cleared for "${profile.name}".'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  // ── Bulk actions ──────────────────────────────────────
-
-  /// Bulk delete with a single confirm dialog.
-  Future<void> _bulkDelete(List<BrowserProfile> allProfiles) async {
-    final targets = allProfiles
-        .where((p) => _selectedIds.contains(p.id))
-        .toList(growable: false);
-    if (targets.isEmpty) return;
-
-    final confirmed = await _showDeleteDialog(
-      count: targets.length,
-      names: targets.map((p) => p.name).toList(),
-    );
-    if (confirmed != true || !mounted) return;
-
-    HapticFeedback.mediumImpact();
-    _clearSelection();
-    for (final p in targets) {
-      await widget.repository.deleteProfile(p.id);
-    }
-  }
-
-  /// Bulk rotate IP — delegates to ModemRotatorService globally
-  Future<void> _bulkRotateIp(List<BrowserProfile> allProfiles) async {
-    final targets = allProfiles
-        .where((p) => _selectedIds.contains(p.id))
-        .toList(growable: false);
-
-    if (targets.isEmpty) {
-      return;
-    }
-
-    HapticFeedback.mediumImpact();
-    _clearSelection();
-
-    // With a single hardware modem, bulk rotating means triggering 1 global rotation
-    context.read<ModemRotatorService>().rotateIp(targets.first.id, "Bulk Rotate");
-  }
-
-  /// Bulk launch — opens browser screens sequentially with brief gaps.
-  Future<void> _bulkLaunch(List<BrowserProfile> allProfiles) async {
-    final targets = allProfiles
-        .where((p) => _selectedIds.contains(p.id))
-        .toList(growable: false);
-    if (targets.isEmpty) return;
-    HapticFeedback.lightImpact();
-    _clearSelection();
-
-    // Capture navigator before any async gap to satisfy
-    // use_build_context_synchronously lint.
-    final nav = Navigator.of(context);
-
-    for (final p in targets) {
-      if (!mounted) return;
-      await widget.repository.markAsUsed(p.id);
-      nav.push(MaterialPageRoute(builder: (_) => BrowserScreen(profile: p)));
-      await Future.delayed(const Duration(milliseconds: 350));
-    }
-  }
-
-  // ── Delete dialog helper ─────────────────────────────
-  Future<bool?> _showDeleteDialog({
-    required int count,
-    required List<String> names,
-  }) {
-    final label = count == 1 ? '"${names.first}"' : '$count profiles';
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.warning_amber_rounded,
-                color: Colors.redAccent, size: 22),
-            const SizedBox(width: 10),
-            Text('Delete $label?',
-                style:
-                    const TextStyle(color: Colors.white, fontSize: 17)),
-          ],
-        ),
-        content: Text(
-          'This will permanently delete $label and all associated browser data.',
-          style: const TextStyle(color: Colors.white70, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel',
-                style: TextStyle(color: Colors.white54)),
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInit) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Shimmer.fromColors(
+            baseColor: Colors.grey[300]!,
+            highlightColor: Colors.grey[100]!,
+            child: Container(width: 150, height: 20, color: Colors.white),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-                backgroundColor: Colors.redAccent.shade700),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _exportLogs(BuildContext context) async {
-    try {
-      final logs = await PrivacyCrashReporter.exportLogs();
-      if (context.mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1E1E2A),
-            title: const Text('Anonymous Crash Logs', style: TextStyle(color: Colors.white)),
-            content: SingleChildScrollView(
-              child: SelectableText(
-                logs,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: Colors.white70),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Shimmer.fromColors(
+                baseColor: Colors.grey[300]!,
+                highlightColor: Colors.grey[100]!,
+                child: Container(height: 180, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16))),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close', style: TextStyle(color: Colors.white54)),
+              const SizedBox(height: 24),
+              Shimmer.fromColors(
+                baseColor: Colors.grey[300]!,
+                highlightColor: Colors.grey[100]!,
+                child: Container(height: 80, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16))),
               ),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: logs));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Logs copied to clipboard (Scrubbed)')),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.copy, size: 16),
-                label: const Text('Copy All'),
+              const SizedBox(height: 32),
+              Shimmer.fromColors(
+                baseColor: Colors.grey[300]!,
+                highlightColor: Colors.grey[100]!,
+                child: Container(height: 70, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))),
               ),
-              TextButton(
-                onPressed: () async {
-                  await PrivacyCrashReporter.clearLogs();
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Logs cleared')),
-                    );
-                  }
-                },
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Clear'),
-              )
             ],
           ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Failed to read logs: $e')),
-        );
-      }
-    }
-  }
-
-  // ── Build ─────────────────────────────────────────────
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<BrowserProfile>>(
-      stream: widget.repository.watchAllProfiles(),
-      builder: (context, snapshot) {
-        final allProfiles = snapshot.data ?? [];
-        final tabs = _extractTabs(allProfiles);
-
-        // Always show actual content - no skeleton loading
-        return Scaffold(
-          backgroundColor: const Color(0xFF0A0A0A),
-          floatingActionButton: (allProfiles.isEmpty || _isSelecting) 
-              ? null // SEMBUNYIKAN FAB JIKA BELUM ADA PROFIL
-              : AnimatedScale(
-                  scale: 1.0,
-                  duration: const Duration(milliseconds: 220),
-                  child: FloatingActionButton.extended(
-                    heroTag: 'create_profile_fab',
-                    onPressed: _createNewProfile,
-                    backgroundColor: Colors.tealAccent.shade700,
-                    foregroundColor: Colors.black,
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('New Profile', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                ),
-          body: DefaultTabController(
-            length: tabs.length,
-            child: NestedScrollView(
-              headerSliverBuilder: (context, innerBoxIsScrolled) {
-                return [
-                  // ── AppBar (normal ↔ Contextual Action Bar) ─
-                  SliverAppBar(
-                    pinned: true,
-                    floating: true,
-                    backgroundColor: const Color(0xFF141420),
-                    surfaceTintColor: Colors.transparent,
-                    expandedHeight: 70,
-                    // AnimatedSwitcher slides between Normal ↔ CAB
-                    title: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 280),
-                      transitionBuilder: (child, anim) => SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, -0.5),
-                          end: Offset.zero,
-                        ).animate(CurvedAnimation(
-                            parent: anim, curve: Curves.easeOutCubic)),
-                        child: FadeTransition(opacity: anim, child: child),
-                      ),
-                      child: _isSelecting
-                          ? _ContextualActionBar(
-                              key: const ValueKey('cab'),
-                              selectedCount: _selectedIds.length,
-                              totalCount: allProfiles.length, // total changes based on tab context usually, but global is fine here
-                              allSelected:
-                                  _selectedIds.length == allProfiles.length,
-                              hasRotatable: true, // Globablly supported now
-                              onClose: _clearSelection,
-                              onSelectAll: () => _selectedIds.length ==
-                                      allProfiles.length
-                                  ? _clearSelection()
-                                  : _selectAll(allProfiles),
-                              onDelete: () => _bulkDelete(allProfiles),
-                              onRotateIp: () => _bulkRotateIp(allProfiles),
-                              onLaunch: () => _bulkLaunch(allProfiles),
-                            )
-                          : CommandPaletteBar(
-                              key: const ValueKey('normal'),
-                              controller: _searchController,
-                              focusNode: _searchFocusNode,
-                              onClear: () {
-                                _searchController.clear();
-                                setState(() => _searchQuery = '');
-                                _searchFocusNode.unfocus();
-                              },
-                              onChanged: (v) => setState(() => _searchQuery = v),
-                              onSubmitted: (v) => _handleCommandSubmitted(v, _applyFilter(allProfiles), allProfiles),
-                              profileCount: allProfiles.length,
-                            ),
-                    ),
-                    // Hide default leading in selection mode
-                    leading: _isSelecting ? const SizedBox.shrink() : null,
-                    automaticallyImplyLeading: false,
-                    actions: [
-                      if (!_isSelecting) ...[
-                        Tooltip(
-                          message: 'Debug Logs',
-                          child: IconButton(
-                            icon: const Icon(Icons.bug_report_outlined, color: Colors.white38),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const DebugPanel(),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        Tooltip(
-                          message: 'Panic Button (Wipe All Sessions)',
-                          child: IconButton(
-                            icon: const Icon(Icons.local_fire_department_rounded, color: Colors.redAccent),
-                            onPressed: () => _showPanicDialog(),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(width: 8),
-                    ],
-                  ),
-
-                  // ── Tab Bar ──────────────────────────────
-                  if (!_isSelecting && (!(_searchFocusNode.hasFocus || _searchQuery.isNotEmpty)))
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _SliverTabBarDelegate(
-                        TabBar(
-                          isScrollable: true,
-                          tabAlignment: TabAlignment.start,
-                          dividerColor: Colors.transparent,
-                          indicatorColor: Colors.tealAccent,
-                          indicatorWeight: 3,
-                          indicatorSize: TabBarIndicatorSize.label,
-                          labelColor: Colors.tealAccent,
-                          unselectedLabelColor: Colors.white54,
-                          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-                          splashFactory: NoSplash.splashFactory,
-                          overlayColor: WidgetStateProperty.all(Colors.transparent),
-                          // Optional padding around the entire TabBar
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          tabs: tabs.map((tab) => Tab(text: tab)).toList(),
-                          onTap: (index) {
-                            // Clear selection when changing tabs to prevent mass-actions on invisible profiles
-                            if (_isSelecting) _clearSelection();
-                          },
-                        ),
-                      ),
-                    ),
-                ];
-              },
-              
-              // ── Body / Tab Views ──────────────────────────────
-              body: (_searchFocusNode.hasFocus || _searchQuery.isNotEmpty) && !_isSelecting
-                ? CommandPaletteOverlay(
-                    query: _searchQuery,
-                    profileResults: _applyFilter(allProfiles),
-                    onCommandSelected: (type) => _handleCommandAction(type, allProfiles),
-                    onProfileLaunch: (profile) {
-                      _searchFocusNode.unfocus();
-                      _launchBrowser(profile);
-                    },
-                  )
-                : allProfiles.isEmpty
-                  ? _PremiumEmptyState(onCreateProfile: _createNewProfile)
-                  : TabBarView(
-                      children: tabs.map((tab) {
-                        // Filter profiles for this specific tab
-                        List<BrowserProfile> tabProfiles = allProfiles;
-                        if (tab != 'All') {
-                          tabProfiles = tabProfiles.where((p) => p.tags.contains(tab)).toList(growable: false);
-                        }
-                        
-                        // Apply active search query filter over the top of the tab filter
-                        final filteredForTab = _applyFilter(tabProfiles);
-
-                        if (filteredForTab.isEmpty) {
-                           return _EmptyState(
-                             icon: Icons.folder_open_rounded,
-                             title: 'Empty Workspace',
-                             subtitle: tab == 'All' ? 'No profiles found.' : 'No profiles found in "$tab".',
-                             onAction: _createNewProfile,
-                             actionLabel: 'Create Profile',
-                           );
-                        }
-
-                        // Use a dedicated ScrollView for each tab
-                        return CustomScrollView(
-                          physics: const BouncingScrollPhysics(),
-                          slivers: [
-                            SliverPadding(
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                              sliver: SliverLayoutBuilder(
-                                builder: (context, constraints) {
-                                  final isNarrow = constraints.crossAxisExtent < 600;
-                                  if (isNarrow) {
-                                    return SliverList(
-                                      delegate: SliverChildBuilderDelegate(
-                                        (context, index) {
-                                          final profile = filteredForTab[index];
-                                          return Padding(
-                                            padding: const EdgeInsets.only(bottom: 12),
-                                            child: SizedBox(
-                                              height: 150,
-                                              child: _buildCard(profile),
-                                            ),
-                                          );
-                                        },
-                                        childCount: filteredForTab.length,
-                                      ),
-                                    );
-                                  } else {
-                                    return SliverGrid(
-                                      gridDelegate:
-                                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                                        maxCrossAxisExtent: 400,
-                                        mainAxisExtent: 190,
-                                        crossAxisSpacing: 12,
-                                        mainAxisSpacing: 12,
-                                      ),
-                                      delegate: SliverChildBuilderDelegate(
-                                        (context, index) =>
-                                            _buildCard(filteredForTab[index]),
-                                        childCount: filteredForTab.length,
-                                        addRepaintBoundaries: false,
-                                      ),
-                                    );
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ── Profile Card Builder ──────────────────────────────
-  Widget _buildCard(BrowserProfile profile) {
-    final isSelected = _selectedIds.contains(profile.id);
-    final rotator = context.watch<ModemRotatorService>();
-    final isThisRotating = rotator.isRotating && rotator.activeProfileId == profile.id;
-    
-    return ProfileCard(
-      key: ValueKey(profile.id),
-      profile: profile,
-      isSelectMode: _isSelecting,
-      isSelected: isSelected,
-      isRotatingIp: isThisRotating,
-      onLongPress: () => _enterSelectMode(profile.id),
-      onSelect: () => _toggleSelect(profile.id),
-      onRun: () => _launchBrowser(profile),
-      onEdit: () => _editProfile(profile),
-      onDelete: () => _deleteProfile(profile),
-      onDuplicate: () => _duplicateProfile(profile),
-      onClearSession: () => _clearSession(profile),
-      onRotateIp: () {
-        context.read<ModemRotatorService>().rotateIp(profile.id, profile.name);
-      },
-    );
-  }
-
-  // ── Command Handlers ────────────────────────────────
-  void _handleCommandAction(CommandType type, List<BrowserProfile> allProfiles) {
-    _searchFocusNode.unfocus();
-    _searchController.clear();
-    setState(() => _searchQuery = '');
-
-    switch (type) {
-      case CommandType.rotateIp:
-        final rotatable = allProfiles.where((p) => _selectedIds.contains(p.id)).toList();
-        if (rotatable.isNotEmpty) {
-          _bulkRotateIp(rotatable);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No profiles with rotatable IPs')));
-        }
-        break;
-      case CommandType.exportLogs:
-        _exportLogs(context);
-        break;
-      case CommandType.openScripts:
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => UserScriptsScreen(
-            service: context.read<UserScriptService>(),
-            profileId: 'global',
-          ),
-        ));
-        break;
-      case CommandType.clearCookies:
-        break;
-    }
-  }
-
-  void _handleCommandSubmitted(String value, List<BrowserProfile> filtered, List<BrowserProfile> allProfiles) {
-    final query = value.trim();
-    if (query.isEmpty) {
-      _searchFocusNode.unfocus();
-      return;
-    }
-
-    if (query.startsWith('>')) {
-      final cmdQuery = query.toLowerCase();
-      final matched = kGlobalCommands.where((cmd) => 
-         cmd.sequence.toLowerCase().contains(cmdQuery) ||
-         cmd.title.toLowerCase().contains(cmdQuery.replaceFirst('>', '').trim())
-      ).toList();
-      
-      if (matched.isNotEmpty) {
-        _handleCommandAction(matched.first.type, allProfiles);
-      }
-    } else {
-      if (filtered.isNotEmpty) {
-        _searchFocusNode.unfocus();
-        _launchBrowser(filtered.first);
-      }
-    }
-  }
-
-  Future<void> _showPanicDialog() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: const [
-            Icon(Icons.warning_rounded, color: Colors.redAccent, size: 24),
-            SizedBox(width: 10),
-            Text('PANIC MODE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ],
         ),
-        content: const Text(
-          'This will instantly wipe ALL browser cookies, caches, and local storage across ALL profiles. Proceed?',
-          style: TextStyle(color: Colors.white70),
-        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('SecTunnel Active Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent.shade700),
-            child: const Text('Wipe Everything'),
+          Tooltip(
+            message: 'Debug Panel',
+            child: IconButton(
+              icon: const Icon(Icons.bug_report_outlined),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const DebugPanel()));
+              },
+            ),
           ),
         ],
       ),
-    );
-
-    if (confirmed == true) {
-      HapticFeedback.heavyImpact();
-      try {
-        await InAppWebViewController.clearAllCache();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('All sessions and caches have been securely wiped!'),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-      } catch (e) {
-        debugPrint('Panic Wipe Error: $e');
-      }
-    }
-  }
-}
-
-class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
-  final TabBar _tabBar;
-
-  _SliverTabBarDelegate(this._tabBar);
-
-  @override
-  double get minExtent => _tabBar.preferredSize.height;
-  @override
-  double get maxExtent => _tabBar.preferredSize.height;
-
-  @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: const Color(0xFF141420), // Match the AppBar background color perfectly
-      child: _tabBar,
-    );
-  }
-
-  @override
-  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
-    return false;
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  CONTEXTUAL ACTION BAR
-// ═════════════════════════════════════════════════════════════════════════════
-
-class _ContextualActionBar extends StatelessWidget {
-  final int selectedCount;
-  final int totalCount;
-  final bool allSelected;
-  final bool hasRotatable;
-  final VoidCallback onClose;
-  final VoidCallback onSelectAll;
-  final VoidCallback onDelete;
-  final VoidCallback onRotateIp;
-  final VoidCallback onLaunch;
-
-  const _ContextualActionBar({
-    super.key,
-    required this.selectedCount,
-    required this.totalCount,
-    required this.allSelected,
-    required this.hasRotatable,
-    required this.onClose,
-    required this.onSelectAll,
-    required this.onDelete,
-    required this.onRotateIp,
-    required this.onLaunch,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        // Close selection
-        IconButton(
-          icon: const Icon(Icons.close_rounded),
-          tooltip: 'Cancel selection',
-          onPressed: onClose,
-          color: Colors.white,
-        ),
-        // Count badge
-        Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.tealAccent.withOpacity(0.18),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: Colors.tealAccent.withOpacity(0.4)),
-          ),
-          child: Text(
-            '$selectedCount selected',
-            style: const TextStyle(
-              color: Colors.tealAccent,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-            ),
-          ),
-        ),
-        const Spacer(),
-        // Select all / deselect all
-        Tooltip(
-          message: allSelected ? 'Deselect all' : 'Select all',
-          child: IconButton(
-            icon: Icon(
-              allSelected
-                  ? Icons.deselect_rounded
-                  : Icons.select_all_rounded,
-              color: Colors.white70,
-            ),
-            onPressed: onSelectAll,
-          ),
-        ),
-        // Rotate IP (only if any selected has rotation URL)
-        if (hasRotatable)
-          Tooltip(
-            message: 'Rotate IP (selected)',
-            child: IconButton(
-              icon: const Icon(Icons.swap_horiz_rounded,
-                  color: Colors.tealAccent),
-              onPressed: onRotateIp,
-            ),
-          ),
-        // Launch
-        Tooltip(
-          message: 'Launch selected',
-          child: IconButton(
-            icon: const Icon(Icons.play_arrow_rounded,
-                color: Colors.tealAccent),
-            onPressed: onLaunch,
-          ),
-        ),
-        // Delete
-        Tooltip(
-          message: 'Delete selected',
-          child: IconButton(
-            icon: const Icon(Icons.delete_outline_rounded,
-                color: Colors.redAccent),
-            onPressed: onDelete,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  EMPTY STATE
-// ═════════════════════════════════════════════════════════════════════════════
-
-// ── Plain empty state (used for no-search-results) ───────────────────────────
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onAction;
-  final String actionLabel;
-
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onAction,
-    required this.actionLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 56, color: Colors.white24),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              title,
-              style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white70),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white.withOpacity(0.38)),
-            ),
-            const SizedBox(height: 28),
-            FilledButton(
-              onPressed: onAction,
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.tealAccent.shade700,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(actionLabel,
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-            ),
-          ],
-        ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _launchBrowser,
+        backgroundColor: Colors.blue[600],
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.open_in_browser_rounded),
+        label: const Text('Launch Session', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
-    );
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-//  PREMIUM EMPTY STATE  (shown when there are no profiles at all)
-// ═════════════════════════════════════════════════════════════════════════════
-
-class _PremiumEmptyState extends StatelessWidget {
-  final VoidCallback onCreateProfile;
-  const _PremiumEmptyState({required this.onCreateProfile});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Lottie Shield ────────────────────────────────
-            const ThemedLottie(
-              animation: LottieAnimation.emptyProfiles,
-              width: 180,
-              height: 180,
-            ),
+            // Status Card
+            const StatusCardWidget(profileId: globalSessionId),
+            const SizedBox(height: 24),
 
+            // Preset Selector
+            PresetSelectorWidget(
+              selectedPreset: _selectedPreset,
+              onPresetSelected: (preset) {
+                setState(() {
+                  _selectedPreset = preset;
+                });
+              },
+            ),
             const SizedBox(height: 32),
 
-            // ── Headline ─────────────────────────────────────
-            ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [Colors.tealAccent, Color(0xFF00E5CC), Colors.cyanAccent],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ).createShader(bounds),
-              child: const Text(
-                'Your Identities Await',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white, // masked by shader
-                  letterSpacing: -0.5,
-                ),
+            // Big Rotate Button
+            Center(
+              child: BigRotateButton(
+                profileId: globalSessionId,
+                onRotate: _saveAndRotate,
+                onLaunchBrowser: _launchBrowser,
               ),
             ),
-
-            const SizedBox(height: 10),
-
-            Text(
-              'Create isolated browser profiles with unique\nfingerprints, proxies, and identities.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                height: 1.55,
-                color: Colors.white.withOpacity(0.45),
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            // ── Feature tiles ────────────────────────────────
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _FeatureTile(
-                  icon: Icons.manage_accounts_rounded,
-                  label: 'Anonymous',
-                  color: Colors.tealAccent,
-                ),
-                const SizedBox(width: 12),
-                _FeatureTile(
-                  icon: Icons.lock_outline_rounded,
-                  label: 'Isolated',
-                  color: Colors.purpleAccent,
-                ),
-                const SizedBox(width: 12),
-                _FeatureTile(
-                  icon: Icons.public_rounded,
-                  label: 'Geo-Aware',
-                  color: Colors.blueAccent,
-                ),
-              ],
-            ),
-
             const SizedBox(height: 32),
 
-            // ── Hero CTA button ──────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.tealAccent.shade700,
-                      const Color(0xFF00BFA5),
-                    ],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
+            // Advanced Settings
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.tealAccent.withOpacity(0.35),
-                      blurRadius: 20,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(16),
-                  child: InkWell(
-                    onTap: onCreateProfile,
-                    borderRadius: BorderRadius.circular(16),
-                    splashColor: Colors.white12,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 16, horizontal: 24),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(Icons.add_rounded,
-                              color: Colors.black, size: 22),
-                          SizedBox(width: 10),
-                          Text(
-                            'Create Your First Profile',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Icon(Icons.arrow_forward_rounded,
-                              color: Colors.black87, size: 18),
+                ],
+              ),
+              child: Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  iconColor: Colors.blue[600],
+                  collapsedIconColor: Colors.grey[600],
+                  title: Text('Advanced Proxy Settings', style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.bold)),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0).copyWith(bottom: 16.0),
+                      child: Column(
+                        children: [
+                          _buildTextField('Proxy Port (Modem Index)', _proxyPortController, Icons.numbers),
+                          const SizedBox(height: 12),
+                          _buildTextField('Proxy Host (Optional override)', _proxyHostController, Icons.router_outlined),
+                          const SizedBox(height: 12),
+                          _buildTextField('Proxy Username (Optional)', _proxyUserController, Icons.person_outline),
+                          const SizedBox(height: 12),
+                          _buildTextField('Proxy Password (Optional)', _proxyPassController, Icons.lock_outline, obscureText: true),
                         ],
                       ),
-                    ),
-                  ),
+                    )
+                  ],
                 ),
               ),
             ),
+            const SizedBox(height: 24),
+
+            // Activity Log
+            const ActivityLogWidget(profileId: globalSessionId),
+            
+            // Padding for FAB
+            const SizedBox(height: 80),
           ],
         ),
       ),
     );
   }
-}
 
-// ── Pulsing animated shield illustration ─────────────────────────────────────
-
-
-
-// ── Feature tile ─────────────────────────────────────────────────────────────
-
-class _FeatureTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  const _FeatureTile(
-      {required this.icon, required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 90,
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.07),
-        borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: color.withOpacity(0.22), width: 1),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: color.withOpacity(0.85),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+  Widget _buildTextField(String label, TextEditingController controller, IconData icon, {bool obscureText = false}) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      style: TextStyle(color: Colors.grey[900]),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Colors.grey[600]),
+        prefixIcon: Icon(icon, color: Colors.grey[500], size: 20),
+        filled: true,
+        fillColor: Colors.grey[100],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
       ),
     );
   }

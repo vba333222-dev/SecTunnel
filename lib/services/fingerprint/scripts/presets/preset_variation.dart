@@ -1,15 +1,16 @@
+// ignore_for_file: avoid_print
 import 'device_preset.dart';
 
 class PresetVariation {
   static DevicePreset applyVariation(DevicePreset preset, int seed) {
     // Basic PRNG
-    final rnd = (int max) {
+    int rnd(int max) {
        var s = seed ^ (seed << 13);
        s ^= s >> 17;
        s ^= s << 5;
        seed = s;
        return (s.abs() % max);
-    };
+    }
     
     // Vary DPR by +/- 0.02
     double varDpr = preset.devicePixelRatio + ((rnd(40) - 20) / 1000.0);
@@ -50,7 +51,8 @@ class PresetVariation {
       mediaDevices: preset.mediaDevices,
       codecs: preset.codecs,
       behaviorProfile: preset.behaviorProfile,
-      networkProfile: preset.networkProfile
+      networkProfile: preset.networkProfile,
+      weight: preset.weight,
     );
   }
 }

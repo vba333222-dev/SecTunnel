@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
-import 'package:SecTunnel/services/fingerprint/session_seed.dart';
+import 'package:sec_tunnel/services/fingerprint/session_seed.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/presets/device_preset.dart';
 
 /// Geolocation configuration
 class GeolocationConfig {
@@ -222,6 +223,31 @@ class FingerprintConfig {
 
   /// Whether this config targets a desktop device
   bool get isDesktop => !isMobile;
+
+  factory FingerprintConfig.fromPreset(DevicePreset preset) {
+    return FingerprintConfig(
+      userAgent: preset.userAgent,
+      platform: preset.platform,
+      vendor: 'Google Inc.', // usually overriden if needed by scripts, but default to Google Inc.
+      language: preset.locale,
+      hardwareConcurrency: preset.hardwareConcurrency,
+      deviceMemory: preset.deviceMemory,
+      maxTouchPoints: preset.touchPoints,
+      devicePixelRatio: preset.devicePixelRatio,
+      screenResolution: ScreenResolution(
+        width: preset.screenWidth,
+        height: preset.screenHeight,
+        colorDepth: 24,
+      ),
+      timezone: preset.timezone,
+      webglConfig: WebGLConfig(
+        vendor: preset.gpuVendor,
+        renderer: preset.gpuRenderer,
+      ),
+      canvasNoiseSalt: _generateRandomSalt(),
+      webrtcEnabled: false, // Defaulting to false for safety
+    );
+  }
 
   factory FingerprintConfig.random() {
     final random = Random();

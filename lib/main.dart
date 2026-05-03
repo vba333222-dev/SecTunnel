@@ -1,25 +1,24 @@
-import 'dart:io';
+// dart:io removed (unused)
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
+// path import removed (unused)
 
 // Database
-import 'package:SecTunnel/core/database/database.dart';
-import 'package:SecTunnel/core/database/daos/profile_dao.dart';
-import 'package:SecTunnel/core/database/daos/user_script_dao.dart';
-import 'package:SecTunnel/repositories/profile_repository.dart';
-import 'package:SecTunnel/services/browser/userscript_service.dart';
-import 'package:SecTunnel/services/background/headless_keep_alive_service.dart';
-import 'package:SecTunnel/services/analytics/privacy_crash_reporter.dart';
+import 'package:sec_tunnel/core/database/database.dart';
+import 'package:sec_tunnel/core/database/daos/profile_dao.dart';
+import 'package:sec_tunnel/core/database/daos/user_script_dao.dart';
+import 'package:sec_tunnel/repositories/profile_repository.dart';
+import 'package:sec_tunnel/services/browser/userscript_service.dart';
+import 'package:sec_tunnel/services/background/headless_keep_alive_service.dart';
+import 'package:sec_tunnel/services/analytics/privacy_crash_reporter.dart';
 
 // UI
-import 'package:SecTunnel/ui/splash/splash_screen.dart';
-import 'package:SecTunnel/ui/shared/global_task_overlay.dart';
+import 'package:sec_tunnel/ui/splash/splash_screen.dart';
+import 'package:sec_tunnel/ui/shared/global_task_overlay.dart';
 
 // Services
-import 'package:SecTunnel/services/proxy/modem_rotator_service.dart';
-import 'package:SecTunnel/core/logging/logger.dart';
+import 'package:sec_tunnel/services/proxy/modem_rotator_service.dart';
+import 'package:sec_tunnel/core/logging/logger.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
@@ -50,10 +49,7 @@ void main() async {
   ));
 }
 
-Future<String> _getDatabasePath() async {
-  final dbFolder = await getApplicationDocumentsDirectory();
-  return path.join(dbFolder.path, 'pbrowser.db');
-}
+
 
 /// Root application widget
 class PBrowserApp extends StatelessWidget {
@@ -84,15 +80,18 @@ class PBrowserApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: const Color(0xFF0A0A0A),
-          colorScheme: const ColorScheme.dark(
-            primary: Colors.blueGrey,
-            surface: Color(0xFF1E1E1E),
+          brightness: Brightness.light,
+          scaffoldBackgroundColor: const Color(0xFFF5F7FA), // Light neutral gray
+          colorScheme: ColorScheme.light(
+            primary: Colors.blue[600]!,
+            surface: Colors.white,
+            onSurface: Colors.grey[800]!,
           ),
           appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFF1E1E1E),
-            elevation: 0,
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black87,
+            elevation: 1,
+            centerTitle: true,
           ),
         ),
         builder: (context, child) {
