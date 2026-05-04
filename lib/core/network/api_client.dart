@@ -228,7 +228,7 @@ class ApiClient {
   /// Used for IP verification.
   Future<Map<String, dynamic>> getJsonThroughProxy(String url) async {
     final uri = Uri.parse(url);
-    final proxyHost = dotenv.env['PROXY_HOST'] ?? '127.0.0.1';
+    final proxyHost = dotenv.env['PROXY_HOST'] ?? '35.198.231.6';
     final proxyPort = int.tryParse(dotenv.env['PROXY_PORT'] ?? '') ?? 3128;
 
     _log.info(LogTag.network, 'Proxy GET $url via $proxyHost:$proxyPort');
@@ -236,19 +236,23 @@ class ApiClient {
     try {
       // Use HttpClient with explicit proxy for verification
       final ioClient = HttpClient();
+      // Strictly enforce proxy host and port
       ioClient.findProxy = (uri) => 'PROXY $proxyHost:$proxyPort';
       
-      // Basic Auth if needed
       final user = dotenv.env['PROXY_USER'];
       final pass = dotenv.env['PROXY_PASS'];
-      if (user != null && pass != null) {
-        ioClient.authenticateProxy = (String host, int port, String scheme, String? realm) {
-          ioClient.addProxyCredentials(host, port, realm ?? '', HttpClientBasicCredentials(user, pass));
-          return Future.value(true);
-        };
-      }
 
       final request = await ioClient.getUrl(uri);
+
+      // Pre-emptively inject Proxy-Authorization header to avoid 407 loops
+      if (user != null && pass != null) {
+        final auth = base64Encode(utf8.encode('$user:$pass'));
+        request.headers.set(
+          HttpHeaders.proxyAuthorizationHeader,
+          'Basic $auth',
+        );
+      }
+
       final response = await request.close();
       final responseBody = await response.transform(utf8.decoder).join();
 
