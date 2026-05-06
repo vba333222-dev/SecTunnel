@@ -85,10 +85,10 @@ class ModemRotatorService extends ChangeNotifier {
         .toList();
   }
 
-  /// The main IP rotation lifecycle.
-  Future<void> rotateIp(String profileId, String profileName, [int retryCount = 0]) async {
-    if (isBusy(profileId)) return;
-    if (isCoolingDown(profileId) && retryCount == 0) return;
+ /// The main IP rotation lifecycle.
+  Future<bool> rotateIp(String profileId, String profileName, [int retryCount = 0]) async {
+    if (isBusy(profileId)) return false;
+    if (isCoolingDown(profileId) && retryCount == 0) return false;
 
     _activeProfileId = profileId;
     _activeProfileName = profileName;
@@ -106,8 +106,14 @@ class ModemRotatorService extends ChangeNotifier {
     try {
       // Step 0: Get initial IP for comparison
       AppLogger.instance.info(LogTag.rotate, 'Fetching baseline IP...', profileId: profileId);
-      oldInfo = await _proxyService.getIpInfo();
-      AppLogger.instance.info(LogTag.rotate, 'Baseline IP: ${oldInfo.ip}', profileId: profileId);
+      
+      // [PERBAIKAN KUNCI] Tangkap error di sini agar rotasi tetap berjalan meski proxy saat ini sedang mati/500
+      try {
+        oldInfo = await _proxyService.getIpInfo();
+        AppLogger.instance.info(LogTag.rotate, 'Baseline IP: ${oldInfo.ip}', profileId: profileId);
+      } catch (e) {
+        AppLogger.instance.warn(LogTag.rotate, 'Proxy is currently offline ($e). Forcing rotation...', profileId: profileId);
+      }
 
       // Step 1: Call /rotate
       _setState(profileId, RotationState.rotating);
@@ -137,7 +143,7 @@ class ModemRotatorService extends ChangeNotifier {
 
       // Step 3.5: Apply Native Proxy
       final host = dotenv.env['PROXY_HOST'] ?? '35.198.231.6';
-      final port = int.tryParse(dotenv.env['PROXY_PORT'] ?? '3128') ?? 3128;
+      final port = int.tryParse(dotenv.env['PROXY_PORT'] ?? '8080') ?? 8080;
       await _platform.invokeMethod('flushCookies');
       await _platform.invokeMethod('setProxy', {'host': host, 'port': port, 'scheme': 'http'});
 
@@ -148,7 +154,7 @@ class ModemRotatorService extends ChangeNotifier {
 
       // Step 5: Verify IP Change
       _setState(profileId, RotationState.verifying);
-      if (oldInfo.ip == newInfo.ip) {
+      if (oldInfo != null && oldInfo.ip == newInfo.ip) {
         throw const RotationException(RotationErrorType.ipNotChanged, 'IP did not change');
       }
 
@@ -158,6 +164,8 @@ class ModemRotatorService extends ChangeNotifier {
       _setState(profileId, RotationState.success);
       AppLogger.instance.info(LogTag.rotate, 'Rotation successful: ${newInfo.ip}', profileId: profileId);
 
+      return true;
+
     } catch (e) {
       final errorMsg = e is RotationException ? e.displayMessage : e.toString();
       AppLogger.instance.error(LogTag.rotate, 'Rotation failed: $errorMsg', profileId: profileId);
@@ -165,11 +173,14 @@ class ModemRotatorService extends ChangeNotifier {
       if (retryCount < 1) {
         AppLogger.instance.warn(LogTag.rotate, 'Retrying rotation (1/1)...', profileId: profileId);
         _setState(profileId, RotationState.idle);
-        return rotateIp(profileId, profileName, retryCount + 1);
+        return await rotateIp(profileId, profileName, retryCount + 1);
       }
 
       _consecutiveFailures[profileId] = (_consecutiveFailures[profileId] ?? 0) + 1;
       _setState(profileId, RotationState.failed, error: errorMsg);
+      
+      return false;
+      
     } finally {
       stopwatch.stop();
       _updateHealthAndCooldown(profileId, success, oldInfo?.ip, newInfo?.ip);

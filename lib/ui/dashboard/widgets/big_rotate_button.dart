@@ -5,7 +5,7 @@ import 'package:sec_tunnel/services/proxy/modem_rotator_service.dart';
 
 class BigRotateButton extends StatefulWidget {
   final String profileId;
-  final VoidCallback onRotate;
+  final Future<bool> Function() onRotate; 
   final VoidCallback onLaunchBrowser;
 
   const BigRotateButton({
@@ -56,8 +56,8 @@ class _BigRotateButtonState extends State<BigRotateButton> {
     } else if (state == RotationState.success) {
       bgColor = Colors.green[600]!;
       fgColor = Colors.white;
-      text = 'Launch Browser';
-      icon = Icons.open_in_browser;
+      text = 'Network Connected!';
+      icon = Icons.check_circle_outline;
     } else if (state == RotationState.failed) {
       bgColor = Colors.red[600]!;
       fgColor = Colors.white;
@@ -109,12 +109,8 @@ class _BigRotateButtonState extends State<BigRotateButton> {
             },
             onTap: isBusy
                 ? null
-                : () {
-                    if (state == RotationState.success) {
-                      widget.onLaunchBrowser();
-                    } else {
-                      widget.onRotate();
-                    }
+                : () async {
+                    await widget.onRotate();
                   },
             child: Center(
               child: Row(

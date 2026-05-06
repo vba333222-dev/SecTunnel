@@ -84,12 +84,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  Future<void> _saveAndRotate() async {
+  Future<bool> _saveAndRotate() async {
     if (_selectedPreset == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a device preset first.')),
-      );
-      return;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a device preset first.')),
+        );
+      }
+      return false;
     }
 
     // Save profile
@@ -130,6 +132,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         widget.repository.createProfile(profile);
       }
     });
+
+    return true;
   }
 
   Future<void> _launchBrowser() async {
