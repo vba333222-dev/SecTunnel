@@ -86,17 +86,18 @@ class ModemRotatorService extends ChangeNotifier {
   }
 
  /// The main IP rotation lifecycle.
-  Future<bool> rotateIp(String profileId, String profileName, [int retryCount = 0]) async {
+  Future<bool> rotateIp(String profileId, String profileName) async {
     if (isBusy(profileId)) return false;
-    if (isCoolingDown(profileId) && retryCount == 0) return false;
+    if (isCoolingDown(profileId)) return false;
 
+    // [STRICT LOCK] Set state immediately to prevent race conditions from spam clicks
+    _setState(profileId, RotationState.rotating);
+    
     _activeProfileId = profileId;
     _activeProfileName = profileName;
     notifyListeners();
 
     final stopwatch = Stopwatch()..start();
-    const timeoutSeconds = 40;
-    const pollIntervalSeconds = 2;
     const stabilizationSeconds = 5;
 
     IpInfo? oldInfo;
@@ -115,25 +116,55 @@ class ModemRotatorService extends ChangeNotifier {
         AppLogger.instance.warn(LogTag.rotate, 'Proxy is currently offline ($e). Forcing rotation...', profileId: profileId);
       }
 
-      // Step 1: Call /rotate
-      _setState(profileId, RotationState.rotating);
-      await _proxyService.rotateIp();
+      // Step 1: Call /rotate (Strict Fire-and-Forget)
+      try {
+        AppLogger.instance.info(LogTag.rotate, 'Sending rotate command...', profileId: profileId);
+        await _proxyService.rotateIp();
+        AppLogger.instance.info(LogTag.rotate, 'Rotate command accepted by server.', profileId: profileId);
+      } catch (e) {
+        // [RESILIENCE] If /rotate fails (e.g. timeout during modem cut-off), we MUST proceed to polling.
+        // We do NOT retry /rotate to avoid stressing the hardware.
+        AppLogger.instance.warn(
+          LogTag.rotate, 
+          'Rotate trigger exception ($e). Proceeding directly to polling...', 
+          profileId: profileId
+        );
+      }
 
-      // Step 2: Poll /status until 901
+      // Step 2: Poll /status until 901 (Disconnected-Aware Polling)
       _setState(profileId, RotationState.waitingModem);
-      while (stopwatch.elapsed.inSeconds < timeoutSeconds) {
-        final status = await _proxyService.getRotationStatus();
-        final stateCode = status['state']; 
-        
-        if (stateCode == 901 || stateCode == '901') {
-          AppLogger.instance.info(LogTag.rotate, 'Modem ready (901)', profileId: profileId);
-          break;
+      const pollTimeout = 45; // Ditingkatkan ke 45 detik sesuai permintaan
+      const pollDelay = Duration(seconds: 3); // 3 detik delay polling
+
+      while (stopwatch.elapsed.inSeconds < pollTimeout) {
+        try {
+          final status = await _proxyService.getRotationStatus();
+          final stateCode = status['state']; 
+          
+          if (stateCode == 901 || 
+              stateCode == '901' || 
+              stateCode.toString().toUpperCase() == 'DONE') {
+            AppLogger.instance.info(LogTag.rotate, 'Modem ready ($stateCode).', profileId: profileId);
+            break;
+          } else {
+             AppLogger.instance.info(LogTag.rotate, 'Modem state: $stateCode. Still waiting...', profileId: profileId);
+          }
+        } catch (e) {
+          // Hiraukan error jaringan karena terowongan mungkin belum pulih
+          AppLogger.instance.warn(
+            LogTag.rotate, 
+            'Waiting for Tunnel recovery... (${stopwatch.elapsed.inSeconds}s)', 
+            profileId: profileId
+          );
         }
         
-        await Future.delayed(const Duration(seconds: pollIntervalSeconds));
+        await Future.delayed(pollDelay);
         
-        if (stopwatch.elapsed.inSeconds >= timeoutSeconds) {
-          throw const RotationException(RotationErrorType.serverTimeout, 'Modem rotation timed out');
+        if (stopwatch.elapsed.inSeconds >= pollTimeout) {
+          throw const RotationException(
+            RotationErrorType.serverTimeout, 
+            'Modem rotation timed out. Connection failed to recover after 45s.'
+          );
         }
       }
 
@@ -147,9 +178,9 @@ class ModemRotatorService extends ChangeNotifier {
       await _platform.invokeMethod('flushCookies');
       await _platform.invokeMethod('setProxy', {'host': host, 'port': port, 'scheme': 'http'});
 
-      // Step 4: Fetch REAL IP (proxy-aware)
+      // Step 4: Fetch REAL IP (proxy-aware) with retry logic
       _setState(profileId, RotationState.fetchingIp);
-      newInfo = await _proxyService.getIpInfo();
+      newInfo = await _fetchIpWithRetry(profileId);
       AppLogger.instance.info(LogTag.rotate, 'New IP detected: ${newInfo.ip}', profileId: profileId);
 
       // Step 5: Verify IP Change
@@ -169,12 +200,6 @@ class ModemRotatorService extends ChangeNotifier {
     } catch (e) {
       final errorMsg = e is RotationException ? e.displayMessage : e.toString();
       AppLogger.instance.error(LogTag.rotate, 'Rotation failed: $errorMsg', profileId: profileId);
-
-      if (retryCount < 1) {
-        AppLogger.instance.warn(LogTag.rotate, 'Retrying rotation (1/1)...', profileId: profileId);
-        _setState(profileId, RotationState.idle);
-        return await rotateIp(profileId, profileName, retryCount + 1);
-      }
 
       _consecutiveFailures[profileId] = (_consecutiveFailures[profileId] ?? 0) + 1;
       _setState(profileId, RotationState.failed, error: errorMsg);
@@ -240,6 +265,29 @@ class ModemRotatorService extends ChangeNotifier {
         notifyListeners();
       }
     });
+  }
+
+  /// Internal helper to fetch IP with retries during stabilization phase.
+  Future<IpInfo> _fetchIpWithRetry(String profileId) async {
+    int attempts = 0;
+    const maxAttempts = 3;
+    const retryDelay = Duration(seconds: 3);
+
+    while (attempts < maxAttempts) {
+      try {
+        return await _proxyService.getIpInfo();
+      } catch (e) {
+        attempts++;
+        if (attempts >= maxAttempts) rethrow;
+        AppLogger.instance.warn(
+          LogTag.rotate, 
+          'IP fetch failed (attempt $attempts/$maxAttempts). Waiting for connection stability...', 
+          profileId: profileId
+        );
+        await Future.delayed(retryDelay);
+      }
+    }
+    throw const RotationException(RotationErrorType.validationFailed, 'Failed to verify IP after retries');
   }
 
   @override

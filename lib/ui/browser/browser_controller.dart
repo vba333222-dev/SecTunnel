@@ -23,13 +23,18 @@ import 'browser_state.dart';
 class BrowserController extends ChangeNotifier {
   BrowserState state = const BrowserState();
   
-  final BrowserProfile profile;
-  final BuildContext context; // To access providers
+  final String profileId;
+  final BuildContext context; 
+  
+  BrowserProfile? _profile;
+  BrowserProfile get profile => _profile!;
 
   InAppWebViewController? webViewController;
   final TextEditingController urlController = TextEditingController();
 
-  late FingerprintConfig activeFingerprint;
+  FingerprintConfig? _activeFingerprint;
+  FingerprintConfig get activeFingerprint => _activeFingerprint!;
+
   late InAppWebViewSettings webViewSettings;
   WebViewEnvironment? environment;
   List<models.UserScript> activeScripts = [];
@@ -38,12 +43,11 @@ class BrowserController extends ChangeNotifier {
   static final Map<int, InAppWebViewController> _activeProxyConnections = {};
   static const platform = MethodChannel('com.example.pbrowser/proxy');
 
-  bool get hasProxy => profile.proxyConfig.type != ProxyType.none;
+  bool get hasProxy => _profile != null && _profile!.proxyConfig.type != ProxyType.none;
 
   bool _isDisposed = false;
 
-  BrowserController({required this.profile, required this.context}) {
-    activeFingerprint = profile.fingerprintConfig;
+  BrowserController({required this.profileId, required this.context}) {
     urlController.text = state.currentUrl;
   }
 
@@ -54,18 +58,39 @@ class BrowserController extends ChangeNotifier {
   }
 
   Future<void> initializeApp() async {
-    final proxyPort = profile.proxyConfig.port;
-    if (proxyPort != null && _activeProxyConnections.containsKey(proxyPort)) {
-      debugPrint('[Browser] Neutralizing ghost WebView instance occupying Port $proxyPort');
-      try {
-        final ghost = _activeProxyConnections[proxyPort];
-        ghost?.loadUrl(urlRequest: URLRequest(url: WebUri('about:blank')));
-        ghost?.dispose();
-      } catch (_) {}
-      _activeProxyConnections.remove(proxyPort);
-    }
-
     final userScriptService = Provider.of<UserScriptService>(context, listen: false);
+    final profileRepo = Provider.of<ProfileRepository>(context, listen: false);
+
+    _updateState(state.copyWith(isLoading: true));
+
+    try {
+      // 1. Load Profile
+      _profile = await profileRepo.getProfileById(profileId);
+
+      if (_profile == null) {
+        _updateState(state.copyWith(
+          isLoading: false,
+          isProxyHealthy: false,
+          errorReason: 'Profile not found: $profileId',
+        ));
+        return;
+      }
+
+      _activeFingerprint = _profile!.fingerprintConfig;
+      // Note: profile doesn't have startUrl, using state default
+      urlController.text = state.currentUrl;
+      
+      final proxyPort = profile.proxyConfig.port ?? 8080;
+      if (_activeProxyConnections.containsKey(proxyPort)) {
+        debugPrint('[Browser] Neutralizing ghost WebView instance occupying Port $proxyPort');
+        try {
+          final ghost = _activeProxyConnections[proxyPort];
+          ghost?.loadUrl(urlRequest: URLRequest(url: WebUri('about:blank')));
+          ghost?.dispose();
+        } catch (_) {}
+        _activeProxyConnections.remove(proxyPort);
+      }
+
     activeScripts = await userScriptService.getActiveScripts(profile.id);
 
     // 1. Health Check
@@ -82,20 +107,20 @@ class BrowserController extends ChangeNotifier {
     // 2. Fetch Sandbox Context (GeoIP, Timezone) based on Proxy IP
     try {
       final geoData = await GeoIpService.fetchGeoData(profile.proxyConfig);
-      if (geoData != null) {
-        final countryCode = geoData['countryCode'] as String;
+      if (geoData != null && geoData.containsKey('ip')) {
+        final countryCode = geoData['countryCode'] as String? ?? 'US';
         final lang = GeoIpService.countryCodeToLanguage(countryCode);
 
-        activeFingerprint = activeFingerprint.copyWith(
-          timezone: geoData['timezone'] as String,
+        _activeFingerprint = activeFingerprint.copyWith(
+          timezone: geoData['timezone'] as String? ?? 'UTC',
           language: lang,
           geolocation: GeolocationConfig(
-            latitude: geoData['latitude'] as double,
-            longitude: geoData['longitude'] as double,
+            latitude: (geoData['latitude'] as num?)?.toDouble() ?? 0.0,
+            longitude: (geoData['longitude'] as num?)?.toDouble() ?? 0.0,
             accuracy: 45.0 + (DateTime.now().millisecond % 15.0),
           ),
         );
-        _updateState(state.copyWith(currentPublicIp: null));
+        _updateState(state.copyWith(currentPublicIp: geoData['ip'] as String?));
       }
     } catch (e) {
       debugPrint('[Browser] Failed to dynamically sync Geo-IP: $e');
@@ -179,6 +204,14 @@ class BrowserController extends ChangeNotifier {
     }
 
     _fetchPublicIp();
+    } catch (e) {
+      debugPrint('[Browser] Initialization failed: $e');
+      _updateState(state.copyWith(
+        isLoading: false,
+        isProxyHealthy: false,
+        errorReason: e.toString(),
+      ));
+    }
   }
 
   Future<void> _setAndroidProxy() async {
@@ -423,7 +456,37 @@ class BrowserController extends ChangeNotifier {
   }
 
   void onProgressChanged(InAppWebViewController controller, int progress) {
-    _updateState(state.copyWith(progress: progress / 100));
+    _updateState(state.copyWith(
+      progress: progress / 100,
+      // Clear error once progress starts again (user retry)
+      hasConnectionError: progress < 10 ? false : state.hasConnectionError,
+    ));
+  }
+
+  void onReceivedError(InAppWebViewController controller, WebResourceRequest request, WebResourceError error) {
+    if (request.isForMainFrame ?? true) {
+      debugPrint('[Browser] Connection Error: ${error.description} (Code: ${error.type})');
+      _updateState(state.copyWith(
+        isWebViewLoading: false,
+        hasConnectionError: true,
+        lastErrorCode: error.type.toNativeValue(),
+        errorReason: error.description,
+      ));
+    }
+  }
+
+  void onReceivedHttpError(InAppWebViewController controller, WebResourceRequest request, WebResourceResponse errorResponse) {
+    if (request.isForMainFrame ?? true) {
+      final code = errorResponse.statusCode ?? 0;
+      // Capture proxy/tunnel failures (502, 503, 504)
+      if (code >= 400) {
+        debugPrint('[Browser] HTTP Error: $code for ${request.url}');
+        _updateState(state.copyWith(
+          hasConnectionError: code >= 500, // Likely tunnel issue
+          lastErrorCode: code,
+        ));
+      }
+    }
   }
 
   Future<WebResourceResponse?> shouldInterceptRequest(InAppWebViewController controller, WebResourceRequest request) async {

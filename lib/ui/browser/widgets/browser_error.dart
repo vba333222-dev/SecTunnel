@@ -2,141 +2,110 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../browser_controller.dart';
 import 'package:sec_tunnel/ui/shared/themed_lottie.dart';
+import 'package:sec_tunnel/models/browser_profile.dart';
 
 class BrowserError extends StatelessWidget {
-  const BrowserError({super.key});
+  final bool isConnectionError;
+  final BrowserProfile? profile;
+
+  const BrowserError({
+    super.key,
+    this.isConnectionError = false,
+    this.profile,
+  });
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<BrowserController>();
     final state = controller.state;
-    final proxyConfig = controller.profile.proxyConfig;
+    final proxyConfig = profile?.proxyConfig;
 
-    if (state.isProxyHealthy) {
+    if (state.isProxyHealthy && !state.hasConnectionError) {
       return const SizedBox.shrink();
     }
 
-    final hasRotationUrl = proxyConfig.rotationUrl != null && proxyConfig.rotationUrl!.isNotEmpty;
+    final hasRotationUrl = proxyConfig?.rotationUrl != null && proxyConfig!.rotationUrl!.isNotEmpty;
 
     return Container(
-      color: Colors.black87,
+      color: Colors.white.withValues(alpha: 0.9), // Glassy white overlay
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF1A1A28),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.redAccent.withValues(alpha: 0.3),
+                color: Colors.red.withValues(alpha: 0.1),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.redAccent.withValues(alpha: 0.12),
-                  blurRadius: 24,
-                  spreadRadius: 2,
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  blurRadius: 12,
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
                 ),
               ],
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Center(
-                    child: ThemedLottie(
-                      animation: LottieAnimation.connectionError,
-                      width: 72,
-                      height: 72,
-                      repeat: false,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.wifi_off_rounded,
-                          color: Colors.redAccent,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Proxy Connection Failed',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              controller.profile.name,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.45),
-                                fontSize: 12,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    state.errorReason ?? 'Could not reach the proxy server. The modem may be resetting or the credentials are incorrect. What would you like to do?',
-                    style: TextStyle(
-                      color: state.errorReason != null ? Colors.redAccent.withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.55),
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
+                  const ThemedLottie(
+                    animation: LottieAnimation.connectionError,
+                    width: 80,
+                    height: 80,
+                    repeat: false,
                   ),
                   const SizedBox(height: 20),
-                  Divider(color: Colors.white.withValues(alpha: 0.08)),
-                  const SizedBox(height: 16),
+                  Text(
+                    isConnectionError ? 'Connection Interrupted' : 'Connection Failed',
+                    style: const TextStyle(
+                      color: Color(0xFF202124),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    state.errorReason ?? 'Proxy tunnel is currently unreachable.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
                   if (hasRotationUrl) ...[
                     _ActionTile(
-                      icon: Icons.swap_horiz_rounded,
-                      iconColor: Colors.tealAccent,
-                      bgColor: Colors.tealAccent.withValues(alpha: 0.10),
-                      title: 'Rotate IP Now',
-                      subtitle: 'Request a new IP from the modem, then retry',
+                      icon: Icons.autorenew_rounded,
+                      iconColor: Colors.blue.shade700,
+                      bgColor: Colors.blue.shade50,
+                      title: 'Rotate IP & Retry',
+                      subtitle: 'Fresh start with a new modem identity',
                       onTap: controller.rotateAndRetry,
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                   ],
                   _ActionTile(
                     icon: Icons.refresh_rounded,
-                    iconColor: Colors.purpleAccent,
-                    bgColor: Colors.purpleAccent.withValues(alpha: 0.10),
-                    title: 'Retry Connection',
-                    subtitle: 'Re-check proxy health and reconnect',
+                    iconColor: Colors.grey.shade700,
+                    bgColor: Colors.grey.shade100,
+                    title: 'Quick Reconnect',
+                    subtitle: 'Keep current IP and try again',
                     onTap: controller.retryConnection,
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   _ActionTile(
                     icon: Icons.public_rounded,
-                    iconColor: Colors.amberAccent,
-                    bgColor: Colors.amberAccent.withValues(alpha: 0.08),
-                    title: 'Open Without Proxy',
-                    subtitle: 'Browse using your real IP (anonymity reduced)',
+                    iconColor: Colors.orange.shade700,
+                    bgColor: Colors.orange.shade50,
+                    title: 'Bypass Proxy',
+                    subtitle: 'Browse with real IP (unsafe)',
                     onTap: controller.bypassProxyAndLoad,
                     outlined: true,
                   ),
@@ -173,33 +142,24 @@ class _ActionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        splashColor: iconColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: outlined ? Colors.transparent : bgColor,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: outlined ? iconColor.withValues(alpha: 0.35) : iconColor.withValues(alpha: 0.18),
-              width: 1,
+              color: outlined ? iconColor.withValues(alpha: 0.2) : Colors.transparent,
+              width: 1.5,
             ),
           ),
           child: Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: outlined ? iconColor.withValues(alpha: 0.08) : bgColor,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
-              const SizedBox(width: 14),
+              Icon(icon, color: iconColor, size: 22),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,16 +167,15 @@ class _ActionTile extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        color: outlined ? iconColor : Colors.white,
+                        color: const Color(0xFF202124),
                         fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 2),
                     Text(
                       subtitle,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.42),
+                        color: Colors.grey.shade500,
                         fontSize: 11,
                       ),
                     ),
@@ -225,8 +184,8 @@ class _ActionTile extends StatelessWidget {
               ),
               Icon(
                 Icons.chevron_right_rounded,
-                color: Colors.white.withValues(alpha: 0.25),
-                size: 20,
+                color: Colors.grey.shade400,
+                size: 18,
               ),
             ],
           ),

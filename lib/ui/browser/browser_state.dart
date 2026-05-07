@@ -12,7 +12,12 @@ class BrowserState {
   final bool isIpFetching;
   final bool isRotating;
   final bool hudExpanded;
+  final bool hasConnectionError;
+  final int? lastErrorCode;
   final String? errorReason;
+  final bool isDownloading;
+  final double downloadProgress;
+  final String? downloadFileName;
 
   const BrowserState({
     this.isLoading = true,
@@ -26,6 +31,11 @@ class BrowserState {
     this.isRotating = false,
     this.hudExpanded = false,
     this.errorReason,
+    this.hasConnectionError = false,
+    this.lastErrorCode,
+    this.isDownloading = false,
+    this.downloadProgress = 0.0,
+    this.downloadFileName,
   });
 
   BrowserState copyWith({
@@ -40,6 +50,11 @@ class BrowserState {
     bool? isRotating,
     bool? hudExpanded,
     String? errorReason,
+    bool? hasConnectionError,
+    int? lastErrorCode,
+    bool? isDownloading,
+    double? downloadProgress,
+    String? downloadFileName,
   }) {
     return BrowserState(
       isLoading: isLoading ?? this.isLoading,
@@ -53,6 +68,11 @@ class BrowserState {
       isRotating: isRotating ?? this.isRotating,
       hudExpanded: hudExpanded ?? this.hudExpanded,
       errorReason: errorReason ?? this.errorReason,
+      hasConnectionError: hasConnectionError ?? this.hasConnectionError,
+      lastErrorCode: lastErrorCode ?? this.lastErrorCode,
+      isDownloading: isDownloading ?? this.isDownloading,
+      downloadProgress: downloadProgress ?? this.downloadProgress,
+      downloadFileName: downloadFileName ?? this.downloadFileName,
     );
   }
 }

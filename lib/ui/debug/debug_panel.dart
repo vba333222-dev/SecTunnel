@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sec_tunnel/core/logging/logger.dart';
 
 /// Hidden debug panel showing structured logs with level filtering.
@@ -62,6 +63,20 @@ class _DebugPanelState extends State<DebugPanel> {
                 onTap: () => setState(() => _filterLevel = LogLevel.info),
               ),
               const SizedBox(width: 8),
+              // Copy All
+              IconButton(
+                icon: const Icon(Icons.copy_all, size: 20),
+                tooltip: 'Copy all to clipboard',
+                onPressed: () {
+                  final allLogs = logs.map((e) => 
+                    '[${e.timestamp.toIso8601String()}] ${e.level.symbol} [${e.tag.label}] ${e.message}'
+                  ).join('\n');
+                  Clipboard.setData(ClipboardData(text: allLogs));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('All logs copied to clipboard'), duration: Duration(seconds: 1)),
+                  );
+                },
+              ),
               // Clear logs
               IconButton(
                 icon: const Icon(Icons.delete_outline, size: 20),
@@ -153,7 +168,7 @@ class _LogTile extends StatelessWidget {
           const SizedBox(width: 6),
           // Message
           Expanded(
-            child: Text(
+            child: SelectableText(
               entry.message,
               style: const TextStyle(
                 fontFamily: 'monospace',

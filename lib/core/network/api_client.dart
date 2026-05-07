@@ -229,22 +229,20 @@ class ApiClient {
   Future<Map<String, dynamic>> getJsonThroughProxy(String url) async {
     final uri = Uri.parse(url);
     final proxyHost = dotenv.env['PROXY_HOST'] ?? '35.198.231.6';
-    final proxyPort = int.tryParse(dotenv.env['PROXY_PORT'] ?? '') ?? 3128;
+    final proxyPort = int.tryParse(dotenv.env['PROXY_PORT'] ?? '') ?? 8080;
 
     _log.info(LogTag.network, 'Proxy GET $url via $proxyHost:$proxyPort');
 
+    final ioClient = HttpClient();
     try {
-      // Use HttpClient with explicit proxy for verification
-      final ioClient = HttpClient();
-      // Strictly enforce proxy host and port
+      ioClient.connectionTimeout = const Duration(seconds: 10);
       ioClient.findProxy = (uri) => 'PROXY $proxyHost:$proxyPort';
       
       final user = dotenv.env['PROXY_USER'];
       final pass = dotenv.env['PROXY_PASS'];
 
-      final request = await ioClient.getUrl(uri);
+      final request = await ioClient.getUrl(uri).timeout(const Duration(seconds: 10));
 
-      // Pre-emptively inject Proxy-Authorization header to avoid 407 loops
       if (user != null && pass != null) {
         final auth = base64Encode(utf8.encode('$user:$pass'));
         request.headers.set(
@@ -253,19 +251,26 @@ class ApiClient {
         );
       }
 
-      final response = await request.close();
+      final response = await request.close().timeout(const Duration(seconds: 15));
       final responseBody = await response.transform(utf8.decoder).join();
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return jsonDecode(responseBody) as Map<String, dynamic>;
       }
       throw ApiException.fromStatusCode(response.statusCode);
+    } on TimeoutException {
+      throw const ApiException(
+        type: ApiErrorType.timeout,
+        message: 'Proxy request timed out',
+      );
     } catch (e) {
       _log.error(LogTag.network, 'Proxy GET error: $e');
       throw ApiException(
         message: 'Proxy GET failed: $e',
         type: ApiErrorType.unknown,
       );
+    } finally {
+      ioClient.close();
     }
   }
 

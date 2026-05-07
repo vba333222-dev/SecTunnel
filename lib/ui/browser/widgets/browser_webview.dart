@@ -38,6 +38,8 @@ class BrowserWebView extends StatelessWidget {
           onLoadStart: controller.onLoadStart,
           onLoadStop: controller.onLoadStop,
           onProgressChanged: controller.onProgressChanged,
+          onReceivedError: controller.onReceivedError,
+          onReceivedHttpError: controller.onReceivedHttpError,
           onReceivedHttpAuthRequest: controller.onReceivedHttpAuthRequest,
           shouldInterceptRequest: controller.shouldInterceptRequest,
           shouldInterceptFetchRequest: controller.shouldInterceptFetchRequest,

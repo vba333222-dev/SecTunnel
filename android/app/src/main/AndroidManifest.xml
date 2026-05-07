@@ -15,7 +15,7 @@
     <application
         android:label="SecTunnel"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon"
+        android:icon="@mipmap/ic_launcher"
         android:hardwareAccelerated="true"
         android:usesCleartextTraffic="true"
         android:enableOnBackInvokedCallback="true">

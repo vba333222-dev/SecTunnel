@@ -119,19 +119,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       tags: ['Global'],
     );
 
-    // Trigger rotation immediately for optimistic UI
+    // Trigger rotation and await its completion to keep UI locked
     if (mounted) {
-      context.read<ModemRotatorService>().rotateIp(globalSessionId, 'Active Session');
+      await context.read<ModemRotatorService>().rotateIp(globalSessionId, 'Active Session');
     }
 
-    // Save into repo asynchronously
-    widget.repository.getProfileById(globalSessionId).then((existing) {
-      if (existing != null) {
-        widget.repository.updateProfile(profile);
-      } else {
-        widget.repository.createProfile(profile);
-      }
-    });
+    // Save profile updates to repository
+    final existing = await widget.repository.getProfileById(globalSessionId);
+    if (existing != null) {
+      await widget.repository.updateProfile(profile);
+    } else {
+      await widget.repository.createProfile(profile);
+    }
 
     return true;
   }
@@ -152,7 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => BrowserScreen(profile: profile),
+          builder: (_) => BrowserScreen(profileId: globalSessionId),
         ),
       );
     }
@@ -212,12 +211,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _launchBrowser,
-        backgroundColor: Colors.blue[600],
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.open_in_browser_rounded),
-        label: const Text('Launch Session', style: TextStyle(fontWeight: FontWeight.bold)),
+      floatingActionButton: Builder(
+        builder: (context) {
+          final rotator = context.watch<ModemRotatorService>();
+          final isSuccess = rotator.getState(globalSessionId) == RotationState.success;
+          
+          return FloatingActionButton.extended(
+            onPressed: isSuccess ? _launchBrowser : null,
+            backgroundColor: isSuccess ? Colors.blue[600] : Colors.grey[400],
+            foregroundColor: Colors.white,
+            elevation: isSuccess ? 6 : 0,
+            icon: Icon(
+              Icons.open_in_browser_rounded,
+              color: isSuccess ? Colors.white : Colors.white60,
+            ),
+            label: Text(
+              'Launch Session',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isSuccess ? Colors.white : Colors.white60,
+              ),
+            ),
+          );
+        },
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
@@ -245,7 +261,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: BigRotateButton(
                 profileId: globalSessionId,
                 onRotate: _saveAndRotate,
-                onLaunchBrowser: _launchBrowser,
               ),
             ),
             const SizedBox(height: 32),

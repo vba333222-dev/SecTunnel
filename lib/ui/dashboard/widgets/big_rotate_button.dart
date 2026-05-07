@@ -6,13 +6,11 @@ import 'package:sec_tunnel/services/proxy/modem_rotator_service.dart';
 class BigRotateButton extends StatefulWidget {
   final String profileId;
   final Future<bool> Function() onRotate; 
-  final VoidCallback onLaunchBrowser;
 
   const BigRotateButton({
     super.key,
     required this.profileId,
     required this.onRotate,
-    required this.onLaunchBrowser,
   });
 
   @override

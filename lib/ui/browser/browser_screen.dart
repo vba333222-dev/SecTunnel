@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:sec_tunnel/models/browser_profile.dart';
 import 'browser_controller.dart';
 import 'widgets/browser_topbar.dart';
 import 'widgets/browser_status_bar.dart';
@@ -9,24 +8,24 @@ import 'widgets/browser_loading.dart';
 import 'widgets/browser_error.dart';
 
 class BrowserScreen extends StatelessWidget {
-  final BrowserProfile profile;
+  final String profileId;
 
   const BrowserScreen({
     super.key,
-    required this.profile,
+    required this.profileId,
   });
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (context) {
-        final controller = BrowserController(profile: profile, context: context);
+        final controller = BrowserController(profileId: profileId, context: context);
         // Start async initialization
         controller.initializeApp();
         return controller;
       },
       child: Scaffold(
-        backgroundColor: Colors.black, // Immersive edge-to-edge
+        backgroundColor: Colors.white, // Light Mode Base
         body: SafeArea(
           child: Consumer<BrowserController>(
             builder: (context, controller, child) {
@@ -46,7 +45,7 @@ class BrowserScreen extends StatelessWidget {
                             left: 0,
                             top: 0,
                             bottom: 0,
-                            width: 24, // 24px invisible hit area on the left edge
+                            width: 24, 
                             child: GestureDetector(
                               behavior: HitTestBehavior.translucent,
                               onHorizontalDragEnd: (details) {
