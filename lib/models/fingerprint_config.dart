@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:sec_tunnel/services/fingerprint/session_seed.dart';
 import 'package:sec_tunnel/services/fingerprint/scripts/presets/device_preset.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/presets/preset_repository.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/presets/preset_variation.dart';
 
 /// Geolocation configuration
 class GeolocationConfig {
@@ -228,11 +230,11 @@ class FingerprintConfig {
     return FingerprintConfig(
       userAgent: preset.userAgent,
       platform: preset.platform,
-      vendor: 'Google Inc.', // usually overriden if needed by scripts, but default to Google Inc.
+      vendor: preset.vendor, 
       language: preset.locale,
       hardwareConcurrency: preset.hardwareConcurrency,
       deviceMemory: preset.deviceMemory,
-      maxTouchPoints: preset.touchPoints,
+      maxTouchPoints: preset.maxTouchPoints,
       devicePixelRatio: preset.devicePixelRatio,
       screenResolution: ScreenResolution(
         width: preset.screenWidth,
@@ -250,112 +252,15 @@ class FingerprintConfig {
   }
 
   factory FingerprintConfig.random() {
+    // Better strategy: Pick a random high-fidelity preset and apply variation
     final random = Random();
+    final presets = PresetRepository.presets;
+    final basePreset = presets[random.nextInt(presets.length)];
     
-    // Decide platform class first — all parameters derive from this
-    final isMobileProfile = random.nextBool();
+    // Apply variation with a random seed
+    final variedPreset = PresetVariation.applyVariation(basePreset, random.nextInt(1000000));
     
-    // ── Resolution pools (device-class aware) ────────────
-    late final List<ScreenResolution> resolutions;
-    late final List<String> userAgents;
-    late final List<int> cpuCores;
-    late final List<int> ramSizes;
-    late final List<WebGLConfig> webglPool;
-    late final String vendor;
-    late final int maxTouchPoints;
-    late final double dpr;
-
-    if (isMobileProfile) {
-      resolutions = [
-        const ScreenResolution(width: 390, height: 844, colorDepth: 32),
-        const ScreenResolution(width: 414, height: 896, colorDepth: 32),
-        const ScreenResolution(width: 360, height: 800, colorDepth: 24),
-      ];
-      userAgents = [
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
-        'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36',
-      ];
-      cpuCores = [6, 8];
-      ramSizes = [4, 6, 8];
-      webglPool = [
-        const WebGLConfig(vendor: 'Apple Inc.', renderer: 'Apple GPU'),
-        const WebGLConfig(vendor: 'Qualcomm', renderer: 'Adreno (TM) 650'),
-      ];
-      maxTouchPoints = 5;
-      dpr = [2.0, 3.0][random.nextInt(2)];
-    } else {
-      resolutions = [
-        const ScreenResolution(width: 1920, height: 1080, colorDepth: 24),
-        const ScreenResolution(width: 2560, height: 1440, colorDepth: 24),
-        const ScreenResolution(width: 1366, height: 768, colorDepth: 24),
-      ];
-      userAgents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      ];
-      cpuCores = [8, 12, 16];
-      ramSizes = [8, 16, 32];
-      webglPool = [
-        const WebGLConfig(
-          vendor: 'Google Inc. (NVIDIA)',
-          renderer: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0)',
-        ),
-        const WebGLConfig(
-          vendor: 'Google Inc. (AMD)',
-          renderer: 'ANGLE (AMD, AMD Radeon RX 6700 XT Direct3D11 vs_5_0 ps_5_0)',
-        ),
-        const WebGLConfig(
-          vendor: 'Google Inc. (Intel)',
-          renderer: 'ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0)',
-        ),
-      ];
-      maxTouchPoints = 0;
-      dpr = [1.0, 1.25, 1.5, 2.0][random.nextInt(4)];
-    }
-
-    // ── Select UA → derive platform + vendor ─────────────
-    final selectedUa = userAgents[random.nextInt(userAgents.length)];
-    String platform;
-    if (selectedUa.contains('iPhone')) {
-      platform = 'iPhone';
-      vendor = 'Apple Computer, Inc.';
-    } else if (selectedUa.contains('Android')) {
-      platform = 'Linux armv81';
-      vendor = 'Google Inc.';
-    } else if (selectedUa.contains('Macintosh')) {
-      platform = 'MacIntel';
-      vendor = 'Google Inc.';
-    } else {
-      platform = 'Win32';
-      vendor = 'Google Inc.';
-    }
-
-    // ── Languages / Timezones ────────────────────────────
-    final languages = ['en-US', 'en-GB', 'en-CA', 'id-ID'];
-    final timezones = [
-      'America/New_York',
-      'Europe/London',
-      'Asia/Jakarta',
-      'America/Los_Angeles',
-      'Asia/Singapore',
-    ];
-    
-    return FingerprintConfig(
-      userAgent: selectedUa,
-      platform: platform,
-      vendor: vendor,
-      language: languages[random.nextInt(languages.length)],
-      hardwareConcurrency: cpuCores[random.nextInt(cpuCores.length)],
-      deviceMemory: ramSizes[random.nextInt(ramSizes.length)],
-      maxTouchPoints: maxTouchPoints,
-      devicePixelRatio: dpr,
-      screenResolution: resolutions[random.nextInt(resolutions.length)],
-      timezone: timezones[random.nextInt(timezones.length)],
-      webglConfig: webglPool[random.nextInt(webglPool.length)],
-      canvasNoiseSalt: _generateRandomSalt(),
-      webrtcEnabled: random.nextBool(),
-    );
+    return FingerprintConfig.fromPreset(variedPreset);
   }
   
   static String _generateRandomSalt() {

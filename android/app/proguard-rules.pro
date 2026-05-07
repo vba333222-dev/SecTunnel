@@ -1,43 +1,52 @@
 # ------------------------------------------------------------------------------
-# PBrowser Custom ProGuard / R8 Rules
+# SecTunnel Production-Grade ProGuard / R8 Hardening Rules
 # ------------------------------------------------------------------------------
 
-# 1. PBrowser Native Classes (MainActivity, ProxyHttpOverrides, dll)
--keep class com.example.pbrowser.** { *; }
--keepclassmembers class com.example.pbrowser.** { *; }
+# 1. Obfuscation Level
+-optimizationpasses 5
+-allowaccessmodification
+-repackageclasses ''
 
-# 2. Native JNI Communication (Krusial untuk injeksi Fingerprint / Proxy / Low-level bypass)
-# Mencegah R8 menghapus atau mengganti nama fungsi native JNI
+# 2. Keep Essential Flutter Infrastructure
+-keep class io.flutter.app.** { *; }
+-keep class io.flutter.plugin.common.** { *; }
+-keep class io.flutter.embedding.engine.** { *; }
+-keep class io.flutter.plugins.** { *; }
+-keep class io.flutter.view.** { *; }
+
+# 3. SecTunnel Native Entry Points (Keep only what is necessary)
+-keep class com.example.pbrowser.MainActivity { *; }
+# Keep the generated Flutter registration class
+-keep class com.example.pbrowser.GeneratedPluginRegistrant { *; }
+
+# 4. INTERNAL LOGIC OBFUSCATION (The "Sealing" part)
+# We remove the broad -keep for com.example.pbrowser.**
+# This allows R8 to rename all internal services, models, and utility classes.
+
+# 5. Native JNI Communication
 -keepclasseswithmembernames,includedescriptorclasses class * {
     native <methods>;
 }
 
-# 3. Flutter MethodChannel & Plugin Registration
-# Mencegah MethodChannel terhapus saat rilis
--keep class io.flutter.plugin.common.** { *; }
--keep class io.flutter.app.** { *; }
--keep class io.flutter.plugin.**  { *; }
--keep class io.flutter.util.**  { *; }
--keep class io.flutter.view.**  { *; }
--keep class io.flutter.**  { *; }
--keep class io.flutter.plugins.**  { *; }
-
-# 4. WebView Plugin & AndroidX WebKit (Browser API, ProxyController, CookieManager)
-# Mencegah crash pada Proxy Controller dan injeksi WebView
+# 6. WebView & Javascript Interface (CRITICAL: Do NOT obfuscate @JavascriptInterface)
 -keep class androidx.webkit.** { *; }
 -keep class android.webkit.** { *; }
--keep class io.flutter.plugins.webviewflutter.** { *; }
--keep class io.flutter.plugins.webviewflutter_android.** { *; }
-
-# Memastikan JavascriptInterface tidak diobfuscate (Krusial untuk komunikasi WebView <-> Native)
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;
 }
 
-# 5. Networking Core
--keep class java.net.** { *; }
--keep class javax.net.ssl.** { *; }
+# 7. Reflection Support for Plugins
+-keepattributes Signature,Exceptions,*Annotation*,InnerClasses,EnclosingMethod
 
-# 6. Ignore missing Play Store classes (deferred components)
--dontwarn io.flutter.embedding.engine.deferredcomponents.**
--dontwarn com.google.android.play.core.**
+# 8. Remove Debug Logs from Bytecode (Side-channel prevention)
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
+    public static int i(...);
+    public static int w(...);
+    public static int e(...);
+}
+
+# 9. JSON & Models (If using reflection for serialization)
+# Keep names for classes that might be serialized via MethodChannel
+-keepclassmembernames class com.example.pbrowser.models.** { *; }

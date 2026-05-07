@@ -42,12 +42,7 @@ class ImperfectionEngine {
         let driftAmplitude = ((seed % 100) / 100) * 1.5; 
         let period = 60000 * 5; 
         let phase = (seed % 10000) / 10000 * Math.PI * 2;
-        return time + Math.sin((time / period) * Math.PI * 2 + phase) * driftAmplitude;
       }
-      
-      console.debug("[IMPERFECTION] Engine initialized");
-      console.debug("[IMPERFECTION] Seed applied");
-      console.debug("[IMPERFECTION] Modules correlated");
 ''';
   }
 }

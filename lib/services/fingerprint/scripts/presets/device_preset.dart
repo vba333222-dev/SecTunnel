@@ -4,6 +4,7 @@ class DevicePreset {
   final String category; // 'mobile', 'laptop', 'desktop'
   final String userAgent;
   final String platform;
+  final String vendor; // navigator.vendor
   final int hardwareConcurrency;
   final int deviceMemory;
   final double devicePixelRatio;
@@ -14,7 +15,7 @@ class DevicePreset {
   final String gpuVendor;
   final String gpuRenderer;
   final String webglVersion;
-  final int touchPoints;
+  final int maxTouchPoints;
   final String timezone;
   final String locale;
   final List<String> fonts;
@@ -30,6 +31,7 @@ class DevicePreset {
     required this.category,
     required this.userAgent,
     required this.platform,
+    required this.vendor,
     required this.hardwareConcurrency,
     required this.deviceMemory,
     required this.devicePixelRatio,
@@ -40,7 +42,7 @@ class DevicePreset {
     required this.gpuVendor,
     required this.gpuRenderer,
     required this.webglVersion,
-    required this.touchPoints,
+    required this.maxTouchPoints,
     required this.timezone,
     required this.locale,
     required this.fonts,

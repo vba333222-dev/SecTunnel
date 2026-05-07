@@ -12,11 +12,7 @@ class ContextEngine {
         if (!targetWin.navigator) return;
         const mainNav = (typeof window !== 'undefined' ? window : self).navigator.userAgent;
         const targetNav = targetWin.navigator.userAgent;
-        if (mainNav !== targetNav) {
-          console.error(`[CONTEXT] Consistency mismatch detected in \${contextName}!`);
-        } else {
-          console.debug(`[CONTEXT] consistency verified`);
-        }
+        // Validation logic kept for internal state if needed, but logs removed
       } catch(e) {}
     };
 

@@ -26,7 +26,7 @@ class PresetVariation {
     if (varVW > preset.screenWidth) varVW = preset.screenWidth;
     if (varVH > preset.screenHeight) varVH = preset.screenHeight;
 
-    print("[PRESET] Variation applied to \${preset.id}");
+    print("[PRESET] Variation applied to ${preset.id}");
 
     return DevicePreset(
       id: preset.id,
@@ -34,6 +34,7 @@ class PresetVariation {
       category: preset.category,
       userAgent: preset.userAgent,
       platform: preset.platform,
+      vendor: preset.vendor,
       hardwareConcurrency: preset.hardwareConcurrency,
       deviceMemory: preset.deviceMemory,
       devicePixelRatio: varDpr,
@@ -44,7 +45,7 @@ class PresetVariation {
       gpuVendor: preset.gpuVendor,
       gpuRenderer: preset.gpuRenderer,
       webglVersion: preset.webglVersion,
-      touchPoints: preset.touchPoints,
+      maxTouchPoints: preset.maxTouchPoints,
       timezone: preset.timezone,
       locale: preset.locale,
       fonts: preset.fonts,

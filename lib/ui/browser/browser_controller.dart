@@ -31,6 +31,7 @@ class BrowserController extends ChangeNotifier {
 
   InAppWebViewController? webViewController;
   final TextEditingController urlController = TextEditingController();
+  final FocusNode urlFocusNode = FocusNode();
 
   FingerprintConfig? _activeFingerprint;
   FingerprintConfig get activeFingerprint => _activeFingerprint!;
@@ -49,6 +50,21 @@ class BrowserController extends ChangeNotifier {
 
   BrowserController({required this.profileId, required this.context}) {
     urlController.text = state.currentUrl;
+    
+    // Select all text on focus (Browser-like UX)
+    urlFocusNode.addListener(() {
+      if (urlFocusNode.hasFocus) {
+        urlController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: urlController.text.length,
+        );
+      }
+    });
+
+    // Update UI when text changes (for Clear button visibility)
+    urlController.addListener(() {
+      notifyListeners();
+    });
   }
 
   void _updateState(BrowserState newState) {
@@ -226,37 +242,24 @@ class BrowserController extends ChangeNotifier {
       return;
     }
 
-    if (proxyHost.contains('sectunnel.online')) {
-      try {
-        final scheme = proxyType == ProxyType.socks5 ? 'socks5' : 'http';
-        String proxyUrl;
-        if (proxyUser != null && proxyPass != null && proxyUser.isNotEmpty && proxyPass.isNotEmpty) {
-          proxyUrl = '$scheme://$proxyUser:$proxyPass@$proxyHost:$proxyPort';
-        } else {
-          proxyUrl = '$scheme://$proxyHost:$proxyPort';
-        }
-        await ProxyController.instance().setProxyOverride(
-          settings: ProxySettings(proxyRules: [ProxyRule(url: proxyUrl)]),
-        );
-      } catch (e) {
-        debugPrint('[Browser] ProxyController.setProxyOverride error: $e');
-      }
-    } else {
+    try {
       final scheme = proxyType == ProxyType.socks5 ? 'socks5' : 'http';
       String proxyUrl;
       if (proxyUser != null && proxyPass != null && proxyUser.isNotEmpty && proxyPass.isNotEmpty) {
+        // InAppWebView's ProxyController supports inline credentials in some versions/configurations
         proxyUrl = '$scheme://$proxyUser:$proxyPass@$proxyHost:$proxyPort';
       } else {
         proxyUrl = '$scheme://$proxyHost:$proxyPort';
       }
 
-      try {
-        await ProxyController.instance().setProxyOverride(
-          settings: ProxySettings(proxyRules: [ProxyRule(url: proxyUrl)]),
-        );
-      } catch (e) {
-        debugPrint('[Browser] ProxyController.setProxyOverride error: $e');
-      }
+      await ProxyController.instance().setProxyOverride(
+        settings: ProxySettings(
+          proxyRules: [ProxyRule(url: proxyUrl)],
+          bypassRules: ["*"],
+        ),
+      );
+    } catch (e) {
+      debugPrint('[Browser] ProxyController.setProxyOverride error: $e');
     }
 
     try {
@@ -520,27 +523,56 @@ class BrowserController extends ChangeNotifier {
   }
 
   Future<HttpAuthResponse?> onReceivedHttpAuthRequest(InAppWebViewController controller, URLAuthenticationChallenge challenge) async {
-    final expectedHost = profile.proxyConfig.host;
-    final proxyUsername = profile.proxyConfig.username ?? 'admin';
-    final proxyPassword = profile.proxyConfig.password ?? 'rotator123';
+    final proxyConfig = profile.proxyConfig;
+    final proxyUsername = proxyConfig.username ?? 'admin';
+    final proxyPassword = proxyConfig.password ?? 'rotator123';
 
-    bool hostMatches = challenge.protectionSpace.host == expectedHost;
+    // Log the challenge for debugging
+    debugPrint('[Browser] Auth Challenge from: ${challenge.protectionSpace.host}:${challenge.protectionSpace.port} (Type: ${challenge.protectionSpace.proxyType})');
 
-    if (hostMatches) {
+    // PROXY DETECTION HEURISTICS
+    // 1. Explicit Proxy Type
+    bool isProxyChallenge = challenge.protectionSpace.proxyType != null;
+    // 2. Host match
+    bool hostMatches = challenge.protectionSpace.host == proxyConfig.host;
+    // 3. Port match (Tinyproxy usually 8080 or seen as -1 in some logs)
+    bool portMatches = challenge.protectionSpace.port == proxyConfig.port || 
+                       challenge.protectionSpace.port == 8080 ||
+                       challenge.protectionSpace.port == -1;
+    // 4. Any auth request when using a proxy (Aggressive but safe for this use case)
+    bool shouldHandle = isProxyChallenge || hostMatches || portMatches;
+
+    if (shouldHandle) {
+      debugPrint('[Browser] Injecting Proxy Credentials for ${challenge.protectionSpace.host}');
       return HttpAuthResponse(
         username: proxyUsername,
         password: proxyPassword,
         action: HttpAuthResponseAction.PROCEED,
       );
-    } else {
-      return HttpAuthResponse(action: HttpAuthResponseAction.CANCEL);
     }
+    
+    return null; // Let the default handler take over for non-proxy auth
+  }
+
+  Future<ServerTrustAuthResponse?> onReceivedServerTrustAuthRequest(InAppWebViewController controller, URLAuthenticationChallenge challenge) async {
+    // BYPASS SSL HANDSHAKE ERRORS FOR PROXY TUNNELS
+    debugPrint('[Browser] Bypassing SSL Handshake for ${challenge.protectionSpace.host}');
+    return ServerTrustAuthResponse(action: ServerTrustAuthResponseAction.PROCEED);
+  }
+
+  Future<ClientCertResponse?> onReceivedClientCertRequest(InAppWebViewController controller, URLAuthenticationChallenge challenge) async {
+    // Note: In v6, ClientCertResponse requires certificatePath even for CANCEL.
+    return ClientCertResponse(
+      certificatePath: "", 
+      action: ClientCertResponseAction.CANCEL,
+    );
   }
 
   @override
   void dispose() {
     _isDisposed = true;
     urlController.dispose();
+    urlFocusNode.dispose();
     activeScripts.clear();
     
     final proxyPort = profile.proxyConfig.port;

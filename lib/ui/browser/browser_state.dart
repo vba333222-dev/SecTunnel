@@ -25,7 +25,7 @@ class BrowserState {
     this.isControllerInitialized = false,
     this.isProxyHealthy = true,
     this.progress = 0.0,
-    this.currentUrl = 'https://duckduckgo.com',
+    this.currentUrl = 'https://www.startpage.com/',
     this.currentPublicIp,
     this.isIpFetching = false,
     this.isRotating = false,

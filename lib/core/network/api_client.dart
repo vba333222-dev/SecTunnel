@@ -241,6 +241,18 @@ class ApiClient {
       final user = dotenv.env['PROXY_USER'];
       final pass = dotenv.env['PROXY_PASS'];
 
+      if (user != null && pass != null) {
+        ioClient.authenticateProxy = (host, port, scheme, realm) async {
+          ioClient.addProxyCredentials(
+            host,
+            port,
+            realm ?? '',
+            HttpClientBasicCredentials(user, pass),
+          );
+          return true;
+        };
+      }
+
       final request = await ioClient.getUrl(uri).timeout(const Duration(seconds: 10));
 
       if (user != null && pass != null) {

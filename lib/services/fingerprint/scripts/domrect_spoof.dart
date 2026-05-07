@@ -12,37 +12,30 @@ class DOMRectSpoof {
 (() => {
   const profileSeed = $seed;
 
-  // Simple deterministic pseudo-random generator based on seed + string content
   const stringHash = (str) => {
     let hash = profileSeed;
     for (let i = 0; i < str.length; i++) {
         const char = str.charCodeAt(i);
         hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32bit integer
+        hash = hash & hash;
     }
     return hash;
   };
 
-  // Generates a micro noise between -0.001 and +0.001 based on element properties
   const getMicroNoise = (element, propertyIndex) => {
      let contentTag = element.tagName || 'UKN';
-     if (element.textContent && element.textContent.length > 0) {
-         contentTag += element.textContent.substring(0, 50); // Hash first 50 chars of content
+     if (element.textContent) {
+         contentTag += element.textContent.substring(0, 50);
      } else if (element.className) {
          contentTag += element.className;
      }
-     
-     // Generate deterministic noise specific to this element and property
      const hash = stringHash(contentTag + propertyIndex);
-     // Normalize hash to a float between -0.001 and 0.001
      const normalized = (Math.abs(hash) % 2000) / 1000000; 
      return normalized - 0.001;
   };
 
   // --- Spoof getBoundingClientRect ---
   const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
-  
-  // Pick up font-metric deltas published by FontMetricsSpoof (C-5 audit fix)
   const _fwd = () => window.__pbr_wdelta || 0;
   const _fhd = () => window.__pbr_hdelta || 0;
 
@@ -56,7 +49,8 @@ class DOMRectSpoof {
     const fwd = rect.width  === 0 ? 0 : _fwd();
     const fhd = rect.height === 0 ? 0 : _fhd();
 
-    return {
+    const spoofed = Object.create(DOMRect.prototype);
+    const props = {
       top:    rect.top    === 0 ? 0 : rect.top    + noiseTop,
       left:   rect.left   === 0 ? 0 : rect.left   + noiseLeft,
       right:  rect.right  === 0 ? 0 : rect.right  + noiseRight + fwd,
@@ -64,21 +58,25 @@ class DOMRectSpoof {
       width:  rect.width  === 0 ? 0 : rect.width  + (noiseRight - noiseLeft) + fwd,
       height: rect.height === 0 ? 0 : rect.height + (noiseBottom - noiseTop) + fhd,
       x: rect.x === 0 ? 0 : rect.x + noiseLeft,
-      y: rect.y === 0 ? 0 : rect.y + noiseTop,
-      toJSON: () => rect.toJSON ? rect.toJSON() : JSON.stringify(this)
+      y: rect.y === 0 ? 0 : rect.y + noiseTop
     };
+
+    Object.entries(props).forEach(([key, val]) => {
+      Object.defineProperty(spoofed, key, { value: val, enumerable: true, configurable: true });
+    });
+
+    return spoofed;
   };
 
   window.__pbrowser_cloak(spoofedGetBoundingClientRect, 'function getBoundingClientRect() { [native code] }');
   Element.prototype.getBoundingClientRect = spoofedGetBoundingClientRect;
-
 
   // --- Spoof getClientRects ---
   const originalGetClientRects = Element.prototype.getClientRects;
 
   const spoofedGetClientRects = function() {
     const rects = originalGetClientRects.apply(this, arguments);
-    const result = [];
+    const items = [];
     
     for (let i = 0; i < rects.length; i++) {
         const rect = rects[i];
@@ -87,7 +85,8 @@ class DOMRectSpoof {
         const noiseRight = getMicroNoise(this, i + 30);
         const noiseBottom = getMicroNoise(this, i + 40);
 
-        result.push({
+        const spoofed = Object.create(DOMRect.prototype);
+        const props = {
           top: rect.top === 0 ? 0 : rect.top + noiseTop,
           left: rect.left === 0 ? 0 : rect.left + noiseLeft,
           right: rect.right === 0 ? 0 : rect.right + noiseRight,
@@ -95,24 +94,32 @@ class DOMRectSpoof {
           width: rect.width === 0 ? 0 : rect.width + (noiseRight - noiseLeft),
           height: rect.height === 0 ? 0 : rect.height + (noiseBottom - noiseTop),
           x: rect.x === 0 ? 0 : rect.x + noiseLeft,
-          y: rect.y === 0 ? 0 : rect.y + noiseTop,
-          toJSON: () => rect.toJSON ? rect.toJSON() : JSON.stringify(this)
+          y: rect.y === 0 ? 0 : rect.y + noiseTop
+        };
+
+        Object.entries(props).forEach(([key, val]) => {
+          Object.defineProperty(spoofed, key, { value: val, enumerable: true, configurable: true });
         });
+        items.push(spoofed);
     }
     
-    // Add item method to match DOMRectList interface
-    result.item = function(index) {
-        return this[index];
-    };
+    // Create a DOMRectList lookalike
+    const list = Object.create(DOMRectList.prototype);
+    items.forEach((item, index) => {
+      list[index] = item;
+    });
     
-    window.__pbrowser_cloak(result.item, 'function item() { [native code] }');
+    Object.defineProperty(list, 'length', { value: items.length, enumerable: false, configurable: true });
+    
+    list.item = window.__pbrowser_cloak(function item(index) {
+        return this[index] || null;
+    }, 'function item() { [native code] }');
 
-    return result;
+    return list;
   };
 
   window.__pbrowser_cloak(spoofedGetClientRects, 'function getClientRects() { [native code] }');
   Element.prototype.getClientRects = spoofedGetClientRects;
-
 })();
 ''';
   }

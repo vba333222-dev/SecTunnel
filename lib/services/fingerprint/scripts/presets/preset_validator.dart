@@ -27,7 +27,7 @@ class PresetValidator {
     
     // Mobile Checks
     if (preset.category == 'mobile') {
-      if (preset.touchPoints <= 0) isValid = false;
+      if (preset.maxTouchPoints <= 0) isValid = false;
       if (!preset.userAgent.contains('Mobile')) isValid = false;
       if (preset.devicePixelRatio < 1.5) isValid = false;
     }

@@ -36,6 +36,9 @@ class ModemRotatorService extends ChangeNotifier {
   String? _activeProfileId;
   String? _activeProfileName;
 
+  bool _isBusy = false;
+  bool get isBusyGlobal => _isBusy;
+
   final List<RotationLog> _logs = [];
   List<RotationLog> get logs => List.unmodifiable(_logs);
 
@@ -95,6 +98,7 @@ class ModemRotatorService extends ChangeNotifier {
     
     _activeProfileId = profileId;
     _activeProfileName = profileName;
+    _isBusy = true;
     notifyListeners();
 
     final stopwatch = Stopwatch()..start();
@@ -204,12 +208,16 @@ class ModemRotatorService extends ChangeNotifier {
       _consecutiveFailures[profileId] = (_consecutiveFailures[profileId] ?? 0) + 1;
       _setState(profileId, RotationState.failed, error: errorMsg);
       
+      _isBusy = false;
+      notifyListeners();
       return false;
       
     } finally {
+      _isBusy = false;
       stopwatch.stop();
       _updateHealthAndCooldown(profileId, success, oldInfo?.ip, newInfo?.ip);
       _scheduleReset(profileId);
+      notifyListeners();
     }
   }
 

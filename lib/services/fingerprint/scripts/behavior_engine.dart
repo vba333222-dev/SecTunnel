@@ -59,8 +59,6 @@ class BehaviorEngine {
           return _isMobile ? latency * 1.5 : latency;
         }
       };
-
-      console.debug("[BEHAVIOR] Engine initialized");
 ''';
   }
 }

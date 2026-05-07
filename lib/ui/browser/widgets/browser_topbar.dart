@@ -154,18 +154,31 @@ class BrowserTopBar extends StatelessWidget {
                           Expanded(
                             child: TextField(
                               controller: controller.urlController,
+                              focusNode: controller.urlFocusNode,
                               enabled: state.isProxyHealthy && !state.isRotating,
                               style: const TextStyle(color: Color(0xFF202124), fontSize: 15, fontWeight: FontWeight.w400),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 hintText: 'Search or type URL',
-                                hintStyle: TextStyle(color: Colors.black38),
+                                hintStyle: const TextStyle(color: Colors.black38),
                                 border: InputBorder.none,
                                 isDense: true,
                                 contentPadding: EdgeInsets.zero,
+                                suffixIcon: controller.urlController.text.isNotEmpty 
+                                  ? GestureDetector(
+                                      onTap: () => controller.urlController.clear(),
+                                      child: const Icon(Icons.cancel_rounded, size: 18, color: Colors.black26),
+                                    )
+                                  : null,
+                                suffixIconConstraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                               ),
                               keyboardType: TextInputType.url,
+                              autocorrect: false,
+                              enableSuggestions: false,
                               textInputAction: TextInputAction.go,
-                              onSubmitted: controller.loadUrl,
+                              onSubmitted: (val) {
+                                controller.loadUrl(val);
+                                controller.urlFocusNode.unfocus();
+                              },
                             ),
                           ),
                           if (state.isWebViewLoading)

@@ -15,6 +15,7 @@ import 'widgets/big_rotate_button.dart';
 import 'widgets/status_card_widget.dart';
 import 'widgets/activity_log_widget.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:sec_tunnel/ui/security/security_scan_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ProfileRepository repository;
@@ -206,6 +207,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: const Icon(Icons.bug_report_outlined),
               onPressed: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const DebugPanel()));
+              },
+            ),
+          ),
+          Tooltip(
+            message: 'Security Audit',
+            child: IconButton(
+              icon: const Icon(Icons.security_rounded, color: Colors.greenAccent),
+              onPressed: () {
+                if (_selectedPreset != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SecurityScanScreen(
+                        config: FingerprintConfig.fromPreset(_selectedPreset!),
+                      ),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please select a preset first.')),
+                  );
+                }
               },
             ),
           ),

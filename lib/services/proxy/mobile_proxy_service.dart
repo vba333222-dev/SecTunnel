@@ -48,41 +48,50 @@ class MobileProxyService {
 
   MobileProxyService([ApiClient? api]) : _api = api ?? ApiClient.instance;
 
-  /// Fetches current public IP using api.ipify.org via the proxy.
-  /// IMPORTANT: Uses PROXY $host:$port to avoid direct leakage.
+  /// Fetches current public IP via the proxy with fallback support.
+  /// IMPORTANT: Uses HTTPS and PROXY authentication to avoid blockages.
   Future<IpInfo> getIpInfo() async {
-    const ipUrl = 'http://api.ipify.org?format=json';
-    
-    try {
-      final json = await _api.getJsonThroughProxy(ipUrl);
-      
-      final ip = json['ip'] as String?;
-      if (ip == null || ip.isEmpty) {
-        throw const RotationException(
-          RotationErrorType.validationFailed,
-          'IP API returned empty response',
-        );
-      }
+    final List<String> endpoints = [
+      'https://api.ipify.org?format=json',
+      'https://ipinfo.io/json',
+      'https://api.myip.com',
+    ];
 
-      return IpInfo.fromJson({
-        'query': ip,
-        'status': 'success',
-        'country': 'Unknown',
-        'isp': 'Unknown',
-      });
-    } on RotationException {
-      rethrow;
-    } on ApiException catch (e) {
-      throw RotationException(
-        _mapApiError(e.type),
-        e.message,
-      );
-    } catch (e) {
-      throw RotationException(
-        RotationErrorType.validationFailed,
-        e.toString(),
-      );
+    Object? lastError;
+
+    for (final url in endpoints) {
+      try {
+        final json = await _api.getJsonThroughProxy(url);
+        
+        // Extract IP based on different API response structures
+        String? ip;
+        if (url.contains('ipify')) {
+          ip = json['ip'] as String?;
+        } else if (url.contains('ipinfo')) {
+          ip = json['ip'] as String?;
+        } else if (url.contains('myip')) {
+          ip = json['ip'] as String?;
+        }
+
+        if (ip != null && ip.isNotEmpty) {
+          return IpInfo.fromJson({
+            'query': ip,
+            'status': 'success',
+            'country': json['country'] ?? 'Unknown',
+            'isp': json['org'] ?? json['isp'] ?? 'Unknown',
+          });
+        }
+      } catch (e) {
+        lastError = e;
+        // Continue to next fallback
+      }
     }
+
+    // If all fail
+    throw RotationException(
+      RotationErrorType.validationFailed,
+      'All IP verification endpoints failed. Last error: $lastError',
+    );
   }
 
   /// Sends a POST /rotate to the relay VPS.
