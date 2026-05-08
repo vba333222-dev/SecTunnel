@@ -38,6 +38,10 @@ import 'package:sec_tunnel/services/fingerprint/scripts/intl_api_spoof.dart';
 import 'package:sec_tunnel/services/fingerprint/scripts/utils.dart';
 import 'package:sec_tunnel/services/fingerprint/scripts/behavior_engine.dart';
 import 'package:sec_tunnel/services/fingerprint/scripts/context_engine.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/agro_injector.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/plugin_spoof.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/permissions_spoof.dart';
+
 
 /// Orchestrates all fingerprint spoofing scripts into a single coherent
 /// injection payload. Validates cross-parameter consistency before generating.
@@ -104,6 +108,14 @@ class FingerprintInjector {
   // ═══ PHASE 1: Environment Sanitization ═══════════════════════
   // Wipe out Android/Flutter WebView leaks immediately
   ${WebviewScrubber.generate(config)}
+  
+  // L-Agro: Aggressive Hardening (CreepJS specialized fix)
+  ${AgroInjector.generate(config)}
+  
+  ${PluginSpoof.generate(config)}
+  
+  ${PermissionsSpoof.generate(config)}
+
   
   // ═══ PHASE 2: Core Identity (navigator.*) ════════════════════
   // All navigator properties spoofed from unified DeviceFingerprint

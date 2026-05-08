@@ -5,9 +5,9 @@ import 'package:sec_tunnel/models/fingerprint_config.dart';
 /// screen.availLeft/availTop match desktop taskbar offsets (M-1 audit fix).
 class ScreenSpoof {
   static String generate(FingerprintConfig config) {
-    if (!config.isDesktop) {
-      return '// [ScreenSpoof] Mobile profile — screen properties intact.';
-    }
+    // Phase 24 Hardening: Apply to all profiles (Mobile + Desktop)
+    // to prevent leakage of the real Android device screen dimensions.
+
 
     final platform = config.platform.toLowerCase();
 

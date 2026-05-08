@@ -17,6 +17,9 @@ class BrowserScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // PHASE 28: Total Environment Stealth - Enforcing AT_DOCUMENT_START Injection
+    // The BrowserController initializes the anti-detect scripts via FingerprintInjector
+    // which are then passed to the InAppWebView in BrowserWebView.
     return ChangeNotifierProvider(
       create: (context) {
         final controller = BrowserController(profileId: profileId, context: context);

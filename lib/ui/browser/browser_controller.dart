@@ -369,7 +369,16 @@ class BrowserController extends ChangeNotifier {
       url = 'https://$url';
     }
     
-    webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+    webViewController?.loadUrl(
+      urlRequest: URLRequest(
+        url: WebUri(url),
+        headers: {
+          'Sec-CH-UA': activeFingerprint.secChUa,
+          'Sec-CH-UA-Mobile': activeFingerprint.secChUaMobile,
+          'Sec-CH-UA-Platform': activeFingerprint.secChUaPlatform,
+        },
+      ),
+    );
     FocusManager.instance.primaryFocus?.unfocus();
   }
 
@@ -508,9 +517,8 @@ class BrowserController extends ChangeNotifier {
     request.headers!['User-Agent'] = activeFingerprint.userAgent;
     if (activeFingerprint.secChUa.isNotEmpty) {
       request.headers!['Sec-CH-UA'] = activeFingerprint.secChUa;
-      request.headers!['Sec-CH-UA-Mobile'] =
-          activeFingerprint.platform.toLowerCase().contains('android') ? '?1' : '?0';
-      request.headers!['Sec-CH-UA-Platform'] = '"${activeFingerprint.platform}"';
+      request.headers!['Sec-CH-UA-Mobile'] = activeFingerprint.secChUaMobile;
+      request.headers!['Sec-CH-UA-Platform'] = activeFingerprint.secChUaPlatform;
     }
     return request;
   }

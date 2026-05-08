@@ -15,7 +15,7 @@ import 'widgets/big_rotate_button.dart';
 import 'widgets/status_card_widget.dart';
 import 'widgets/activity_log_widget.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:sec_tunnel/ui/security/security_scan_screen.dart';
+import 'package:sec_tunnel/ui/security/stealth_audit_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ProfileRepository repository;
@@ -219,7 +219,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => SecurityScanScreen(
+                      builder: (_) => StealthAuditScreen(
                         config: FingerprintConfig.fromPreset(_selectedPreset!),
                       ),
                     ),

@@ -33,6 +33,8 @@ class BrowserWebView extends StatelessWidget {
           webViewEnvironment: controller.environment,
           initialUrlRequest: URLRequest(url: WebUri(state.currentUrl)),
           initialSettings: controller.webViewSettings,
+          // CRITICAL: UserScripts must use UserScriptInjectionTime.AT_DOCUMENT_START
+          // to bypass aggressive trackers like CreepJS by running before any 3rd party scripts.
           initialUserScripts: UnmodifiableListView<UserScript>(controller.generatedUserScripts),
           onWebViewCreated: controller.onWebViewCreated,
           onLoadStart: controller.onLoadStart,

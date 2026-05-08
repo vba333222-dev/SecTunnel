@@ -115,14 +115,23 @@ class FingerprintConfig {
   });
   
   String get secChUa {
-    if (userAgent.contains('Chrome/')) {
-      final match = RegExp(r'Chrome\/([0-9]+)').firstMatch(userAgent);
-      if (match != null) {
-        final version = match.group(1);
-        return '"Not_A Brand";v="8", "Chromium";v="$version", "Google Chrome";v="$version"';
-      }
+    final match = RegExp(r'Chrome\/([0-9]+)').firstMatch(userAgent);
+    if (match != null) {
+      final version = match.group(1);
+      return '"Not_A Brand";v="8", "Chromium";v="$version", "Google Chrome";v="$version"';
     }
     return '';
+  }
+
+  String get secChUaMobile => isMobile ? '?1' : '?0';
+
+  String get secChUaPlatform {
+    final p = platform.toLowerCase();
+    if (p.contains('win')) return '"Windows"';
+    if (p.contains('mac')) return '"macOS"';
+    if (p.contains('android')) return '"Android"';
+    if (p.contains('linux')) return '"Linux"';
+    return '"Windows"';
   }
   
   /// Returns a combined seed using the profile's salt and the global SessionSeed.
