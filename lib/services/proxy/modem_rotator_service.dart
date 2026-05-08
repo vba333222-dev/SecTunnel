@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -6,6 +7,8 @@ import 'package:sec_tunnel/core/logging/logger.dart';
 import 'package:sec_tunnel/services/proxy/mobile_proxy_service.dart';
 import 'package:sec_tunnel/models/rotation_log.dart';
 import 'package:sec_tunnel/models/ip_info.dart';
+import 'package:sec_tunnel/services/operation/profile_health_service.dart';
+import 'package:sec_tunnel/models/operation/profile_health.dart';
 
 // ─── State Machine ──────────────────────────────────────────────
 enum RotationState {
@@ -22,6 +25,7 @@ enum RotationState {
 // ─── Orchestrator Service ───────────────────────────────────────
 class ModemRotatorService extends ChangeNotifier {
   final MobileProxyService _proxyService;
+  final ProfileHealthService _healthService = ProfileHealthService();
   static const _platform = MethodChannel('com.example.pbrowser/proxy');
 
   // ── Per-Profile State ──────────────────────────────────────
@@ -64,8 +68,26 @@ class ModemRotatorService extends ChangeNotifier {
   int getRemainingCooldownSeconds(String profileId) {
     final last = _lastRotated[profileId];
     if (last == null) return 0;
+    
+    final health = _healthService.getHealth(profileId, getProfileLogs(profileId, 50));
+    
+    // Healthy Mobile Cooldown: 
+    // Low Risk: 5 mins (300s)
+    // Medium Risk: 10 mins (600s)
+    // High/Critical: 30 mins (1800s)
+    int cooldown;
+    switch (health.risk) {
+      case RiskLevel.low:
+        cooldown = 300;
+        break;
+      case RiskLevel.medium:
+        cooldown = 600;
+        break;
+      default:
+        cooldown = 1800;
+    }
+
     final diff = DateTime.now().difference(last).inSeconds;
-    const cooldown = 15; // Global cooldown between rotations
     return (cooldown - diff).clamp(0, cooldown);
   }
 
@@ -100,6 +122,11 @@ class ModemRotatorService extends ChangeNotifier {
     _activeProfileName = profileName;
     _isBusy = true;
     notifyListeners();
+
+    // Task 5: Natural Operational Cadence (Randomized Human Pause)
+    final naturalPause = 5 + (Random().nextInt(10)); 
+    AppLogger.instance.info(LogTag.rotate, 'Observing natural pause ($naturalPause s) before initiation...', profileId: profileId);
+    await Future.delayed(Duration(seconds: naturalPause));
 
     final stopwatch = Stopwatch()..start();
     const stabilizationSeconds = 5;
@@ -193,6 +220,15 @@ class ModemRotatorService extends ChangeNotifier {
         throw const RotationException(RotationErrorType.ipNotChanged, 'IP did not change');
       }
 
+      // Task 1 & 3: ASN Coherence Check
+      if (oldInfo != null && oldInfo.isp != newInfo.isp) {
+         AppLogger.instance.warn(
+           LogTag.rotate, 
+           'Network Continuity Event: ASN Shift detected (${oldInfo.isp} -> ${newInfo.isp})', 
+           profileId: profileId
+         );
+      }
+
       success = true;
       _lastIpInfos[profileId] = newInfo;
       _consecutiveFailures[profileId] = 0;
@@ -264,14 +300,19 @@ class ModemRotatorService extends ChangeNotifier {
 
   void _scheduleReset(String profileId) {
     Future.delayed(const Duration(seconds: 5), () {
-      if (_states[profileId] == RotationState.success || _states[profileId] == RotationState.failed) {
-        if (_activeProfileId == profileId) {
-           _activeProfileId = null;
-           _activeProfileName = null;
-        }
-        _states[profileId] = RotationState.idle;
-        notifyListeners();
+      // Clear global tracking so the overlay/progress bar disappears
+      if (_activeProfileId == profileId) {
+        _activeProfileId = null;
+        _activeProfileName = null;
       }
+      
+      // If it failed, reset to idle so user can retry clearly.
+      // If it succeeded, STAY at success so the Launch button remains active.
+      if (_states[profileId] == RotationState.failed) {
+        _states[profileId] = RotationState.idle;
+      }
+      
+      notifyListeners();
     });
   }
 

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sec_tunnel/models/fingerprint_config.dart';
-import 'package:sec_tunnel/services/fingerprint/fingerprint_injector.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/agro_injector.dart';
 import 'package:sec_tunnel/services/proxy/modem_rotator_service.dart';
 import 'package:http/http.dart' as http;
 
@@ -63,20 +63,19 @@ class _StealthAuditScreenState extends State<StealthAuditScreen> with TickerProv
         },
       ),
       AuditTask(
-        name: "Loading Fingerprint Injection Scripts...",
+        name: "Verifying Native Identity Coherence...",
         action: () async {
           // Verify that the orchestrator can generate a valid, non-empty AgroInjector payload
-          final injector = FingerprintInjector(widget.config);
-          final script = injector.generateInjectionScript();
-          return script.isNotEmpty && script.contains('AgroInjector');
+          final script = AgroInjector.generate(widget.config);
+          return script.isNotEmpty && script.contains('IntegrityKernel');
         },
       ),
       AuditTask(
-        name: "Validating Device Presets & Canvas Noise...",
+        name: "Validating Device Presets & Native Realism...",
         action: () async {
-          // Verify consistency of the active DevicePreset and entropy seeds
+          // Verify consistency of the active DevicePreset and core identity parameters
           return widget.config.screenResolution.width > 0 && 
-                 widget.config.sessionBoundSeed != 0;
+                 widget.config.userAgent.isNotEmpty;
         },
       ),
       AuditTask(

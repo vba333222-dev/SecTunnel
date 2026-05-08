@@ -107,7 +107,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF000000),
+      backgroundColor: Colors.white,
       body: Center(
         child: AnimatedBuilder(
           animation: _fadeController,
@@ -119,37 +119,28 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ShaderMask(
-                      shaderCallback: (bounds) => const LinearGradient(
-                        colors: [Colors.tealAccent, Colors.cyanAccent],
-                      ).createShader(bounds),
-                      child: const Text(
-                        'SecTunnel',
-                        style: TextStyle(
-                          fontSize: 42,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: 2,
-                        ),
-                      ),
+                    Image.asset(
+                      'assets/images/splash_logo.png',
+                      width: 200,
+                      fit: BoxFit.contain,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'v1.2.3',
+                    const SizedBox(height: 24),
+                    const Text(
+                      'v2.0.0',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.white.withValues(alpha: 0.5),
-                        letterSpacing: 4,
+                        color: Color(0xFF64748B),
+                        letterSpacing: 2,
                       ),
                     ),
                     const SizedBox(height: 48),
                     SizedBox(
                       width: 24,
                       height: 24,
-                      child: CircularProgressIndicator(
+                      child: const CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.tealAccent.withValues(alpha: 0.7),
+                          Color(0xFF2563EB),
                         ),
                       ),
                     ),

@@ -4,11 +4,11 @@ import 'package:sec_tunnel/models/browser_profile.dart';
 import 'package:sec_tunnel/models/fingerprint_config.dart';
 import 'package:sec_tunnel/models/proxy_config.dart';
 import 'package:sec_tunnel/repositories/profile_repository.dart';
-import 'package:sec_tunnel/services/fingerprint/scripts/presets/device_preset.dart';
+import 'package:sec_tunnel/models/identity/master_identity.dart';
 import 'package:sec_tunnel/services/proxy/modem_rotator_service.dart';
 import 'package:sec_tunnel/ui/browser/browser_screen.dart';
 import 'package:sec_tunnel/ui/debug/debug_panel.dart';
-import 'package:sec_tunnel/services/fingerprint/scripts/presets/preset_repository.dart';
+import 'package:sec_tunnel/services/fingerprint/scripts/presets/master_preset_repository.dart';
 
 import 'widgets/preset_selector_widget.dart';
 import 'widgets/big_rotate_button.dart';
@@ -16,6 +16,7 @@ import 'widgets/status_card_widget.dart';
 import 'widgets/activity_log_widget.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:sec_tunnel/ui/security/stealth_audit_screen.dart';
+import 'package:sec_tunnel/ui/identity_assembly/identity_assembly_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ProfileRepository repository;
@@ -32,7 +33,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   static const String globalSessionId = 'global_active_session';
 
-  DevicePreset? _selectedPreset;
+  MasterIdentity? _selectedIdentity;
 
   // Advanced settings controllers
   final TextEditingController _proxyHostController = TextEditingController();
@@ -61,11 +62,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     // Smart Default: Auto-select a preset if none is chosen
-    if (_selectedPreset == null) {
-      final defaultPreset = PresetRepository.presets.where((p) => p.category == 'mobile').firstOrNull ??
-                            PresetRepository.presets.firstOrNull;
+    if (_selectedIdentity == null) {
+      final presets = MasterPresetRepository.getPresets();
+      final defaultPreset = presets.where((p) => p.platform.isMobile).firstOrNull ??
+                            presets.firstOrNull;
       if (defaultPreset != null) {
-        _selectedPreset = defaultPreset;
+        _selectedIdentity = defaultPreset;
       }
     }
 
@@ -85,8 +87,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  void _navigateToAssembly() async {
+    final result = await Navigator.push<MasterIdentity>(
+      context,
+      MaterialPageRoute(builder: (context) => const IdentityAssemblyScreen()),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _selectedIdentity = result;
+      });
+    }
+  }
+
   Future<bool> _saveAndRotate() async {
-    if (_selectedPreset == null) {
+    if (_selectedIdentity == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please select a device preset first.')),
@@ -112,7 +127,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       id: globalSessionId,
       name: 'Active Session',
       proxyConfig: proxyConfig,
-      fingerprintConfig: FingerprintConfig.fromPreset(_selectedPreset!),
+      fingerprintConfig: FingerprintConfig.fromIdentity(_selectedIdentity!),
       userDataFolder: userDataPath,
       keepAliveEnabled: true,
       createdAt: DateTime.now(),
@@ -215,12 +230,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: IconButton(
               icon: const Icon(Icons.security_rounded, color: Colors.greenAccent),
               onPressed: () {
-                if (_selectedPreset != null) {
+                if (_selectedIdentity != null) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => StealthAuditScreen(
-                        config: FingerprintConfig.fromPreset(_selectedPreset!),
+                        config: FingerprintConfig.fromIdentity(_selectedIdentity!),
                       ),
                     ),
                   );
@@ -270,12 +285,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             // Preset Selector
             PresetSelectorWidget(
-              selectedPreset: _selectedPreset,
-              onPresetSelected: (preset) {
-                setState(() {
-                  _selectedPreset = preset;
-                });
-              },
+              selectedIdentity: _selectedIdentity,
+              onTap: _navigateToAssembly,
             ),
             const SizedBox(height: 32),
 

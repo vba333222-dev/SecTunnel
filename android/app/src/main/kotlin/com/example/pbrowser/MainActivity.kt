@@ -18,6 +18,7 @@ import android.view.View
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.example.pbrowser/proxy"
     private val TAG = "PBrowserProxy"
+    private var currentSuffix: String? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -46,16 +47,26 @@ class MainActivity: FlutterActivity() {
                 if (profileId != null) {
                     try {
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                            android.webkit.WebView.setDataDirectorySuffix(profileId)
-                            Log.i(TAG, "WebView data directory suffix set to: $profileId")
-                            result.success(true)
+                            // Check if suffix was already set in this process
+                            if (currentSuffix == null) {
+                                android.webkit.WebView.setDataDirectorySuffix(profileId)
+                                currentSuffix = profileId
+                                Log.i(TAG, "WebView data directory suffix set to: $profileId")
+                                result.success(true)
+                            } else if (currentSuffix == profileId) {
+                                // Already set to correct ID
+                                result.success(true)
+                            } else {
+                                // CONFLICT: Cannot change suffix after WebView instantiation
+                                Log.e(TAG, "FATAL: Attempted to switch profile directory from $currentSuffix to $profileId without process restart.")
+                                result.error("RESTART_REQUIRED", "Process must be restarted to switch profiles ($currentSuffix -> $profileId)", null)
+                            }
                         } else {
                             Log.w(TAG, "setDataDirectorySuffix requires API level 28+")
                             result.success(false)
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to set WebView data directory suffix: ${e.message}")
-                        // IllegalStateException if WebView was already instantiated or suffix already set
                         result.success(false)
                     }
                 } else {

@@ -10,7 +10,7 @@ import 'package:sec_tunnel/models/browser_profile.dart';
 import 'package:sec_tunnel/models/user_script.dart' as models;
 import 'package:sec_tunnel/models/fingerprint_config.dart';
 import 'package:sec_tunnel/models/proxy_config.dart';
-import 'package:sec_tunnel/services/fingerprint/fingerprint_injector.dart';
+import 'package:sec_tunnel/services/fingerprint/fingerprint_engine.dart';
 import 'package:sec_tunnel/services/browser/cookie_manager_service.dart';
 import 'package:sec_tunnel/services/browser/userscript_service.dart';
 import 'package:sec_tunnel/services/proxy/proxy_health_check.dart';
@@ -179,9 +179,11 @@ class BrowserController extends ChangeNotifier {
       incognito: false,
     );
 
-    // Prepare UserScripts for Anti-Detect mechanism
-    final injector = FingerprintInjector(activeFingerprint);
-    generatedUserScripts = injector.generateUserScripts();
+    // Prepare UserScripts for Anti-Detect mechanism (V2 Engine)
+    final identity = activeFingerprint.toMasterIdentity();
+    final engine = FingerprintEngine(identity);
+    engine.initialize(); // Validates cross-layer coherence
+    generatedUserScripts = engine.generateUserScripts();
 
     // Load cookies from SQLite DB securely
     try {
@@ -603,7 +605,9 @@ class BrowserController extends ChangeNotifier {
     if (webViewController != null) {
       try {
         webViewController!.loadUrl(urlRequest: URLRequest(url: WebUri('about:blank')));
-        InAppWebViewController.clearAllCache();
+        if (profile.clearBrowsingData) {
+          InAppWebViewController.clearAllCache();
+        }
         webViewController!.dispose();
       } catch (e) {
         debugPrint('[Browser] Error during WebView dispose cleanup: $e');

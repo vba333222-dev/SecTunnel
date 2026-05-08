@@ -1,9 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:sec_tunnel/services/fingerprint/session_seed.dart';
-import 'package:sec_tunnel/services/fingerprint/scripts/presets/device_preset.dart';
-import 'package:sec_tunnel/services/fingerprint/scripts/presets/preset_repository.dart';
-import 'package:sec_tunnel/services/fingerprint/scripts/presets/preset_variation.dart';
+import 'package:sec_tunnel/models/identity/master_identity.dart';
 
 /// Geolocation configuration
 class GeolocationConfig {
@@ -25,9 +23,9 @@ class GeolocationConfig {
   
   factory GeolocationConfig.fromJson(Map<String, dynamic> json) {
     return GeolocationConfig(
-      latitude: json['latitude'] as double,
-      longitude: json['longitude'] as double,
-      accuracy: json['accuracy'] as double? ?? 50.0,
+      latitude: (json['latitude'] as num).toDouble(),
+      longitude: (json['longitude'] as num).toDouble(),
+      accuracy: (json['accuracy'] as num?)?.toDouble() ?? 50.0,
     );
   }
 }
@@ -88,6 +86,11 @@ class FingerprintConfig {
   final String language;
   final int hardwareConcurrency;
   final int deviceMemory;
+  final String deviceClass;
+  final String os;
+  final String browserEngine;
+  final String gpuFamily;
+  final String cpu;
   final int maxTouchPoints;
   final double devicePixelRatio;
   final ScreenResolution screenResolution;
@@ -104,6 +107,11 @@ class FingerprintConfig {
     required this.language,
     required this.hardwareConcurrency,
     required this.deviceMemory,
+    required this.deviceClass,
+    required this.os,
+    required this.browserEngine,
+    required this.gpuFamily,
+    required this.cpu,
     this.maxTouchPoints = 0,
     this.devicePixelRatio = 1.0,
     required this.screenResolution,
@@ -113,7 +121,7 @@ class FingerprintConfig {
     this.timezone = 'Asia/Jakarta',
     this.geolocation,
   });
-  
+
   String get secChUa {
     final match = RegExp(r'Chrome\/([0-9]+)').firstMatch(userAgent);
     if (match != null) {
@@ -134,9 +142,6 @@ class FingerprintConfig {
     return '"Windows"';
   }
   
-  /// Returns a combined seed using the profile's salt and the global SessionSeed.
-  /// This ensures deterministic variation that is unique per profile but
-  /// changes across different app sessions.
   int get sessionBoundSeed => canvasNoiseSalt.hashCode ^ SessionSeed.getSessionSeed();
   
   Map<String, dynamic> toJson() {
@@ -147,6 +152,11 @@ class FingerprintConfig {
       'language': language,
       'hardwareConcurrency': hardwareConcurrency,
       'deviceMemory': deviceMemory,
+      'deviceClass': deviceClass,
+      'os': os,
+      'browserEngine': browserEngine,
+      'gpuFamily': gpuFamily,
+      'cpu': cpu,
       'maxTouchPoints': maxTouchPoints,
       'devicePixelRatio': devicePixelRatio,
       'screenResolution': screenResolution.toJson(),
@@ -166,6 +176,11 @@ class FingerprintConfig {
       language: json['language'] as String,
       hardwareConcurrency: json['hardwareConcurrency'] as int,
       deviceMemory: json['deviceMemory'] as int,
+      deviceClass: json['deviceClass'] as String? ?? 'phone',
+      os: json['os'] as String? ?? 'Android 14',
+      browserEngine: json['browserEngine'] as String? ?? 'blink',
+      gpuFamily: json['gpuFamily'] as String? ?? 'Mali',
+      cpu: json['cpu'] as String? ?? 'Octa-core',
       maxTouchPoints: json['maxTouchPoints'] as int? ?? 0,
       devicePixelRatio: (json['devicePixelRatio'] as num?)?.toDouble() ?? 1.0,
       screenResolution: ScreenResolution.fromJson(
@@ -206,6 +221,11 @@ class FingerprintConfig {
       language: language ?? this.language,
       hardwareConcurrency: hardwareConcurrency ?? this.hardwareConcurrency,
       deviceMemory: deviceMemory ?? this.deviceMemory,
+      deviceClass: deviceClass,
+      os: os,
+      browserEngine: browserEngine,
+      gpuFamily: gpuFamily,
+      cpu: cpu,
       maxTouchPoints: maxTouchPoints ?? this.maxTouchPoints,
       devicePixelRatio: devicePixelRatio ?? this.devicePixelRatio,
       screenResolution: screenResolution ?? this.screenResolution,
@@ -225,61 +245,89 @@ class FingerprintConfig {
     );
   }
   
-  /// Generate a random fingerprint configuration
-  /// Whether this config targets a mobile device
-  bool get isMobile {
-    final p = platform.toLowerCase();
-    return p.contains('iphone') || p.contains('ipad') || p.contains('arm');
-  }
-
-  /// Whether this config targets a desktop device
+  bool get isMobile => deviceClass != 'pc';
   bool get isDesktop => !isMobile;
 
-  factory FingerprintConfig.fromPreset(DevicePreset preset) {
+  factory FingerprintConfig.fromIdentity(MasterIdentity identity) {
     return FingerprintConfig(
-      userAgent: preset.userAgent,
-      platform: preset.platform,
-      vendor: preset.vendor, 
-      language: preset.locale,
-      hardwareConcurrency: preset.hardwareConcurrency,
-      deviceMemory: preset.deviceMemory,
-      maxTouchPoints: preset.maxTouchPoints,
-      devicePixelRatio: preset.devicePixelRatio,
+      userAgent: identity.engine.userAgent,
+      platform: identity.platform.os == 'Android' ? 'Linux armv8l' : 'Win32',
+      vendor: 'Google Inc.', 
+      language: identity.geography.locale,
+      hardwareConcurrency: identity.hardware.hardwareConcurrency,
+      deviceMemory: identity.hardware.deviceMemory,
+      deviceClass: identity.platform.deviceClass,
+      os: identity.platform.os,
+      browserEngine: identity.engine.name,
+      gpuFamily: identity.hardware.gpu.renderer,
+      cpu: identity.hardware.cpu.model,
+      maxTouchPoints: identity.platform.isMobile ? 5 : 0,
+      devicePixelRatio: identity.platform.screen.pixelRatio,
       screenResolution: ScreenResolution(
-        width: preset.screenWidth,
-        height: preset.screenHeight,
-        colorDepth: 24,
+        width: identity.platform.screen.width,
+        height: identity.platform.screen.height,
+        colorDepth: identity.platform.screen.colorDepth,
       ),
-      timezone: preset.timezone,
+      timezone: identity.geography.timezone,
       webglConfig: WebGLConfig(
-        vendor: preset.gpuVendor,
-        renderer: preset.gpuRenderer,
+        vendor: identity.hardware.gpu.vendor,
+        renderer: identity.hardware.gpu.renderer,
       ),
       canvasNoiseSalt: _generateRandomSalt(),
-      webrtcEnabled: false, // Defaulting to false for safety
+      webrtcEnabled: false,
     );
   }
 
-  factory FingerprintConfig.random() {
-    // Better strategy: Pick a random high-fidelity preset and apply variation
-    final random = Random();
-    final presets = PresetRepository.presets;
-    final basePreset = presets[random.nextInt(presets.length)];
-    
-    // Apply variation with a random seed
-    final variedPreset = PresetVariation.applyVariation(basePreset, random.nextInt(1000000));
-    
-    return FingerprintConfig.fromPreset(variedPreset);
-  }
-  
   static String _generateRandomSalt() {
     final random = Random();
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     return List.generate(32, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
-  /// Public alias so external callers (e.g. ProfileFormScreen) can generate
-  /// a fresh canvas noise salt without triggering a full [FingerprintConfig.random].
   static String generateNewSalt() => _generateRandomSalt();
+
+  MasterIdentity toMasterIdentity() {
+    final seedStr = SessionSeed.getSessionSeed().toRadixString(16);
+    
+    return MasterIdentity(
+      id: 'derived_\${userAgent.hashCode}',
+      metadata: IdentityMetadata(label: 'Derived Profile', tier: 'mid'),
+      engine: EngineConstraints(
+        name: 'Blink',
+        chromiumVersion: '124.0.6367.82',
+        v8Version: '12.4.254.15',
+        userAgent: userAgent,
+      ),
+      platform: PlatformIdentity(
+        os: os,
+        osVersion: '14',
+        architecture: isMobile ? 'arm64' : 'x86_64',
+        deviceClass: deviceClass,
+        isMobile: isMobile,
+        screen: ScreenIdentity(
+          width: screenResolution.width,
+          height: screenResolution.height,
+          pixelRatio: devicePixelRatio,
+        ),
+      ),
+      hardware: HardwareIdentity(
+        cpu: CpuIdentity(model: cpu, architecture: isMobile ? 'arm' : 'x86'),
+        gpu: GpuIdentity(
+          vendor: webglConfig.vendor,
+          renderer: webglConfig.renderer,
+          extensions: [], 
+          limits: {},
+        ),
+        deviceMemory: deviceMemory,
+        hardwareConcurrency: hardwareConcurrency,
+      ),
+      geography: GeographyIdentity(
+        timezone: timezone,
+        locale: language,
+        languages: [language, 'en'],
+      ),
+      sessionSeed: seedStr,
+    );
+  }
 }
 
